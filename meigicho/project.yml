@@ -50,6 +50,11 @@ settings:
     # （AdRendererFactory / F1-6 / AC-AD-36）。実 ID は AdMob 管理画面で発行する（plan.md U1）。
     # 例) ADMOB_APP_ID: ca-app-pub-0123456789012345~0123456789
     ADMOB_APP_ID: ""
+    # 広告ユニット ID（Stage 1 のバナー 3 面のみ。空なら該当面の枠は高さ 0）。
+    # Stage 2（ホーム/申込一覧のネイティブ・リワード）のユニットは Stage 2 で追加する。
+    ADMOB_UNIT_IDENTITIES_BANNER: ""
+    ADMOB_UNIT_TOURTABLE_BANNER: ""
+    ADMOB_UNIT_IDENTITYDETAIL_BANNER: ""
   configs:
     Debug:
       API_BASE_URL: http://localhost:8080
@@ -99,6 +104,9 @@ targets:
         # AdMob SDK が要求する Info.plist キー。値が空でも SDK 自体は初期化しない
         # （AdRendererFactory が ADMOB_APP_ID 空文字を検出して DisabledAdRenderer を返すため）。
         GADApplicationIdentifier: $(ADMOB_APP_ID)
+        ADMOB_UNIT_IDENTITIES_BANNER: $(ADMOB_UNIT_IDENTITIES_BANNER)
+        ADMOB_UNIT_TOURTABLE_BANNER: $(ADMOB_UNIT_TOURTABLE_BANNER)
+        ADMOB_UNIT_IDENTITYDETAIL_BANNER: $(ADMOB_UNIT_IDENTITYDETAIL_BANNER)
         # ASWebAuthenticationSession のコールバック（reversed client ID スキーム）
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor

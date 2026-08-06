@@ -1,7 +1,11 @@
 import Foundation
+import SwiftUI
+import UIKit
 import Domain
 import Network
 import DataStore
+import DesignSystem
+import Features
 import SwiftData
 
 /// Composition Root。`Info.plist` の `API_BASE_URL` を読み、クライアントと Repository を組み立てる。
@@ -45,6 +49,17 @@ final class AppEnvironment {
     let reachability: Reachability?
     /// ホームの同期バナーが購読する状態（`Features` からは `Domain.SyncStatusStore` として見える）
     let syncStatusStore: SyncStatusStore
+
+    // MARK: - 広告（admob-integration Stage 1）
+
+    /// 表示可否（`AdGatekeeper`）とセッション状態。SDK には依存しない
+    let adsStore: AdsStore
+    /// SDK 実装。`ADMOB_APP_ID` が空なら `DisabledAdRenderer`（F1-6 / AC-AD-36）
+    let adRenderer: any DesignSystem.AdRenderer
+    /// `Features` に App 層の値（ユニット ID・到達性）を渡す橋（IOS-5）
+    private(set) var adsBridge: AdsBridge = .noop
+    /// バックグラウンドに入った時刻。復帰時のセッション判定に使う（Q10 / AC-AD-28）
+    private var backgroundedAt: Date?
 
     init(baseURL: URL, useInMemoryStores: Bool) {
         configuration = ApiConfiguration(baseURL: baseURL)
@@ -102,6 +117,67 @@ final class AppEnvironment {
         sharedBoardTokenStore = useInMemoryStores
             ? InMemorySharedBoardTokenStore()
             : KeychainSharedBoardTokenStore()
+
+        // 広告。UI テストでは SDK にもネットワークにも触らせない（`DisabledAdRenderer` + ユニット ID 空）。
+        // `AdsInitializer.start()` は `GoogleMobileAdsRenderer.init` が呼ぶ（`App/Ads/GoogleMobileAdsRenderer.swift:20`）
+        adsStore = AdsStore()
+        adRenderer = useInMemoryStores ? DisabledAdRenderer() : AdRendererFactory.make()
+        let adsStore = self.adsStore
+        let reachability = self.reachability
+        adsBridge = AdsBridge(
+            unitIDs: useInMemoryStores ? [:] : Self.resolvedAdUnitIDs(),
+            refreshOnline: {
+                guard let reachability else { return }
+                await reachability.refresh()
+                let isOnline = await reachability.isOnline
+                await MainActor.run { adsStore.setOnline(isOnline) }
+            }
+        )
+        observeAdsLifecycle()
+    }
+
+    /// `Info.plist` の `ADMOB_UNIT_*`（`project.yml` の設定から流し込む）。
+    /// 未設定（空文字）の面は辞書に入れず、`AdSlot` 側で高さ 0 になるようにする（E1 / AC-AD-36）。
+    /// Stage 2（ホーム・申込一覧のネイティブ / リワード）のユニット ID はまだ追加していない。
+    private static func resolvedAdUnitIDs() -> [AdPlacement: String] {
+        let keys: [AdPlacement: String] = [
+            .identitiesBottom: "ADMOB_UNIT_IDENTITIES_BANNER",
+            .tourTableBetween: "ADMOB_UNIT_TOURTABLE_BANNER",
+            .identityDetailBottom: "ADMOB_UNIT_IDENTITYDETAIL_BANNER"
+        ]
+        return keys.compactMapValues { key in
+            let value = (Bundle.main.object(forInfoDictionaryKey: key) as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return value.isEmpty ? nil : value
+        }
+    }
+
+    /// 前面復帰で広告セッションを判定し直す（Q10 / AC-AD-28）。
+    ///
+    /// `MeigichoApp.swift` の `scenePhase` 監視は「ログイン済みのときだけ同期する」条件付きで、
+    /// 広告セッションはログイン状態と無関係なので**ここで完結**させる。
+    private func observeAdsLifecycle() {
+        let center = NotificationCenter.default
+        center.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.backgroundedAt = Date() }
+        }
+        center.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // 記録が無い（初回起動直後など）ときは「十分長く落ちていた」と見なしてリセット側に倒す
+                let duration = self.backgroundedAt.map { Date().timeIntervalSince($0) } ?? .greatestFiniteMagnitude
+                self.backgroundedAt = nil
+                self.adsStore.handleForegroundReturn(backgroundDuration: duration)
+            }
+        }
     }
 
     /// `AuthState.signedOut` を受けたときの後始末。
@@ -166,5 +242,16 @@ final class AppEnvironment {
         #else
         return false
         #endif
+    }
+}
+
+extension View {
+    /// 広告の Composition Root 配線（admob-integration T10）。
+    /// `Features` は `AdsStore` / `AdRenderer` / `AdsBridge` を `@Environment` 経由でしか見ない（IOS-5）。
+    func adsEnvironment(_ environment: AppEnvironment) -> some View {
+        self
+            .environment(environment.adsStore)
+            .environment(\.adRenderer, environment.adRenderer)
+            .environment(\.adsBridge, environment.adsBridge)
     }
 }

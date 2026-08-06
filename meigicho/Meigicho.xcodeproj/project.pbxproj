@@ -233,6 +233,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ADMOB_APP_ID = "";
+				ADMOB_UNIT_IDENTITIES_BANNER = "";
+				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
+				ADMOB_UNIT_TOURTABLE_BANNER = "";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				API_BASE_URL = "https://api.meigicho.example";
 				CLANG_ANALYZER_NONNULL = YES;
@@ -335,6 +338,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ADMOB_APP_ID = "";
+				ADMOB_UNIT_IDENTITIES_BANNER = "";
+				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
+				ADMOB_UNIT_TOURTABLE_BANNER = "";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				API_BASE_URL = "http://localhost:8080";
 				CLANG_ANALYZER_NONNULL = YES;

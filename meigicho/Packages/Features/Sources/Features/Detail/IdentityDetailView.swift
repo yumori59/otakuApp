@@ -150,6 +150,9 @@ struct IdentityDetailView: View {
                     }
                 }
             }
+            // 「申込履歴」リストの後、画面最下部にインラインバナー 1 枚（docs/07 §7.2 / F2-5）
+            PlacementAdSlot(placement: .identityDetailBottom)
+                .padding(.top, 8)
         }
     }
 }

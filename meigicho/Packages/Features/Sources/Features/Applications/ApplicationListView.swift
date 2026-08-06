@@ -192,8 +192,13 @@ struct ApplicationsTab: View {
                 if let error = shareLinks.state.error {
                     ErrorBar(error.userMessage) { Task { await shareLinks.load() } }
                 }
-                ForEach(groups) { group in
+                ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     TourGroupView(group: group, path: $path)
+                    // `tour-group` と `tour-group` の**間**に全体で 1 枚だけ（F2-4 / docs/07 §7.2）。
+                    // 表（Grid）の内側には絶対に入れない。グループが 1 つしか無いときは出さない
+                    if index == 0, groups.count > 1 {
+                        PlacementAdSlot(placement: .tourTableBetween)
+                    }
                 }
             }
         }
@@ -285,6 +290,8 @@ struct TourGroupView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(ShareLinkStore.self) private var shareLinks
     @Environment(SheetPresenter.self) private var sheetPresenter
+    /// 当落ステータス切り替え後 60 秒の広告クールダウン（F4-5）の起点を記録するためだけに参照する
+    @Environment(AdsStore.self) private var adsStore
 
     let group: ApplicationStore.TourGroup
     @Binding var path: NavigationPath
@@ -432,6 +439,9 @@ struct TourGroupView: View {
     /// **`status` だけを PATCH する**ので、落選に戻しても座席は消えない（AC-AP-08-M）。
     private func statusCell(_ app: ApplicationEntry) -> some View {
         Button {
+            // 当落が動いた瞬間から 60 秒は全広告を止める（F4-5 / AC-AD-39）。
+            // PATCH の成否を待たずタップ時点で記録する（喜び/落胆の瞬間に枠を出さないことが目的）
+            adsStore.recordStatusChange()
             Task { await applicationStore.updateApplicationStatus(app.id, status: Self.nextStatus(app.status)) }
         } label: {
             Text(app.status.label).font(DSFont.captionBold)

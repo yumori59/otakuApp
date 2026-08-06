@@ -6,6 +6,9 @@ import Core
 struct ApplicationDetailView: View {
     @Environment(IdentityStore.self) private var identityStore
     @Environment(ApplicationStore.self) private var applicationStore
+    /// 当落ステータス切り替え後 60 秒の広告クールダウン（F4-5）の起点を記録するためだけに参照する。
+    /// **この画面に広告枠は置かない**（F3 / AC-AD-35。禁止面のソース走査テストが機械的に担保する）
+    @Environment(AdsStore.self) private var adsStore
     @Environment(\.themeStore) private var theme
     @Binding var path: NavigationPath
 
@@ -89,6 +92,9 @@ struct ApplicationDetailView: View {
         HStack(spacing: 6) {
             ForEach([ApplicationStatus.draft, .applied, .won, .lost], id: \.self) { status in
                 Button {
+                    // 当落が動いた瞬間から 60 秒は全広告を止める（F4-5 / AC-AD-39）。
+                    // **この画面自体は広告禁止面**（F3）なので広告枠は置かない。記録だけ行う
+                    adsStore.recordStatusChange()
                     // `status` だけを PATCH する（落選に戻しても座席は消さない = R3-3）
                     Task { await applicationStore.updateApplicationStatus(app.id, status: status) }
                 } label: {

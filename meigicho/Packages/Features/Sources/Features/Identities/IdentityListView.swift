@@ -113,6 +113,9 @@ struct IdentitiesTab: View {
                     if index < sorted.count - 1 { Divider().padding(.leading, 70) }
                 }
             }
+            // card-list の後、画面最下部にインラインバナー 1 枚（docs/07 §7.2 / F2-2）
+            PlacementAdSlot(placement: .identitiesBottom)
+                .padding(.top, 16)
         }
     }
 

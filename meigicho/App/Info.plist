@@ -4,6 +4,12 @@
 <dict>
 	<key>ADMOB_APP_ID</key>
 	<string>$(ADMOB_APP_ID)</string>
+	<key>ADMOB_UNIT_IDENTITIES_BANNER</key>
+	<string>$(ADMOB_UNIT_IDENTITIES_BANNER)</string>
+	<key>ADMOB_UNIT_IDENTITYDETAIL_BANNER</key>
+	<string>$(ADMOB_UNIT_IDENTITYDETAIL_BANNER)</string>
+	<key>ADMOB_UNIT_TOURTABLE_BANNER</key>
+	<string>$(ADMOB_UNIT_TOURTABLE_BANNER)</string>
 	<key>API_BASE_URL</key>
 	<string>$(API_BASE_URL)</string>
 	<key>CFBundleDevelopmentRegion</key>
