@@ -4,7 +4,9 @@
 各計画の詳細は `docs/plans/<feature>/` 配下（`requirements.md` / `api-contract*.md` / `plan.md` / `review.md`）を正とする。
 本ファイルは索引であり、内容が古くなったら都度更新する（作業開始・完了のたびに反映すること）。
 
-最終更新: 2026-08-05
+最終更新: 2026-08-07
+
+**未マージの作業ブランチ**: `work/ios-sync-engine-t3-t4`（worktree: `.claude/worktrees/ios-sync-engine-t3-t4`）— 同期エンジンT3+T4実装・レビュー済み・重大ゼロ。main へのマージはユーザー確認待ち。
 
 ---
 
@@ -178,7 +180,7 @@ App Store Review Guideline 2.5 対応。`DELETE /v1/me`（BE）+ アカウント
 |---|---|---|
 | `GET /v1/stats/identities` iOS 接続（Store + 名義一覧/詳細の当選数） | ✅ | `docs/04` §3.5 |
 | 統計画面（タブ・グラフ・Plus ソフトウォール） | ❌ | `docs/09` 1-5 / `docs/07` §6.2-C |
-| 同期エンジン（DataStore + SyncEngine） | 📋 T0–T2 ✅（identities 同期）→ 次 T3 他コレクション / T4 配線 | `docs/plans/ios-sync-engine/` |
+| 同期エンジン（DataStore + SyncEngine） | ✅ T0–T4 完了（レビュー: 初回重大2→修正→再レビューで重大ゼロ）。T5（デバウンス・低データモード骨格）は未着手 | `docs/plans/ios-sync-engine/` |
 
 ---
 
