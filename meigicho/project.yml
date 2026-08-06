@@ -28,7 +28,8 @@ packages:
   # RevenueCat:
   #   url: https://github.com/RevenueCat/purchases-ios
   #   from: 5.14.0
-  # GoogleMobileAds: 衝突調査 Spike（docs/plans 未作成、AdsSpike.swift のみで実測）
+  # GoogleMobileAds: Stage 1（バナーのみ）導入済み。衝突調査は T0 Spike（commit 7db0ed2）で完了。
+  # docs/plans/admob-integration/plan.md §5 Wave2 T9
   GoogleMobileAds:
     url: https://github.com/googleads/swift-package-manager-google-mobile-ads
     from: 11.0.0
@@ -45,6 +46,10 @@ settings:
     GOOGLE_IOS_CLIENT_ID: ""
     GOOGLE_REVERSED_CLIENT_ID: ""
     REVENUECAT_API_KEY: ""
+    # AdMob アプリ ID（GADApplicationIdentifier）。空なら SDK を初期化せず広告枠を描画しない
+    # （AdRendererFactory / F1-6 / AC-AD-36）。実 ID は AdMob 管理画面で発行する（plan.md U1）。
+    # 例) ADMOB_APP_ID: ca-app-pub-0123456789012345~0123456789
+    ADMOB_APP_ID: ""
   configs:
     Debug:
       API_BASE_URL: http://localhost:8080
@@ -88,6 +93,10 @@ targets:
         API_BASE_URL: $(API_BASE_URL)
         GOOGLE_IOS_CLIENT_ID: $(GOOGLE_IOS_CLIENT_ID)
         REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)
+        ADMOB_APP_ID: $(ADMOB_APP_ID)
+        # AdMob SDK が要求する Info.plist キー。値が空でも SDK 自体は初期化しない
+        # （AdRendererFactory が ADMOB_APP_ID 空文字を検出して DisabledAdRenderer を返すため）。
+        GADApplicationIdentifier: $(ADMOB_APP_ID)
         # ASWebAuthenticationSession のコールバック（reversed client ID スキーム）
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
