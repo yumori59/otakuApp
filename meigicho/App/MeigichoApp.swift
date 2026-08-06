@@ -24,6 +24,7 @@ struct MeigichoApp: App {
 
     private let notificationScheduler = NotificationScheduler()
     @State private var notificationDelegateInstalled = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let environment = AppEnvironment.make()
@@ -64,8 +65,10 @@ struct MeigichoApp: App {
                 .environment(purchasesStore)
                 .environment(sheetPresenter)
                 .environment(deepLinkCoordinator)
+                .environment(environment.syncStatusStore)
                 .environment(\.themeStore, themeStore)
                 .environment(\.notificationBridge, notificationBridge)
+                .environment(\.syncActionBridge, syncActionBridge)
                 // `meigicho://share/<token>` の受け口 + 共有ボード用ストアの注入（T4b）
                 .sharedBoardDeepLink(environment: environment)
                 .onOpenURL { url in
@@ -129,7 +132,46 @@ struct MeigichoApp: App {
                         await rescheduleNotificationsIfAuthorized()
                     }
                 }
+                .task(id: authStore.state) {
+                    // ローカルファースト同期（ios-sync-engine T4）。
+                    // ログイン後に起動同期を1回走らせ、ログアウトでは前ユーザーのローカルデータ+
+                    // カーソルを消す（他アカウント混入防止・T3 申し送り事項1）。
+                    // **オフライン起動の `.signedOut` では消さない**（`resetLocalStoreIfSessionCleared`）
+                    guard authStore.state == .signedIn else {
+                        if authStore.state == .signedOut {
+                            await environment.resetLocalStoreIfSessionCleared()
+                        }
+                        return
+                    }
+                    await environment.reachability?.start()
+                    await syncAndRefresh(reason: .launch)
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .active, authStore.state == .signedIn else { return }
+                    Task {
+                        await environment.reachability?.refresh()
+                        await syncAndRefresh(reason: .foreground)
+                    }
+                }
         }
+    }
+
+    /// `Features/Home` の同期バナーが手動再試行で呼ぶ橋（`SyncEngine` は `Features` から直接見えない — AC-SY-05）
+    private var syncActionBridge: SyncActionBridge {
+        SyncActionBridge {
+            await syncAndRefresh(reason: .manual)
+        }
+    }
+
+    /// 同期サイクルを 1 回（多重起動は畳む）走らせ、**終わってからローカル SSoT を読む Store を読み直す**。
+    /// pull した内容は SwiftData に入るだけで Store は自動更新されないため、ここで縦串を閉じる（IOS-3）。
+    @MainActor
+    private func syncAndRefresh(reason: SyncTrigger) async {
+        guard let engine = environment.syncEngine else { return }
+        await engine.syncNow(reason: reason)
+        async let identities: Void = identityStore.load()
+        async let applications: Void = applicationStore.load()
+        _ = await (identities, applications)
     }
 
     private var notificationBridge: NotificationBridge {

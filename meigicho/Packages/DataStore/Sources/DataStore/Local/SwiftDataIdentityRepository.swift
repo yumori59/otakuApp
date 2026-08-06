@@ -64,23 +64,10 @@ public actor SwiftDataIdentityRepository: IdentityRepository {
     }
 
     private func enqueueOutbox(targetID: UUID, in context: ModelContext) {
-        let descriptor = FetchDescriptor<OutboxEntry>(
-            predicate: #Predicate { $0.targetID == targetID }
-        )
-        if let existing = try? context.fetch(descriptor).first {
-            existing.enqueuedAt = Date()
-            existing.attemptCount = 0
-            existing.lastError = nil
-            existing.nextRetryAt = nil
-            return
-        }
-        context.insert(OutboxEntry(collection: .identities, targetID: targetID))
+        OutboxQueue.enqueue(collection: .identities, targetID: targetID, in: context)
     }
 
     private func fetchRecord(id: UUID, in context: ModelContext) throws -> IdentityRecord? {
-        let descriptor = FetchDescriptor<IdentityRecord>(
-            predicate: #Predicate { $0.id == id }
-        )
-        return try context.fetch(descriptor).first
+        try IdentityRecord.fetchRecord(id: id, in: context)
     }
 }
