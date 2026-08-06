@@ -29,8 +29,22 @@ public struct SyncStatusSink: Sendable {
     }
 }
 
-/// identities のみの同期サイクル（ios-sync-engine T2）。
+/// 全コレクションの同期サイクル（ios-sync-engine T3）。
+/// push → pull → ローカル LWW マージ → cursor 更新（`docs/04` §4）。
 public actor SyncEngine {
+    /// 依存順（`docs/04` §4 末尾）。push も pull の適用もこの順で行う。
+    static let orderedCollections: [SyncCollection] = [
+        .identities,
+        .memberships,
+        .tours,
+        .events,
+        .applications,
+        .applicationCompanions,
+    ]
+
+    /// `docs/04` §4.2 の reject コード。
+    static let lwwRejectCode = "SYNC_LWW_REJECT"
+
     private let container: ModelContainer
     private let remote: any SyncRepository
     private let reachability: Reachability
@@ -46,7 +60,7 @@ public actor SyncEngine {
         reachability: Reachability,
         statusSink: SyncStatusSink,
         defaults: UserDefaults = .standard,
-        cursorDefaultsKey: String = "meigicho.sync.cursor.identities"
+        cursorDefaultsKey: String = "meigicho.sync.cursor.v1"
     ) {
         self.container = container
         self.remote = remote
@@ -86,8 +100,8 @@ public actor SyncEngine {
 
         await statusSink.apply(.syncing)
         do {
-            try await drainIdentities()
-            try await pullIdentities()
+            try await drainOutbox()
+            try await pullAll()
             let pending = try await countPending()
             await statusSink.setPendingCount(pending)
             await statusSink.apply(.upToDate(at: Date()))
@@ -97,36 +111,55 @@ public actor SyncEngine {
         }
     }
 
-    private func drainIdentities() async throws {
+    /// Outbox のドレイン → 1 回の push。依存順（identities → … → companions）で並べる。
+    private func drainOutbox() async throws {
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<IdentityRecord>(
-            predicate: #Predicate { $0.syncStateRaw != 0 },
-            sortBy: [SortDescriptor(\.updatedAt)]
-        )
-        let pending = try context.fetch(descriptor)
+        let pending = try Self.pendingRecords(in: context)
         guard !pending.isEmpty else { return }
 
         let mutations = pending.map { record in
             SyncMutation(
-                collection: .identities,
-                id: record.id,
-                updatedAt: record.updatedAt,
+                collection: type(of: record).syncCollection,
+                id: record.recordID,
+                updatedAt: record.recordUpdatedAt,
                 payload: record.syncPayload()
             )
         }
 
         let result = try await remote.push(mutations: mutations)
         let accepted = Set(result.accepted)
+        let rejections = Dictionary(
+            result.rejected.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
-        for record in pending where accepted.contains(record.id) {
-            record.syncState = .synced
-            record.remoteUpdatedAt = record.updatedAt
-            try removeOutbox(targetID: record.id, in: context)
+        var rewindPoints: [Date?] = []
+        for record in pending {
+            if accepted.contains(record.recordID) {
+                record.markSynced()
+                try OutboxQueue.remove(targetID: record.recordID, in: context)
+                continue
+            }
+            guard let rejection = rejections[record.recordID] else { continue }
+            try OutboxQueue.recordFailure(
+                targetID: record.recordID,
+                message: "\(rejection.code): \(rejection.message)",
+                in: context
+            )
+            if rejection.code == Self.lwwRejectCode {
+                // サーバー側が新しい。次の pull で必ずサーバー値に上書きされるようにする（AC-SY-03）。
+                record.markConflicted()
+                rewindPoints.append(record.remoteUpdatedAt)
+            }
         }
         try context.save()
+
+        if !rewindPoints.isEmpty {
+            rewindCursor(before: rewindPoints)
+        }
     }
 
-    private func pullIdentities() async throws {
+    private func pullAll() async throws {
         var cursor = lastPulledAt
         var hasMore = true
         var guardCounter = 0
@@ -134,7 +167,7 @@ public actor SyncEngine {
         while hasMore && guardCounter < 20 {
             guardCounter += 1
             let result = try await remote.pull(
-                SyncPullRequest(cursor: cursor, collections: [.identities])
+                SyncPullRequest(cursor: cursor, collections: Self.orderedCollections)
             )
             try applyPull(result)
             if let next = result.nextCursor {
@@ -145,75 +178,63 @@ public actor SyncEngine {
         }
     }
 
+    /// 依存順に適用する（親が無い状態で子を入れない）。
     private func applyPull(_ result: SyncPullResult) throws {
         let context = ModelContext(container)
-        let rows = result.changes[.identities] ?? []
-        for object in rows {
-            guard let remote = IdentityRecord.parseRemote(object) else { continue }
-            if let local = try fetchRecord(id: remote.id, in: context) {
-                let decision = LWWResolver.resolve(
-                    localUpdatedAt: local.updatedAt,
-                    remoteUpdatedAt: remote.updatedAt,
-                    remoteDeletedAt: remote.deletedAt
-                )
-                switch decision {
-                case .keepLocal:
-                    continue
-                case .deleteLocal, .takeRemote:
-                    local.applyRemote(
-                        displayName: remote.displayName,
-                        relationRaw: remote.relationRaw,
-                        colorHex: remote.colorHex,
-                        joinedOn: remote.joinedOn,
-                        note: remote.note,
-                        historyVisible: remote.historyVisible,
-                        sortOrder: remote.sortOrder,
-                        updatedAt: remote.updatedAt,
-                        deletedAt: remote.deletedAt
-                    )
-                }
-            } else if remote.deletedAt == nil {
-                let record = IdentityRecord(
-                    id: remote.id,
-                    displayName: remote.displayName,
-                    relationRaw: remote.relationRaw,
-                    colorHex: remote.colorHex,
-                    joinedOn: remote.joinedOn,
-                    note: remote.note,
-                    historyVisible: remote.historyVisible,
-                    sortOrder: remote.sortOrder,
-                    updatedAt: remote.updatedAt,
-                    remoteUpdatedAt: remote.updatedAt,
-                    syncState: .synced,
-                    deletedAt: nil
-                )
-                context.insert(record)
+        for collection in Self.orderedCollections {
+            guard let rows = result.changes[collection], !rows.isEmpty else { continue }
+            for object in rows {
+                try Self.upsertRemote(collection: collection, object: object, in: context)
             }
         }
         try context.save()
     }
 
+    private static func upsertRemote(
+        collection: SyncCollection,
+        object: [String: JSONValue],
+        in context: ModelContext
+    ) throws {
+        switch collection {
+        case .identities: try IdentityRecord.upsertRemote(object, in: context)
+        case .memberships: try MembershipRecord.upsertRemote(object, in: context)
+        case .tours: try TourRecord.upsertRemote(object, in: context)
+        case .events: try EventRecord.upsertRemote(object, in: context)
+        case .applications: try ApplicationRecord.upsertRemote(object, in: context)
+        case .applicationCompanions: try ApplicationCompanionRecord.upsertRemote(object, in: context)
+        }
+    }
+
+    /// 依存順に並べた push 待ちの行。
+    private static func pendingRecords(in context: ModelContext) throws -> [any SyncableRecord] {
+        var records: [any SyncableRecord] = []
+        records += try IdentityRecord.fetchPending(in: context).map { $0 as any SyncableRecord }
+        records += try MembershipRecord.fetchPending(in: context).map { $0 as any SyncableRecord }
+        records += try TourRecord.fetchPending(in: context).map { $0 as any SyncableRecord }
+        records += try EventRecord.fetchPending(in: context).map { $0 as any SyncableRecord }
+        records += try ApplicationRecord.fetchPending(in: context).map { $0 as any SyncableRecord }
+        records += try ApplicationCompanionRecord.fetchPending(in: context).map { $0 as any SyncableRecord }
+        return records
+    }
+
     private func countPending() throws -> Int {
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<IdentityRecord>(
-            predicate: #Predicate { $0.syncStateRaw != 0 }
-        )
-        return try context.fetch(descriptor).count
+        return try Self.pendingRecords(in: context).count
     }
 
-    private func fetchRecord(id: UUID, in context: ModelContext) throws -> IdentityRecord? {
-        let descriptor = FetchDescriptor<IdentityRecord>(
-            predicate: #Predicate { $0.id == id }
-        )
-        return try context.fetch(descriptor).first
-    }
-
-    private func removeOutbox(targetID: UUID, in context: ModelContext) throws {
-        let descriptor = FetchDescriptor<OutboxEntry>(
-            predicate: #Predicate { $0.targetID == targetID }
-        )
-        for entry in try context.fetch(descriptor) {
-            context.delete(entry)
+    /// LWW reject された行のサーバー確定値が cursor より古い場合、そのままでは二度と pull されない。
+    /// 最後に取り込んだサーバー時刻まで cursor を巻き戻す（未 pull の行は全件再取得）。
+    private func rewindCursor(before points: [Date?]) {
+        if points.contains(where: { $0 == nil }) {
+            lastPulledAt = nil
+            return
+        }
+        let oldest = points.compactMap { $0 }.min()
+        guard let oldest else { return }
+        if let current = lastPulledAt {
+            lastPulledAt = min(current, oldest)
+        } else {
+            lastPulledAt = oldest
         }
     }
 
