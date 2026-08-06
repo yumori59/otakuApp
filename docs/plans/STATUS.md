@@ -6,8 +6,6 @@
 
 最終更新: 2026-08-07
 
-**未マージの作業ブランチ**: `work/ios-sync-engine-t3-t4`（worktree: `.claude/worktrees/ios-sync-engine-t3-t4`）— 同期エンジンT3+T4実装・レビュー済み・重大ゼロ。main へのマージはユーザー確認待ち。
-
 ---
 
 ## 方針決定（横断）
