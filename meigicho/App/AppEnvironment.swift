@@ -104,6 +104,17 @@ final class AppEnvironment {
             : KeychainSharedBoardTokenStore()
     }
 
+    /// `AuthState.signedOut` を受けたときの後始末。
+    ///
+    /// **`.signedOut` はログアウトとは限らない**。オフラインで起動して refresh に失敗しただけの場合
+    /// (`SessionRestoreResult.unavailable`) も `.signedOut` になるが、そのとき Keychain の refresh token は
+    /// 残っている。ここでローカルを消すと**未送信の編集が失われる**（AC-SY-04 違反）ので、
+    /// トークンが実際に消えている（= 明示ログアウト / アカウント削除 / サイレントログアウト）ときだけ消す。
+    func resetLocalStoreIfSessionCleared() async {
+        guard await apiClient.currentRefreshToken() == nil else { return }
+        await resetLocalStore()
+    }
+
     /// ログアウト/アカウント削除時に前ユーザーのローカルデータと同期カーソルを消す。
     /// `ownerID` を使ったユーザースコープ絞り込みは未実装のため、
     /// クリアしないと他アカウントのデータが混入する（T3 申し送り事項1）。

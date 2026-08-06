@@ -194,6 +194,24 @@ final class SyncEngineCollectionsTests: XCTestCase {
         XCTAssertEqual(pendingAfterMerge, 0)
     }
 
+    /// `syncNow` は実行中サイクルを待って畳む（Composition Root が完了後に Store を読み直せる）。
+    func testConcurrentSyncNowRunsSingleCycle() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        _ = try await SwiftDataIdentityRepository(container: container).create(
+            Identity(displayName: "本人", relation: .self, colorHex: "#0017C1")
+        )
+
+        let remote = MultiCollectionSyncRepository()
+        let engine = await makeEngine(container: container, remote: remote, statusStore: SyncStatusStore())
+
+        async let first: Void = engine.syncNow(reason: .launch)
+        async let second: Void = engine.syncNow(reason: .foreground)
+        _ = await (first, second)
+
+        let pushCallCount = await remote.snapshotPushCallCount()
+        XCTAssertEqual(pushCallCount, 1)
+    }
+
     /// AC-SY-04: オフライン中の編集は push されず、行と Outbox が残る。
     func testOfflineEditsSurviveWithoutPush() async throws {
         let container = try ModelContainerFactory.makeInMemory()

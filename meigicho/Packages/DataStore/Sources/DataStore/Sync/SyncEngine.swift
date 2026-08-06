@@ -79,8 +79,23 @@ public actor SyncEngine {
         }
     }
 
+    /// 実行中のサイクルがあればそれを待ち、無ければ 1 回走らせて**完了まで待つ**。
+    /// 呼び出し側（Composition Root）は戻ってから Store を読み直せば pull 結果が画面に出る。
+    public func syncNow(reason: SyncTrigger) async {
+        if let currentTask {
+            await currentTask.value
+            return
+        }
+        let task = Task<Void, Never> { [weak self] in
+            await self?.runCycle(reason: reason)
+        }
+        currentTask = task
+        await task.value
+        currentTask = nil
+    }
+
     public func runCycleNow(reason: SyncTrigger = .manual) async {
-        await runCycle(reason: reason)
+        await syncNow(reason: reason)
     }
 
     private func clearTask() {
@@ -102,7 +117,7 @@ public actor SyncEngine {
         do {
             try await drainOutbox()
             try await pullAll()
-            let pending = try await countPending()
+            let pending = try countPending()
             await statusSink.setPendingCount(pending)
             await statusSink.apply(.upToDate(at: Date()))
         } catch {
