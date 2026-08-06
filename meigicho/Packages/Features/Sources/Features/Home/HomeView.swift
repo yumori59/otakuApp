@@ -11,8 +11,11 @@ struct HomeTab: View {
     @Environment(ProfileStore.self) private var profile
     @Environment(SheetPresenter.self) private var sheetPresenter
     @Environment(HomeStore.self) private var homeStore
+    /// ローカルファースト同期の状態（ios-sync-engine T4）。失敗時のみ 1 行表示する（AC-SY-06）
+    @Environment(SyncStatusStore.self) private var syncStatus
     @Environment(\.themeStore) private var theme
     @Environment(\.notificationBridge) private var notifications
+    @Environment(\.syncActionBridge) private var syncAction
     @State private var path = NavigationPath()
     @State private var showActionSheet = false
     /// 共有リンクを受け取った人の入口（URL 貼り付け）。**未ログインでも使える**（T4b / §7.7）
@@ -118,6 +121,13 @@ struct HomeTab: View {
 
     @ViewBuilder
     private var signedInContent: some View {
+        // ローカルファースト同期が失敗しているときだけ 1 行表示（成功は出さない・モーダル禁止 — AC-SY-06）
+        if case .failed(let message) = syncStatus.status {
+            ErrorBar(message) {
+                Task { await syncAction.retry() }
+            }
+            .padding(.bottom, 12)
+        }
         // 読み込み済みの内容は消さず、1 行のエラーバーだけを出す（E-1）
         if let error = applicationStore.applicationsState.error {
             ErrorBar(error.userMessage) {

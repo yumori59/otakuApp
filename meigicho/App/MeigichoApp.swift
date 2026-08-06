@@ -24,6 +24,7 @@ struct MeigichoApp: App {
 
     private let notificationScheduler = NotificationScheduler()
     @State private var notificationDelegateInstalled = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let environment = AppEnvironment.make()
@@ -64,8 +65,10 @@ struct MeigichoApp: App {
                 .environment(purchasesStore)
                 .environment(sheetPresenter)
                 .environment(deepLinkCoordinator)
+                .environment(environment.syncStatusStore)
                 .environment(\.themeStore, themeStore)
                 .environment(\.notificationBridge, notificationBridge)
+                .environment(\.syncActionBridge, syncActionBridge)
                 // `meigicho://share/<token>` の受け口 + 共有ボード用ストアの注入（T4b）
                 .sharedBoardDeepLink(environment: environment)
                 .onOpenURL { url in
@@ -129,6 +132,33 @@ struct MeigichoApp: App {
                         await rescheduleNotificationsIfAuthorized()
                     }
                 }
+                .task(id: authStore.state) {
+                    // ローカルファースト同期（ios-sync-engine T4）。
+                    // ログイン後に起動同期を1回走らせ、ログアウトでは前ユーザーのローカルデータ+
+                    // カーソルを消す（他アカウント混入防止・T3 申し送り事項1）
+                    guard authStore.state == .signedIn else {
+                        if authStore.state == .signedOut {
+                            await environment.resetLocalStore()
+                        }
+                        return
+                    }
+                    await environment.reachability?.start()
+                    await environment.syncEngine?.requestSync(reason: .launch)
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .active, authStore.state == .signedIn else { return }
+                    Task {
+                        await environment.reachability?.refresh()
+                        await environment.syncEngine?.requestSync(reason: .foreground)
+                    }
+                }
+        }
+    }
+
+    /// `Features/Home` の同期バナーが手動再試行で呼ぶ橋（`SyncEngine` は `Features` から直接見えない — AC-SY-05）
+    private var syncActionBridge: SyncActionBridge {
+        SyncActionBridge {
+            await environment.syncEngine?.runCycleNow(reason: .manual)
         }
     }
 
