@@ -29,6 +29,7 @@
 | IOS-3 | **UI だけ在って配線が無い** | ボタン空・Repository 未接続・Sync 未配線。縦串 (UI→Store→Repository→Local/API) が通って完了 |
 | IOS-4 | **仕様にない入力制約 / プラン上限の誤実装** | Free 名義上限など仕様と矛盾するバリデーション。`docs/01` / `07` と突き合わせる |
 | IOS-5 | **パッケージ依存の逆流** | Features が DataStore/Network を直接参照しない（Composition Root で注入）。Domain に SwiftData を持ち込まない（`docs/05`） |
+| IOS-6 | **`AuthState.signedOut` = ログアウトと決めつける** | オフライン起動の復帰失敗 (`SessionRestoreResult.unavailable`) でも `.signedOut` になる。ここでローカル DB / 同期カーソルを消すと未送信の編集が飛ぶ。破棄は Keychain のトークンが実際に消えているかで判定する |
 
 ---
 
