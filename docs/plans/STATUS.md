@@ -165,8 +165,12 @@ App Store Review Guideline 2.5 対応。`DELETE /v1/me`（BE）+ アカウント
 | StoreKit 2 + RevenueCat SDK（購入・復元・Offering 表示） | ✅ | `docs/07` §9, `05` §7 |
 | BE RevenueCat Webhook → `entitlements` ミラー | ✅ | `docs/07` §9.2, `docs/plans/backend-domain-modules/` |
 | 本番課金の有効化（API キー・ASC プロダクト・RC Offering） | ⏳ 手動 | `docs/07` §9.1 |
-| AdMob（バナー・ネイティブ・リワード） | ❌ | `docs/07` §7, `09` 1-11 |
-| `AdSlot` / 広告禁止画面の型ガード | ❌ | `docs/05` §7 |
+| AdMob（バナー・ネイティブ・リワード） | 📝 計画済（未着手） | `docs/plans/admob-integration/`, `docs/07` §7, `09` 1-11 |
+| `AdSlot` / 広告禁止画面の型ガード | 📝 計画済（未着手） | `docs/plans/admob-integration/plan.md` §4 D3 |
+| リワード SSV（`GET /v1/webhooks/admob-ssv` + `rewarded_ad_claims`） | 📝 計画済（未着手） | `docs/plans/admob-integration/api-contract-delta.md` |
+
+**AdMob 計画（2026-08-07 起票）**: `docs/plans/admob-integration/`。**実装着手前に `questions-requirements.md` の Q1〜Q4 の回答が必要**（Q1: 自作 `Network` パッケージ名衝突とリネーム／Q2: ATT の要否で `docs/08 §2.8` と `docs/05 §7`・`docs/09` 1-11 が矛盾／Q3: ボーナス同時枠 1 か 2 かで `docs/07` と `docs/05` が矛盾／Q4: 実測見積 9〜10.5人日が roadmap の 4.0人日を超過・段階リリースの可否）。
+`bonus_identity_slots` / `bonus_expires_at` は **BE・iOS とも既に 3 層配線済み**（`entitlements.service.ts:87-91` / `MeDTO.swift:63-64` / `AccountModels.swift:99-100`）。不足は `rewarded_views_*` と付与経路（SSV）のみ。
 
 **iOS 課金の現状**: `PaywallView`・`PurchasesStore`・`RevenueCatPurchasesService` 実装済み。`REVENUECAT_API_KEY` 未設定時は `DisabledPurchasesService` でスタブ動作。4件目名義追加・共有2本目・設定画面からペイウォール表示。`xcodebuild` BUILD SUCCEEDED（Domain 152 / Network 144 tests 全緑）。
 
