@@ -1,4 +1,5 @@
 import Foundation
+import DesignSystem
 
 /// 広告ユニット ID（`ADMOB_APP_ID`）が未設定（空文字）のときは SDK を初期化せず
 /// `DisabledAdRenderer` を返す（F1-6 / N6 / AC-AD-36）。

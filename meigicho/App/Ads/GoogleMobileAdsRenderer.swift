@@ -2,6 +2,7 @@
 import SwiftUI
 import UIKit
 import GoogleMobileAds
+import DesignSystem
 
 /// Google Mobile Ads SDK の実装（Stage 1: インライン・アダプティブバナーのみ）。
 /// `#if canImport(GoogleMobileAds)` で SDK を封じ込める（IOS-5 / 既存パターン踏襲:

@@ -74,6 +74,8 @@ targets:
     dependencies:
       - package: Features
         product: Features
+      - package: DesignSystem
+        product: DesignSystem
       - package: Domain
         product: Domain
       - package: DataStore
