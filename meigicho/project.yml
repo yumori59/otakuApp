@@ -28,6 +28,10 @@ packages:
   # RevenueCat:
   #   url: https://github.com/RevenueCat/purchases-ios
   #   from: 5.14.0
+  # GoogleMobileAds: 衝突調査 Spike（docs/plans 未作成、AdsSpike.swift のみで実測）
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads
+    from: 11.0.0
 
 settings:
   base:
@@ -74,6 +78,8 @@ targets:
       # RevenueCat: 上の packages ブロックと合わせて一時無効化中
       # - package: RevenueCat
       #   product: RevenueCat
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
     info:
       path: App/Info.plist
       properties:
