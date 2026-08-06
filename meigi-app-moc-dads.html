@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アプリ名未設定 - モックアップ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+
+  /* =========================================================
+     デジタル庁デザインシステム(DADS) v2.16.0 準拠トークン
+     参照: design.digital.go.jp/dads/foundations/
+     - カラー: プリミティブ Blue は公式サイト由来の実値。
+       Neutral/Success/Error/Warning は公式サイトが画像でしか
+       値を公開していないため、コントラスト基準(3:1 / 4.5:1)を
+       満たす近似値として設計。正確な値が必要な場合はFigma
+       デザインデータ本体を参照してください。
+     - タイポグラフィ: Noto Sans JP / Noto Sans Mono、
+       太さは400(N)・700(B)のみ、14px未満は不使用。
+     - 角の形状: なし0 / スモール8 / ミディアム12-16 / ラージ16-24 / フル(pill)
+     - 余白: 8pxベースのスケール(4/8/12/16/24/32/48/64)
+  ========================================================= */
+  :root{
+    /* --- Primitive: Blue (公式サイト掲載の実値) --- */
+    --blue-50:#E8F1FE; --blue-100:#D9E6FF; --blue-200:#C5D7FB; --blue-300:#9DB7F9;
+    --blue-400:#7096F8; --blue-500:#4979F5; --blue-600:#3460FB; --blue-700:#264AF4;
+    --blue-800:#0031D8; --blue-900:#0017C1; --blue-1000:#00118F; --blue-1100:#000071;
+
+    /* --- Neutral（コントラスト基準に沿った近似値） --- */
+    --gray-50:#F7F7F9; --gray-100:#EEEEF2; --gray-200:#E1E1E7; --gray-300:#C9C9D2;
+    --gray-400:#9C9CA8; --gray-500:#7B7B89; --gray-600:#5C5C6B; --gray-700:#45454F;
+    --gray-800:#2B2B33; --gray-900:#18181C;
+
+    /* --- Semantic（近似値） --- */
+    --success:#177A46; --success-bg:#E3F3EA;
+    --error:#C21F39;   --error-bg:#FBE7EA;
+    --warning:#A15C00; --warning-bg:#FBEBD9;
+
+    /* --- セマンティックへのマッピング --- */
+    --bg-outer:#DADCE3;
+    --bg-app:var(--gray-50);
+    --surface:#FFFFFF;
+    --surface-alt:var(--gray-100);
+    --ink:var(--gray-900);
+    --ink-soft:var(--gray-600);
+    --ink-faint:var(--gray-400);
+    --primary:var(--blue-900);
+    --primary-hover:var(--blue-1000);
+    --primary-tint:var(--blue-50);
+    --border:var(--gray-200);
+    --border-strong:var(--gray-300);
+
+    --win:var(--success); --win-bg:var(--success-bg);
+    --lose:var(--gray-600); --lose-bg:var(--gray-100);
+    --pending:var(--warning); --pending-bg:var(--warning-bg);
+    --warn:var(--error); --warn-bg:var(--error-bg);
+
+    --font-sans:'Noto Sans JP',-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    --font-mono:'Noto Sans Mono',ui-monospace,Menlo,Consolas,monospace;
+
+    /* 角の形状スケール */
+    --r-none:0; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:var(--font-sans);
+    background:var(--bg-outer);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    padding:48px 20px;
+    color:var(--ink);
+  }
+  .credit{
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
+    font-size:13px; color:#5C5C6B; letter-spacing:.02em;
+  }
+  .credit b{color:var(--primary);}
+
+  /* フォーカスリング（アクセシビリティの品質基準） */
+  button:focus-visible, input:focus-visible, textarea:focus-visible,
+  select:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--primary); outline-offset:2px; border-radius:4px;
+  }
+
+  /* ---------- Phone frame ---------- */
+  .phone{
+    width:390px;height:844px;
+    background:#101014;
+    border-radius:56px;
+    padding:14px;
+    box-shadow:0 30px 60px -18px rgba(16,16,20,0.4), 0 2px 8px rgba(16,16,20,0.2);
+    position:relative;
+  }
+  .phone__inner{
+    width:100%;height:100%;
+    background:var(--bg-app);
+    border-radius:42px;
+    overflow:hidden;
+    position:relative;
+    display:flex;flex-direction:column;
+  }
+  .island{
+    position:absolute;top:12px;left:50%;transform:translateX(-50%);
+    width:118px;height:32px;background:#000;border-radius:18px;z-index:60;
+  }
+  .status-bar{
+    flex-shrink:0;height:50px;
+    display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 30px 8px;font-size:15px;font-weight:700;color:var(--ink);
+    position:relative;z-index:40;
+  }
+  .status-bar__icons{display:flex;align-items:center;gap:5px;}
+
+  /* ---------- App shell ---------- */
+  .app{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+
+  .nav-bar{
+    flex-shrink:0;
+    height:52px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 6px;
+    position:relative;z-index:20;
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+  }
+  .nav-btn{
+    display:flex;align-items:center;gap:2px;
+    background:none;border:none;
+    font-family:inherit;font-size:16px;font-weight:400;
+    color:var(--primary);padding:8px 10px;cursor:pointer;
+    min-width:44px; border-radius:var(--r-sm);
+  }
+  .nav-btn.primary{font-weight:700;}
+  .nav-btn.ghost{visibility:hidden;}
+  .nav-btn svg{width:20px;height:20px;}
+  .nav-title{
+    font-size:16px;font-weight:700;color:var(--ink);
+    position:absolute;left:0;right:0;text-align:center;pointer-events:none;
+  }
+  .nav-icon-btn{
+    background:none;border:1.5px solid transparent;color:var(--primary);cursor:pointer;
+    width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+    border-radius:var(--r-sm);
+  }
+  .nav-icon-btn svg{width:22px;height:22px;}
+
+  .screen-body{
+    flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:2px 16px 110px;
+    scrollbar-width:none;
+  }
+  .screen-body::-webkit-scrollbar{display:none;}
+
+  @keyframes pushIn{from{transform:translateX(28px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+  @keyframes popIn{from{transform:translateX(-16px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+  @keyframes modalIn{from{transform:translateY(26px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .anim-push{animation:pushIn .22s ease;}
+  .anim-pop{animation:popIn .2s ease;}
+  .anim-modal{animation:modalIn .24s ease;}
+
+  /* big-title ≒ Std-28B-150 */
+  .big-title{font-size:28px;font-weight:700;letter-spacing:.01em;line-height:1.5;padding:16px 2px 14px;color:var(--ink);}
+  .app-name-placeholder{color:var(--ink-faint);cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .app-name-placeholder .chevron{font-size:22px;}
+  /* big-sub ≒ Dns-14N-120 */
+  .big-sub{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:-10px;padding:0 2px 18px;line-height:1.2;}
+
+  /* section-header ≒ Oln-14B-100 */
+  .section-header{
+    font-size:14px;font-weight:700;color:var(--ink-soft);
+    letter-spacing:.02em;text-transform:uppercase;
+    padding:20px 4px 10px;line-height:1;
+  }
+
+  /* ---------- Stat row (home) ---------- */
+  .theme-picker-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+    padding:14px;margin-bottom:16px;
+  }
+  .theme-picker-row__title{font-size:16px;font-weight:700;color:var(--ink);}
+  .theme-picker-row__hint{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:3px;line-height:1.5;}
+  .account-id-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+    padding:14px;margin-bottom:16px;
+  }
+  .account-id-row__value{font-size:16px;font-weight:700;color:var(--ink);font-family:var(--font-mono);letter-spacing:.02em;}
+  .account-id-row__hint{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:3px;line-height:1.5;}
+  .stat-row{display:flex;gap:8px;}
+  .stat-card{
+    flex:1;background:var(--surface);border-radius:var(--r-md);padding:14px 10px;
+    border:1px solid var(--border);
+  }
+  .stat-num{font-size:24px;font-weight:700;color:var(--primary);font-family:var(--font-mono);line-height:1;}
+  .stat-label{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:6px;line-height:1.3;}
+
+  /* ---------- Generic row (list item) ---------- */
+  .card-list{background:var(--surface);border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);}
+  .row{
+    display:flex;align-items:center;gap:12px;padding:14px;
+    border-bottom:1px solid var(--border);cursor:pointer;
+  }
+  .row:last-child{border-bottom:none;}
+  .row:active{background:var(--surface-alt);}
+  .row__avatar{
+    width:40px;height:40px;border-radius:var(--r-sm);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:15px;
+  }
+  .row__main{flex:1;min-width:0;}
+  .row__title{font-size:16px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;line-height:1.4;}
+  .row__relation{
+    font-size:14px;font-weight:400;color:var(--primary);
+    background:var(--primary-tint);border:1px solid var(--blue-100);
+    border-radius:var(--r-sm);padding:1px 6px;
+  }
+  .row__sub{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:3px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .row__meta{font-size:14px;font-weight:400;color:var(--ink-faint);margin-top:2px;font-family:var(--font-mono);}
+  .row__side{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .chevron{color:var(--ink-faint);font-size:18px;}
+
+  .badge{
+    font-size:14px;font-weight:700;padding:3px 9px;border-radius:var(--r-sm);
+    white-space:nowrap;font-family:var(--font-mono);border:1px solid transparent;
+  }
+  .badge--warn{color:var(--error);background:var(--error-bg);border-color:#F3C6CE;}
+  .badge--soon{color:var(--warning);background:var(--warning-bg);border-color:#F0D5AC;}
+  .badge--ok{color:var(--ink-soft);background:var(--surface-alt);border-color:var(--border);}
+
+  .empty-state{
+    text-align:center;padding:34px 20px;color:var(--ink-soft);font-size:14px;line-height:1.6;
+    background:var(--surface);border-radius:var(--r-md);border:1px dashed var(--border-strong);
+  }
+
+  /* ---------- Segmented control ---------- */
+  .segmented{display:flex;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);padding:3px;gap:2px;margin-bottom:14px;}
+  .segmented__btn{
+    flex:1;text-align:center;padding:8px 4px;border-radius:6px;font-size:14px;font-weight:700;
+    color:var(--ink-soft);cursor:pointer;background:none;border:none;font-family:inherit;line-height:1;
+  }
+  .segmented__btn.active{background:var(--primary);color:#fff;}
+
+  .search-input{
+    width:100%;padding:11px 12px;border-radius:var(--r-sm);border:1.5px solid var(--border-strong);
+    background:var(--surface);font-size:16px;color:var(--ink);margin-bottom:14px;font-family:inherit;
+  }
+  .search-input::placeholder{color:var(--ink-faint);}
+
+  /* ---------- Tour table (ツアーごとの申込パターン表) ---------- */
+  .tour-group{margin-bottom:20px;}
+  .tour-group__header{padding:2px 2px 10px;}
+  .tour-group__title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .tour-group__title{font-size:16px;font-weight:700;color:var(--ink);line-height:1.4;}
+  .tour-group__stats{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:4px;}
+  .tour-group__actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+  .tour-action-btn{
+    display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:var(--r-sm);
+    border:1.5px solid var(--primary);background:var(--primary-tint);color:var(--primary);
+    font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;
+  }
+  .tour-action-btn svg{width:15px;height:15px;}
+  .table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);-webkit-overflow-scrolling:touch;}
+  .tour-table{border-collapse:collapse;width:100%;min-width:480px;}
+  .tour-table th{font-size:14px;font-weight:700;color:var(--ink-soft);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-alt);white-space:nowrap;}
+  .tour-table td{font-size:14px;font-weight:400;color:var(--ink);padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5;white-space:nowrap;}
+  .tour-table tr{cursor:pointer;}
+  .tour-table tbody tr:last-child td{border-bottom:none;}
+  .tour-table tbody tr:active{background:var(--surface-alt);}
+  .tour-table__venue{font-size:14px;color:var(--ink-faint);}
+  .color-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;flex-shrink:0;vertical-align:middle;border:1px solid rgba(0,0,0,0.08);}
+
+  /* ---------- Ticket row (applications) ---------- */
+  .ticket-row{
+    display:flex;background:var(--surface);border-radius:var(--r-md);border:1px solid var(--border);
+    overflow:hidden;margin-bottom:10px;cursor:pointer;
+  }
+  .ticket-row:active{background:var(--surface-alt);}
+  .ticket-row__main{flex:1;min-width:0;padding:14px;}
+  .ticket-row__event{font-size:16px;font-weight:700;color:var(--ink);line-height:1.4;}
+  .ticket-row__meta{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:5px;line-height:1.5;}
+  .ticket-row__tags{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;}
+  .tag{font-size:14px;font-weight:400;padding:2px 8px;border-radius:var(--r-sm);background:var(--surface-alt);color:var(--ink-soft);border:1px solid var(--border);line-height:1.4;}
+  .tag--companion{color:var(--primary);background:var(--primary-tint);border-color:var(--blue-100);}
+  .tag--rep{color:#fff;background:var(--primary);border-color:var(--primary);}
+  .ticket-row__stub{
+    width:88px;flex-shrink:0;border-left:1.5px solid var(--border);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    padding:8px 6px;position:relative;
+  }
+  .stamp{
+    font-size:14px;font-weight:700;letter-spacing:.02em;
+    padding:4px 3px;border-radius:var(--r-sm);text-align:center;width:100%;line-height:1.2;
+  }
+  .stamp--win{color:var(--win);background:var(--win-bg);}
+  .stamp--lose{color:var(--lose);background:var(--lose-bg);}
+  .stamp--pending{color:var(--pending);background:var(--pending-bg);}
+  .stamp--draft{color:var(--ink-faint);background:var(--surface);border:1.5px dashed var(--border-strong);}
+  .ticket-row__seat{font-size:14px;color:var(--ink-soft);font-family:var(--font-mono);text-align:center;line-height:1.3;}
+
+  /* ---------- Profile card ---------- */
+  .profile-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+    padding:22px 16px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;
+    margin-top:6px;
+  }
+  .profile-avatar-lg{
+    width:64px;height:64px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:24px;font-weight:700;
+  }
+  .profile-name{font-size:20px;font-weight:700;color:var(--ink);}
+  .profile-tag{
+    font-size:14px;font-weight:700;color:var(--primary);background:var(--primary-tint);
+    border:1px solid var(--blue-100);border-radius:var(--r-sm);padding:3px 12px;
+  }
+  .profile-note{font-size:14px;font-weight:400;color:var(--ink-soft);line-height:1.7;padding:0 6px;}
+  .profile-stats{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-soft);font-family:var(--font-mono);}
+  .color-picker-row{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:14px;color:var(--ink-soft);font-weight:700;}
+  .color-picker-row input[type=color]{
+    width:28px;height:28px;border:1.5px solid var(--border-strong);border-radius:50%;
+    padding:0;cursor:pointer;background:none;-webkit-appearance:none;overflow:hidden;
+  }
+  .color-picker-row input[type=color]::-webkit-color-swatch-wrapper{padding:0;border-radius:50%;}
+  .color-picker-row input[type=color]::-webkit-color-swatch{border:none;border-radius:50%;}
+
+  .note-edit-textarea{
+    width:100%;min-height:76px;border:1.5px solid var(--primary);border-radius:var(--r-md);
+    padding:12px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--surface);line-height:1.6;resize:none;
+  }
+
+  .switch-row{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;}
+  .switch-row__label{font-size:16px;font-weight:700;color:var(--ink);}
+  .switch-row__hint{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
+  .switch{position:relative;display:inline-block;width:48px;height:28px;flex-shrink:0;}
+  .switch input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer;z-index:2;}
+  .switch__track{position:absolute;inset:0;background:var(--gray-300);border-radius:999px;transition:background .15s;}
+  .switch__thumb{position:absolute;top:2px;left:2px;width:24px;height:24px;background:#fff;border-radius:50%;transition:transform .15s;box-shadow:0 1px 3px rgba(0,0,0,0.25);}
+  .switch input:checked ~ .switch__track{background:var(--primary);}
+  .switch input:checked ~ .switch__track .switch__thumb{transform:translateX(20px);}
+
+  .share-preview-item{padding:12px 0;border-bottom:1px solid var(--border);}
+  .share-preview-item:last-child{border-bottom:none;}
+  .share-preview-item__name{font-size:16px;font-weight:700;color:var(--ink);}
+  .share-preview-item__name.is-hidden{color:var(--ink-faint);}
+  .share-preview-item__meta{font-size:14px;font-weight:400;color:var(--ink-soft);margin-top:3px;}
+  .share-preview-item__meta.is-hidden{color:var(--ink-faint);}
+
+  .btn-primary-block{
+    display:flex;align-items:center;justify-content:center;width:100%;
+    padding:14px;border-radius:var(--r-md);background:var(--primary);color:#fff;
+    font-size:16px;font-weight:700;border:none;cursor:pointer;margin-top:18px;font-family:inherit;
+  }
+  .btn-primary-block:active{background:var(--primary-hover);}
+
+  .google-btn{
+    display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+    padding:13px;border-radius:var(--r-md);background:var(--surface);border:1.5px solid var(--border-strong);
+    font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit;margin-top:6px;
+  }
+  .google-btn:active{background:var(--surface-alt);}
+  .login-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--ink-faint);font-size:14px;}
+  .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+  .recipient-checkbox{width:22px;height:22px;cursor:pointer;accent-color:var(--primary);}
+
+  /* ---------- Membership card ---------- */
+  .membership-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+    padding:14px;margin-bottom:9px;
+  }
+  .membership-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .membership-fc{font-size:16px;font-weight:700;color:var(--ink);line-height:1.4;}
+  .membership-no{font-size:14px;color:var(--ink-faint);font-family:var(--font-mono);margin-top:4px;}
+  .membership-meta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+  .membership-meta__item{font-size:14px;font-weight:400;color:var(--ink-soft);}
+  .membership-meta__item b{color:var(--ink);font-weight:700;}
+
+  .add-row-btn{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    padding:13px;border-radius:var(--r-md);border:1.5px dashed var(--border-strong);
+    color:var(--primary);font-size:14px;font-weight:700;cursor:pointer;background:var(--surface-alt);
+    margin-bottom:6px;
+  }
+  .add-row-btn svg{width:16px;height:16px;}
+
+  /* ---------- Ticket hero (application detail) ---------- */
+  .ticket-hero{
+    background:var(--primary);border-radius:var(--r-lg);overflow:hidden;color:#fff;margin-top:8px;
+    display:flex;border:1px solid var(--primary);
+  }
+  .ticket-hero__main{flex:1;padding:20px 18px;min-width:0;}
+  .ticket-hero__artist{font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--blue-200);}
+  .ticket-hero__event{font-size:18px;font-weight:700;line-height:1.5;margin-top:8px;}
+  .ticket-hero__venue{font-size:14px;font-weight:400;color:var(--blue-100);margin-top:12px;}
+  .ticket-hero__date{font-size:14px;color:#fff;margin-top:3px;font-weight:700;}
+  .ticket-hero__stub{
+    width:92px;flex-shrink:0;border-left:1.5px solid rgba(255,255,255,0.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px 6px;
+  }
+  .stamp-lg{
+    font-size:14px;font-weight:700;padding:6px 4px;border-radius:var(--r-sm);text-align:center;width:100%;
+    border:1.5px solid rgba(255,255,255,0.6);color:#fff;letter-spacing:.02em;line-height:1.3;
+  }
+  .ticket-hero__seat{font-size:14px;color:var(--blue-100);text-align:center;font-family:var(--font-mono);line-height:1.3;}
+
+  .info-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);margin-top:14px;overflow:hidden;}
+  .info-row{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:1px solid var(--border);gap:10px;}
+  .info-row:last-child{border-bottom:none;}
+  .info-label{font-size:14px;font-weight:400;color:var(--ink-soft);flex-shrink:0;}
+  .info-value{font-size:16px;color:var(--ink);font-weight:700;text-align:right;}
+  .info-value.link{color:var(--primary);text-decoration:underline;text-underline-offset:2px;}
+  .info-value.mono{font-family:var(--font-mono);}
+  .info-edit-btn{background:none;border:none;color:var(--primary);font-size:14px;font-weight:700;cursor:pointer;padding:2px 0;text-decoration:underline;text-underline-offset:2px;}
+  .seat-input{
+    border:1.5px solid var(--primary);border-radius:6px;padding:5px 8px;font-size:14px;
+    font-family:var(--font-mono);width:150px;text-align:right;color:var(--ink);
+  }
+
+  .status-changer{display:flex;gap:8px;margin-top:14px;}
+  .status-btn{
+    flex:1;padding:11px 4px;border-radius:var(--r-sm);border:1.5px solid var(--border-strong);
+    background:var(--surface);font-size:14px;font-weight:700;color:var(--ink-soft);cursor:pointer;
+    font-family:inherit;
+  }
+  .status-btn.is-draft.on{background:var(--surface);border:1.5px dashed var(--ink-faint);color:var(--ink-soft);}
+  .status-btn.is-pending.on{background:var(--pending-bg);border-color:var(--pending);color:var(--pending);}
+  .status-btn.is-win.on{background:var(--win-bg);border-color:var(--win);color:var(--win);}
+  .status-btn.is-lose.on{background:var(--lose-bg);border-color:var(--lose);color:var(--lose);}
+
+  .note-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-top:14px;font-size:14px;font-weight:400;color:var(--ink-soft);line-height:1.7;}
+
+  /* ---------- Forms ---------- */
+  .form-section-label{font-size:14px;font-weight:700;color:var(--ink-soft);letter-spacing:.02em;text-transform:uppercase;padding:18px 2px 8px;}
+  .form-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;}
+  .form-row{padding:12px 14px;border-bottom:1px solid var(--border);}
+  .form-row:last-child{border-bottom:none;}
+  .form-label{font-size:14px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.01em;}
+  .form-input,.form-textarea,.form-select{
+    width:100%;border:none;background:none;font-size:16px;color:var(--ink);font-family:inherit;padding:0;
+  }
+  .form-input:focus,.form-textarea:focus,.form-select:focus{outline:none;}
+  .form-textarea{resize:none;height:56px;font-family:inherit;line-height:1.5;}
+  .form-hint{font-size:14px;color:var(--ink-faint);margin-top:10px;padding:0 2px;line-height:1.6;}
+
+  .radio-group{display:flex;gap:8px;}
+  .radio-pill{
+    flex:1;text-align:center;padding:9px 4px;border-radius:var(--r-sm);border:1.5px solid var(--border-strong);
+    font-size:14px;font-weight:700;color:var(--ink-soft);position:relative;cursor:pointer;
+  }
+  .radio-pill input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0;}
+  .radio-pill:has(input:checked){background:var(--primary-tint);border-color:var(--primary);color:var(--primary);}
+
+  .seat-field{display:none;}
+  .form-card:has(#s-win:checked) .seat-field{display:block;}
+
+  /* ---------- Tab bar ---------- */
+  .tab-bar{
+    flex-shrink:0;display:flex;
+    background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);
+    border-top:1px solid var(--border);
+    padding:9px 0 26px;position:relative;z-index:30;
+  }
+  .tab-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-size:14px;font-weight:700;color:var(--ink-faint);cursor:pointer;background:none;border:none;font-family:inherit;
+  }
+  .tab-item svg{width:24px;height:24px;}
+  .tab-item.active{color:var(--primary);}
+
+  /* ---------- Action sheet ---------- */
+  .sheet-overlay{
+    position:absolute;inset:0;background:rgba(24,24,28,0.5);z-index:80;
+    display:flex;align-items:flex-end;padding:10px;
+  }
+  .action-sheet{
+    width:100%;background:var(--surface);border-radius:var(--r-lg);overflow:hidden;
+    margin-bottom:8px;animation:modalIn .2s ease;border:1px solid var(--border);
+  }
+  .action-sheet__btn{
+    width:100%;padding:16px;text-align:center;font-size:16px;font-weight:700;
+    color:var(--primary);background:none;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-family:inherit;
+  }
+  .action-sheet__btn:last-child{border-bottom:none;}
+  .action-sheet__cancel{
+    width:100%;background:var(--surface);border-radius:var(--r-lg);padding:16px;text-align:center;
+    font-size:16px;font-weight:700;color:var(--error);border:1px solid var(--border);cursor:pointer;font-family:inherit;
+  }
+</style>
+</head>
+<body>
+
+<div class="credit">iPhone モックアップ &mdash; <span id="app-name-credit">(アプリ名未設定)</span>（クリックで画面遷移します）</div>
+
+<div class="phone">
+  <div class="phone__inner">
+    <div class="island"></div>
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="status-bar__icons">
+        <svg viewBox="0 0 18 12" fill="none"><path d="M1 8.5C4 4 14 4 17 8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4 9.5C6 6.7 12 6.7 14 9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9" cy="10.6" r="1.1" fill="currentColor"/></svg>
+        <svg viewBox="0 0 25 12" fill="none"><rect x="1" y="1" width="20" height="10" rx="2.5" stroke="currentColor" stroke-width="1"/><rect x="2.5" y="2.5" width="15" height="7" rx="1.3" fill="currentColor"/><rect x="22.5" y="4" width="1.6" height="4" rx="0.8" fill="currentColor"/></svg>
+      </span>
+    </div>
+
+    <div class="app">
+      <div class="nav-bar" id="navBar"></div>
+      <div class="screen-body" id="screenBody"></div>
+      <div id="sheetLayer"></div>
+      <div class="tab-bar" id="tabBar">
+        <button class="tab-item" data-tab="home" onclick="switchTab('home')">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 11L12 4l8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v9a1 1 0 001 1h3v-6h4v6h3a1 1 0 001-1v-9" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span>ホーム</span>
+        </button>
+        <button class="tab-item" data-tab="identities" onclick="switchTab('identities')">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2.2" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="11" r="2.1" stroke="currentColor" stroke-width="1.6"/><path d="M6 16c.6-1.7 2-2.4 3-2.4s2.4.7 3 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M14.5 10h3.5M14.5 13h3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>名義</span>
+        </button>
+        <button class="tab-item" data-tab="applications" onclick="switchTab('applications')">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v1.2a1.6 1.6 0 000 3.2V15a2 2 0 01-2 2H5a2 2 0 01-2-2v-1.6a1.6 1.6 0 000-3.2V9z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 7.5v9" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.6 2.2" stroke-linecap="round"/></svg>
+          <span>申込</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   データモデル
+========================================================= */
+const TODAY = '2026-07-31';
+let appName = null; // デフォルトなし。アカウント設定で自分の名前を登録するまで未設定のまま
+// DADSはアクセントカラーの多用を避ける方針のため、Blue/Neutralの階調のみでアバターを区別する
+const AVATAR_COLORS = ['#0017C1','#3460FB','#5C5C6B','#264AF4','#45454F','#00118F','#7B7B89'];
+
+let identities = [
+  { id:1, name:'佐藤 (自分)', relation:'本人', color:'#0017C1', joinedDate:'2023-04-02', historyVisible:true,
+    note:'メインで使っている名義。基本的にはこれで申し込む。',
+    memberships:[
+      { id:11, fc:'STELLARIS OFFICIAL FAN CLUB', memberNo:'STL-04821', renewal:'2026-11-03', fee:4000 },
+      { id:12, fc:'ORBIT native club', memberNo:'ORB-11239', renewal:'2027-02-14', fee:3500 },
+    ]},
+  { id:2, name:'佐藤 陽菜 (妹)', relation:'家族', color:'#3460FB', joinedDate:'2024-01-15', historyVisible:true,
+    note:'遠征に同行することが多い。年会費はこちらで負担。',
+    memberships:[
+      { id:21, fc:'STELLARIS OFFICIAL FAN CLUB', memberNo:'STL-09931', renewal:'2026-08-19', fee:4000 },
+    ]},
+  { id:3, name:'田中 美咲 (友人)', relation:'友人', color:'#5C5C6B', joinedDate:'2024-11-20', historyVisible:false,
+    note:'ORBITの申込みで名義を借りている。当選時は事前に連絡する。',
+    memberships:[
+      { id:31, fc:'ORBIT native club', memberNo:'ORB-22984', renewal:'2026-09-05', fee:3500 },
+    ]},
+  { id:4, name:'小林 蓮 (友人)', relation:'友人', color:'#45454F', joinedDate:'2025-06-08', historyVisible:false,
+    note:'',
+    memberships:[
+      { id:41, fc:'陽炎 (Kagerou) Fan Club', memberNo:'KGR-00567', renewal:'2026-12-01', fee:5000 },
+    ]},
+];
+
+let applications = [
+  { id:101, tour:'STELLARIS ARENA TOUR 2026', repIdentityId:1, repMembershipId:11, event:'STELLARIS ARENA TOUR 2026 -大阪公演-', artist:'STELLARIS', venue:'大阪城ホール', eventDate:'2026-09-27', appliedDate:'2026-07-01', resultDate:'2026-08-05', status:'申込中', seat:'', companions:[{identityId:2, name:'佐藤 陽菜(妹)'}], note:'' },
+  { id:109, tour:'STELLARIS ARENA TOUR 2026', repIdentityId:2, repMembershipId:21, event:'STELLARIS ARENA TOUR 2026 -大阪公演-', artist:'STELLARIS', venue:'大阪城ホール', eventDate:'2026-09-27', appliedDate:'2026-07-01', resultDate:'2026-08-05', status:'申込中', seat:'', companions:[{identityId:1, name:'佐藤 (自分)'}], note:'同じ公演を代表者/同行者を入れ替えて重複申込' },
+  { id:102, tour:'STELLARIS ARENA TOUR 2026', repIdentityId:2, repMembershipId:21, event:'STELLARIS ARENA TOUR 2026 -東京公演-', artist:'STELLARIS', venue:'さいたまスーパーアリーナ', eventDate:'2026-09-13', appliedDate:'2026-06-20', resultDate:'2026-07-15', status:'当選', seat:'アリーナ8列15番', companions:[], note:'' },
+  { id:103, tour:'ORBIT 5th Anniversary LIVE', repIdentityId:3, repMembershipId:31, event:'ORBIT 5th Anniversary LIVE', artist:'ORBIT', venue:'横浜アリーナ', eventDate:'2026-08-30', appliedDate:'2026-06-25', resultDate:'2026-07-10', status:'落選', seat:'', companions:[{identityId:1, name:'佐藤 (自分)'}], note:'当選していたら自分が同行する予定だった' },
+  { id:104, tour:'陽炎 冬コンサート 2026', repIdentityId:4, repMembershipId:41, event:'陽炎 冬コンサート 2026', artist:'陽炎', venue:'日本武道館', eventDate:'2026-12-20', appliedDate:'2026-08-05', resultDate:'2026-09-10', status:'申込中', seat:'', companions:[], note:'' },
+  { id:105, tour:'ORBIT native club限定イベント -春の一夜-', repIdentityId:1, repMembershipId:12, event:'ORBIT native club限定イベント -春の一夜-', artist:'ORBIT', venue:'Zepp Haneda', eventDate:'2026-08-09', appliedDate:'2026-06-01', resultDate:'2026-06-20', status:'当選', seat:'2階 B-12, B-13', companions:[{identityId:2, name:'佐藤 陽菜(妹)'}], note:'' },
+  { id:106, tour:'STELLARIS 春の一夜 スペシャルイベント', repIdentityId:1, repMembershipId:11, event:'STELLARIS 春の一夜 スペシャルイベント', artist:'STELLARIS', venue:'幕張メッセ', eventDate:'2026-05-18', appliedDate:'2026-03-01', resultDate:'2026-03-25', status:'落選', seat:'', companions:[], note:'' },
+  { id:107, tour:'ORBIT native club限定イベント -春の一夜-', repIdentityId:3, repMembershipId:31, event:'ORBIT native club限定イベント -春の一夜-', artist:'ORBIT', venue:'Zepp Haneda', eventDate:'2026-08-09', appliedDate:'2026-06-01', resultDate:'2026-06-20', status:'落選', seat:'', companions:[], note:'自分名義の方が当選したため未使用' },
+  { id:108, tour:'STELLARIS ファンミーティング Vol.3', repIdentityId:2, repMembershipId:21, event:'STELLARIS ファンミーティング Vol.3', artist:'STELLARIS', venue:'東京国際フォーラム', eventDate:'2026-10-04', appliedDate:'2026-08-01', resultDate:'2026-08-25', status:'申込中', seat:'', companions:[], note:'' },
+];
+
+let nextIdentityId = 5;
+let nextMembershipId = 51;
+let nextApplicationId = 110;
+
+/* =========================================================
+   状態管理・ナビゲーション
+========================================================= */
+let state = {
+  stack:[{screen:'home'}],
+  appFilter:'すべて',
+  appSearch:'',
+  editingSeatId:null,
+  editingNoteId:null,
+  sheetOpen:false,
+  identitySort:'renewal',   // renewal | wins | joined
+  appViewMode:'list',       // list | table
+  shareCopied:false,
+  sharedTourCache:{},       // tourName -> {tour, updatedAt, items:[...]} loaded from window.storage
+  sharedTourStatus:{},      // tourName -> 'unshared' | 'loading' | 'shared' | 'error'
+  editingSharedSeatKey:null,// "tourName::itemId" of the shared table cell currently being編集中
+  authMode:'login',         // login | signup （ログイン画面でのタブ切り替え）
+  signupError:null,
+  emailDraft:'',
+  tourShareRecipientIds:{}, // tourName -> このセッションで最後に入力した共有相手アカウントIDの配列（文字列）
+  accountIdCopied:false,
+};
+let appTheme = { color: '#0017C1' }; // アカウント設定の「背景カラー」で選ぶ、アプリ全体のテーマ色
+let auth = { loggedIn:false, email:null, method:null, accountId:null, username:null };
+
+function cur(){ return state.stack[state.stack.length-1]; }
+function currentTab(){ return state.stack[0].screen; }
+
+function navigate(screen, params={}){
+  state.stack.push(Object.assign({screen}, params));
+  render('push');
+}
+function goBack(){
+  if(state.stack.length>1){ state.stack.pop(); render('pop'); }
+}
+function switchTab(tab){
+  state.stack = [{screen:tab}];
+  state.sheetOpen = false;
+  render('tab');
+}
+function openModal(screen, params={}){
+  state.sheetOpen = false;
+  state.stack.push(Object.assign({screen, modal:true}, params));
+  render('modal');
+}
+function closeModal(){ goBack(); }
+function toggleSheet(force){
+  state.sheetOpen = (force!==undefined) ? force : !state.sheetOpen;
+  render('none');
+}
+
+/* =========================================================
+   ユーティリティ
+========================================================= */
+function esc(str){
+  if(str===null||str===undefined) return '';
+  return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+function daysUntil(dateStr){
+  const a = new Date(TODAY+'T00:00:00');
+  const b = new Date(dateStr+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+function fmtDate(dateStr, withWeekday=true){
+  if(!dateStr) return '未設定';
+  const d = new Date(dateStr+'T00:00:00');
+  const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日` + (withWeekday?`(${wd})`:'');
+}
+function fmtDateShort(dateStr){
+  if(!dateStr) return '未定';
+  const d = new Date(dateStr+'T00:00:00');
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+function fmtYen(n){ return '¥'+Number(n).toLocaleString('ja-JP'); }
+function findIdentity(id){ return identities.find(i=>i.id===Number(id)); }
+function findMembership(identity, mId){ return identity ? identity.memberships.find(m=>m.id===Number(mId)) : null; }
+function findApplication(id){ return applications.find(a=>a.id===Number(id)); }
+function isCompanionOf(app, identityId){ return app.companions.some(c=>c.identityId===Number(identityId)); }
+function applicationsForIdentity(identityId){
+  // 代表者として申し込んだ回、または同行者として名前が挙がった回の両方を、名義ごとの履歴として拾う
+  return applications.filter(a=> a.repIdentityId===Number(identityId) || isCompanionOf(a, identityId));
+}
+function companionLabel(app){
+  if(!app.companions.length) return '';
+  return app.companions.map(c=>esc(c.name)).join('、');
+}
+function winCount(identityId){
+  return applicationsForIdentity(identityId).filter(a=>a.status==='当選').length;
+}
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function hexToRgbArr(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+}
+function rgbArrToHex(arr){
+  return '#'+arr.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+}
+function mixHex(hexA, hexB, t){
+  const a = hexToRgbArr(hexA), b = hexToRgbArr(hexB);
+  return rgbArrToHex([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]);
+}
+function rgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h=0, s=0; const l=(max+min)/2;
+  if(max!==min){
+    const d = max-min;
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    if(max===r) h = (g-b)/d + (g<b?6:0);
+    else if(max===g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+    h/=6;
+  }
+  return [h,s,l];
+}
+function hslToRgb(h,s,l){
+  let r,g,b;
+  if(s===0){ r=g=b=l; }
+  else{
+    const hue2rgb=(p,q,t)=>{
+      if(t<0) t+=1; if(t>1) t-=1;
+      if(t<1/6) return p+(q-p)*6*t;
+      if(t<1/2) return q;
+      if(t<2/3) return p+(q-p)*(2/3-t)*6;
+      return p;
+    };
+    const q = l<0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l-q;
+    r = hue2rgb(p,q,h+1/3); g = hue2rgb(p,q,h); b = hue2rgb(p,q,h-1/3);
+  }
+  return [r*255,g*255,b*255];
+}
+function ensureDarkEnough(hex, maxLightness){
+  // ボタン塗り・リンク文字として白背景上で十分なコントラストを保てるよう、
+  // 明るすぎる色は明度を落とした濃い版に変換する（色相・彩度は保持）。
+  const [r,g,b] = hexToRgbArr(hex);
+  const [h,s,l] = rgbToHsl(r,g,b);
+  const targetL = Math.min(l, maxLightness===undefined?0.34:maxLightness);
+  const [nr,ng,nb] = hslToRgb(h, s, targetL);
+  return rgbArrToHex([nr,ng,nb]);
+}
+function applyTheme(color){
+  appTheme.color = color;
+  const root = document.documentElement;
+  const primary = ensureDarkEnough(color, 0.34);
+  const primaryHover = ensureDarkEnough(color, 0.24);
+  root.style.setProperty('--primary', primary);
+  root.style.setProperty('--primary-hover', primaryHover);
+  root.style.setProperty('--primary-tint', mixHex('#FFFFFF', color, 0.14));
+  root.style.setProperty('--bg-app', mixHex('#FFFFFF', color, 0.05));
+  root.style.setProperty('--bg-outer', mixHex('#DADCE3', color, 0.10));
+  root.style.setProperty('--surface-alt', mixHex('#FFFFFF', color, 0.08));
+}
+function slugify(str){
+  let hash = 0;
+  for(let i=0;i<str.length;i++){ hash = ((hash<<5)-hash+str.charCodeAt(i))|0; }
+  return 'h'+Math.abs(hash);
+}
+function groupApplicationsByTour(){
+  const map = new Map();
+  applications.forEach(a=>{
+    const key = a.tour || a.event;
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(a);
+  });
+  const groups = Array.from(map.entries()).map(([tour, items])=>({
+    tour,
+    items: items.slice().sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate)),
+    earliest: Math.min(...items.map(i=>new Date(i.eventDate).getTime())),
+  }));
+  groups.sort((a,b)=>a.earliest-b.earliest);
+  return groups;
+}
+
+/* =========================================================
+   ツアー単位の共有（window.storage）
+   - shared:true のキーは、このアーティファクトを開いた全員から読み書きできる
+   - リアルタイム同期ではないため、「共有する」「最新を取得」で明示的に同期する
+========================================================= */
+function hasStorage(){
+  return typeof window!=='undefined' && !!window.storage;
+}
+function tourStorageKey(tourName){
+  return 'tour:'+slugify(tourName);
+}
+function buildTourPayload(tourName, items, recipientIds){
+  return {
+    tour: tourName,
+    updatedAt: new Date().toISOString(),
+    sharedWith: recipientIds || [], // 共有相手のアカウントID（文字列）。実際のアクセス制限ではなく記録用。
+    items: items.map(a=>{
+      const rep = findIdentity(a.repIdentityId);
+      return {
+        id:a.id, event:a.event, venue:a.venue, eventDate:a.eventDate,
+        repName: rep ? rep.name : '不明', repColor: rep ? rep.color : null,
+        companions: a.companions.map(c=>{
+          const ci = c.identityId ? findIdentity(c.identityId) : null;
+          return { name:c.name, color: ci ? ci.color : null };
+        }),
+        status:a.status, seat:a.seat, note:a.note,
+      };
+    }),
+  };
+}
+async function refreshTourShare(tourName){
+  if(!hasStorage()) return;
+  state.sharedTourStatus[tourName] = 'loading';
+  render('none');
+  try{
+    const res = await window.storage.get(tourStorageKey(tourName), true);
+    if(res && res.value){
+      state.sharedTourCache[tourName] = JSON.parse(res.value);
+      state.sharedTourStatus[tourName] = 'shared';
+    } else {
+      state.sharedTourStatus[tourName] = 'unshared';
+    }
+  } catch(e){
+    state.sharedTourStatus[tourName] = 'unshared';
+  }
+  render('none');
+}
+async function shareTour(tourName, items, recipientIds){
+  if(!hasStorage()){
+    state.sharedTourStatus[tourName] = 'error';
+    render('none');
+    return;
+  }
+  const ids = recipientIds!==undefined ? recipientIds : (state.tourShareRecipientIds[tourName] || []);
+  state.tourShareRecipientIds[tourName] = ids;
+  state.sharedTourStatus[tourName] = 'loading';
+  render('none');
+  const payload = buildTourPayload(tourName, items, ids);
+  try{
+    await window.storage.set(tourStorageKey(tourName), JSON.stringify(payload), true);
+    state.sharedTourCache[tourName] = payload;
+    state.sharedTourStatus[tourName] = 'shared';
+  } catch(e){
+    state.sharedTourStatus[tourName] = 'error';
+  }
+  render('none');
+}
+function openShareRecipients(tourName){
+  openModal('share-recipients', {tourName});
+}
+function parseAccountIds(raw){
+  return raw.split(/[,、\s]+/).map(s=>s.trim()).filter(Boolean);
+}
+async function confirmShareTour(tourName){
+  const group = groupApplicationsByTour().find(g=>g.tour===tourName);
+  if(!group) { closeModal(); return; }
+  const input = document.getElementById('share-recipient-ids');
+  const ids = input ? parseAccountIds(input.value) : [];
+  await shareTour(tourName, group.items, ids);
+  closeModal();
+}
+async function cycleSharedStatus(tourName, itemId){
+  const cache = state.sharedTourCache[tourName];
+  if(!cache) return;
+  const item = cache.items.find(i=>i.id===itemId);
+  if(!item) return;
+  const order = ['下書き','申込中','当選','落選'];
+  item.status = order[(order.indexOf(item.status)+1)%order.length];
+  cache.updatedAt = new Date().toISOString();
+  render('none'); // 楽観的に即時反映
+  if(hasStorage()){
+    try{ await window.storage.set(tourStorageKey(tourName), JSON.stringify(cache), true); }catch(e){}
+  }
+}
+function startEditSharedSeat(tourName, itemId){
+  state.editingSharedSeatKey = tourName+'::'+itemId;
+  render('none');
+  setTimeout(()=>{ const el=document.getElementById('sharedSeatInput'); if(el){ el.focus(); el.select(); } }, 0);
+}
+async function saveSharedSeat(tourName, itemId, value){
+  const cache = state.sharedTourCache[tourName];
+  state.editingSharedSeatKey = null;
+  if(!cache) { render('none'); return; }
+  const item = cache.items.find(i=>i.id===itemId);
+  if(item) item.seat = value.trim();
+  cache.updatedAt = new Date().toISOString();
+  render('none');
+  if(hasStorage()){
+    try{ await window.storage.set(tourStorageKey(tourName), JSON.stringify(cache), true); }catch(e){}
+  }
+}
+
+function renewalBadge(dateStr){
+  const d = daysUntil(dateStr);
+  if(d<0) return `<span class="badge badge--warn">更新期限切れ</span>`;
+  if(d<=14) return `<span class="badge badge--warn">あと${d}日</span>`;
+  if(d<=30) return `<span class="badge badge--soon">あと${d}日</span>`;
+  return `<span class="badge badge--ok">${fmtDateShort(dateStr)} 更新</span>`;
+}
+function eventCountdownBadge(dateStr){
+  const d = daysUntil(dateStr);
+  if(d<0) return `<span class="badge badge--ok">終了</span>`;
+  if(d===0) return `<span class="badge badge--warn">本日</span>`;
+  if(d<=14) return `<span class="badge badge--warn">あと${d}日</span>`;
+  if(d<=30) return `<span class="badge badge--soon">あと${d}日</span>`;
+  return `<span class="badge badge--ok">あと${d}日</span>`;
+}
+function stampClass(status){
+  if(status==='当選') return 'stamp--win';
+  if(status==='落選') return 'stamp--lose';
+  if(status==='下書き') return 'stamp--draft';
+  return 'stamp--pending';
+}
+function statusBtnClass(status){
+  if(status==='当選') return 'is-win';
+  if(status==='落選') return 'is-lose';
+  return 'is-pending';
+}
+function allMembershipsFlat(){
+  const list=[];
+  identities.forEach(id=>id.memberships.forEach(m=>list.push({identity:id, m})));
+  return list;
+}
+
+/* =========================================================
+   小コンポーネント
+========================================================= */
+function identityRow(identity){
+  const soonest = identity.memberships.slice().sort((a,b)=>daysUntil(a.renewal)-daysUntil(b.renewal))[0];
+  const sub = identity.memberships.length
+    ? identity.memberships.map(m=>m.fc).join(' / ')
+    : 'ファンクラブ未登録';
+  const wins = winCount(identity.id);
+  return `
+    <div class="row" onclick="navigate('identity-detail',{id:${identity.id}})">
+      <div class="row__avatar" style="background:${identity.color}">${esc(identity.name.slice(0,1))}</div>
+      <div class="row__main">
+        <div class="row__title">${esc(identity.name)}</div>
+        <div class="row__sub">${esc(sub)}</div>
+        <div class="row__meta">入会 ${fmtDateShort(identity.joinedDate)} ・ 当選 ${wins}回</div>
+      </div>
+      <div class="row__side">
+        ${soonest ? renewalBadge(soonest.renewal) : ''}
+        <span class="chevron">›</span>
+      </div>
+    </div>`;
+}
+
+function ticketRow(app, ctxIdentityId){
+  const rep = findIdentity(app.repIdentityId);
+  const tags = [];
+  if(ctxIdentityId!==undefined && ctxIdentityId!==null){
+    // 名義詳細画面など、特定の名義の視点で見せる場合はその名義自身の立場を表示
+    if(Number(ctxIdentityId)===app.repIdentityId){
+      tags.push(`<span class="tag tag--rep">代表者として申込</span>`);
+      if(app.companions.length) tags.push(`<span class="tag tag--companion">同行者: ${companionLabel(app)}</span>`);
+    } else {
+      tags.push(`<span class="tag tag--companion">同行者として参加（代表: ${esc(rep?rep.name:'不明')}）</span>`);
+    }
+  } else {
+    // 申込一覧・ホームなど、名義を横断して見せる場合は代表者と同行者を併記
+    tags.push(`<span class="tag tag--rep">代表: ${esc(rep?rep.name:'不明')}</span>`);
+    if(app.companions.length) tags.push(`<span class="tag tag--companion">同行者: ${companionLabel(app)}</span>`);
+  }
+  return `
+    <div class="ticket-row" onclick="navigate('application-detail',{id:${app.id}})">
+      <div class="ticket-row__main">
+        <div class="ticket-row__event">${esc(app.event)}</div>
+        <div class="ticket-row__meta">${esc(app.venue)} ・ ${fmtDate(app.eventDate)}</div>
+        <div class="ticket-row__tags">${tags.join('')}</div>
+      </div>
+      <div class="ticket-row__stub">
+        <div class="stamp ${stampClass(app.status)}">${esc(app.status)}</div>
+        ${app.status==='当選' && app.seat ? `<div class="ticket-row__seat">${esc(app.seat)}</div>` : `<div class="ticket-row__seat">発表 ${fmtDateShort(app.resultDate)}</div>`}
+      </div>
+    </div>`;
+}
+
+/* =========================================================
+   画面: ホーム
+========================================================= */
+function screenHome(){
+  const pending = applications.filter(a=>a.status==='申込中').sort((a,b)=>new Date(a.resultDate)-new Date(b.resultDate)).slice(0,4);
+  const expiringCount = allMembershipsFlat().filter(x=>daysUntil(x.m.renewal)<=30 && daysUntil(x.m.renewal)>=0).length;
+  const pendingCount = applications.filter(a=>a.status==='申込中').length;
+  const upcoming = applications.filter(a=>a.status==='当選' && daysUntil(a.eventDate)>=0).sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate)).slice(0,5);
+
+  return `
+    ${appName
+      ? `<div class="big-title">${esc(appName)}</div>`
+      : `<div class="big-title app-name-placeholder" onclick="navigate('account')">アプリ名を登録する <span class="chevron">›</span></div>`}
+    <div class="big-sub">${fmtDate(TODAY)}</div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-num">${identities.length}</div><div class="stat-label">管理中の名義</div></div>
+      <div class="stat-card"><div class="stat-num">${expiringCount}</div><div class="stat-label">30日以内に<br>更新期限</div></div>
+      <div class="stat-card"><div class="stat-num">${pendingCount}</div><div class="stat-label">当落発表<br>待ち</div></div>
+    </div>
+
+    <div class="section-header">直近のイベント</div>
+    ${upcoming.length ? `<div class="card-list">${upcoming.map(a=>{
+      const rep = findIdentity(a.repIdentityId);
+      return `
+      <div class="row" onclick="navigate('application-detail',{id:${a.id}})">
+        <div class="row__avatar" style="background:${rep?rep.color:'var(--ink-faint)'}">${esc((rep?rep.name:'?').slice(0,1))}</div>
+        <div class="row__main">
+          <div class="row__title">${esc(a.event)}</div>
+          <div class="row__sub">${esc(a.venue)} ・ ${fmtDate(a.eventDate)}</div>
+        </div>
+        <div class="row__side">${eventCountdownBadge(a.eventDate)}<span class="chevron">›</span></div>
+      </div>`;
+    }).join('')}</div>` : `<div class="empty-state">当選して参戦が確定している公演はまだありません</div>`}
+
+    <div class="section-header">当落発表待ちの申込</div>
+    ${pending.length ? pending.map(a=>ticketRow(a)).join('') : `<div class="empty-state">現在、発表待ちの申込はありません</div>`}
+  `;
+}
+
+/* =========================================================
+   画面: 名義一覧
+========================================================= */
+function screenIdentities(){
+  const sortOptions = [
+    {key:'renewal', label:'更新が近い順'},
+    {key:'wins', label:'当選が多い順'},
+    {key:'joined', label:'入会が古い順'},
+  ];
+  const sorted = identities.slice().sort((a,b)=>{
+    if(state.identitySort==='wins'){
+      return winCount(b.id)-winCount(a.id);
+    }
+    if(state.identitySort==='joined'){
+      return new Date(a.joinedDate)-new Date(b.joinedDate);
+    }
+    const da = a.memberships.length ? Math.min(...a.memberships.map(m=>daysUntil(m.renewal))) : 9999;
+    const db = b.memberships.length ? Math.min(...b.memberships.map(m=>daysUntil(m.renewal))) : 9999;
+    return da-db;
+  });
+  return `
+    <div class="big-title">名義</div>
+    <div class="segmented">
+      ${sortOptions.map(o=>`<button class="segmented__btn ${state.identitySort===o.key?'active':''}" onclick="state.identitySort='${o.key}'; render('none');">${o.label}</button>`).join('')}
+    </div>
+    ${sorted.length ? `<div class="card-list">${sorted.map(identityRow).join('')}</div>` : `<div class="empty-state">まだ名義が登録されていません。<br>右上の＋から追加できます。</div>`}
+  `;
+}
+
+/* =========================================================
+   画面: 共有プレビュー
+========================================================= */
+function screenSharePreview(){
+  return `
+    <div class="big-title">共有プレビュー</div>
+    <div class="big-sub">共有リンクを開いた相手には、この内容が表示されます</div>
+
+    <div class="section-header">名義ごとの公開設定</div>
+    <div class="card-list">
+      ${identities.map(identity=>`
+        <div class="row" style="cursor:default;">
+          <div class="row__avatar" style="background:${identity.color}">${esc(identity.name.slice(0,1))}</div>
+          <div class="row__main">
+            <div class="row__title">${esc(identity.name)}</div>
+            <div class="row__sub">${identity.historyVisible ? `当落履歴を公開（当選${winCount(identity.id)}回・申込${applicationsForIdentity(identity.id).length}件）` : '当落履歴は非公開'}</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" ${identity.historyVisible?'checked':''} onchange="toggleHistoryVisible(${identity.id})">
+            <span class="switch__track"><span class="switch__thumb"></span></span>
+          </label>
+        </div>`).join('')}
+    </div>
+
+    <div class="section-header">プレビュー</div>
+    <div class="card-list" style="padding:4px 14px;">
+      ${identities.map(identity=>{
+        const apps = applicationsForIdentity(identity.id);
+        const wins = apps.filter(a=>a.status==='当選').length;
+        return identity.historyVisible
+          ? `<div class="share-preview-item">
+              <div class="share-preview-item__name">${esc(identity.name)}</div>
+              <div class="share-preview-item__meta">当選 ${wins}回 ／ 申込 ${apps.length}件</div>
+            </div>`
+          : `<div class="share-preview-item">
+              <div class="share-preview-item__name is-hidden">${esc(identity.name)}</div>
+              <div class="share-preview-item__meta is-hidden">非公開</div>
+            </div>`;
+      }).join('')}
+    </div>
+
+    <button class="btn-primary-block" onclick="copyShareLink()">${state.shareCopied ? 'リンクをコピーしました' : '共有リンクをコピー'}</button>
+    <div class="form-hint">※ モックアップのため、実際のリンクは発行されません</div>
+  `;
+}
+function copyShareLink(){
+  state.shareCopied = true;
+  render('none');
+  setTimeout(()=>{ state.shareCopied=false; render('none'); }, 1500);
+}
+
+/* =========================================================
+   画面: アカウント（未ログイン時はログインフォームを表示）
+========================================================= */
+const googleIcon = `<svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.85A10.99 10.99 0 0012 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.05H2.18a11 11 0 000 9.9l3.66-2.85z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.85C6.71 7.3 9.14 5.38 12 5.38z"/></svg>`;
+
+function screenAccount(){
+  return auth.loggedIn ? screenAccountSettings() : screenLogin();
+}
+function screenLogin(){
+  const mode = state.authMode;
+  return `
+    <div class="big-title">${mode==='signup' ? 'アカウントを作成' : 'ログイン'}</div>
+    <div class="big-sub">${mode==='signup' ? '新しいアカウントを作成します' : '続けるにはログインしてください'}</div>
+
+    <div class="segmented">
+      <button class="segmented__btn ${mode==='login'?'active':''}" onclick="state.authMode='login'; state.signupError=null; render('none');">ログイン</button>
+      <button class="segmented__btn ${mode==='signup'?'active':''}" onclick="state.authMode='signup'; state.signupError=null; render('none');">新規登録</button>
+    </div>
+
+    <button class="google-btn" onclick="loginWithGoogle()">${googleIcon}Googleで${mode==='signup'?'登録':'ログイン'}</button>
+    <div class="login-divider"><span>または</span></div>
+
+    <div class="form-card">
+      <div class="form-row">
+        <div class="form-label">メールアドレス</div>
+        <input class="form-input" type="email" id="login-email" placeholder="you@example.com" value="${esc(state.emailDraft)}" oninput="state.emailDraft=this.value">
+      </div>
+      <div class="form-row">
+        <div class="form-label">パスワード</div>
+        <input class="form-input" type="password" id="login-password" placeholder="••••••••">
+      </div>
+      ${mode==='signup' ? `
+      <div class="form-row">
+        <div class="form-label">パスワード（確認）</div>
+        <input class="form-input" type="password" id="signup-password-confirm" placeholder="••••••••">
+      </div>` : ''}
+    </div>
+    ${state.signupError ? `<div class="form-hint" style="color:var(--error);margin-top:8px;">${esc(state.signupError)}</div>` : ''}
+    ${mode==='signup'
+      ? `<button class="btn-primary-block" onclick="signUpWithEmail()">アカウントを作成</button>`
+      : `<button class="btn-primary-block" onclick="loginWithEmail()">メールアドレスでログイン</button>`}
+    <div class="form-hint">※ モックアップのため、入力内容の検証や実際の認証は行われません。</div>
+  `;
+}
+function screenAccountSettings(){
+  return `
+    <div class="big-title">アカウント設定</div>
+    <div class="profile-card">
+      <div class="profile-avatar-lg" style="background:var(--primary);">${esc((auth.username||auth.email||'?').slice(0,1).toUpperCase())}</div>
+      <div class="profile-name">${auth.username ? esc(auth.username) : 'ユーザーネーム未設定'}</div>
+      <div class="profile-tag">${esc(auth.email)}</div>
+    </div>
+
+    <div class="section-header">ユーザーネーム</div>
+    <div class="form-card">
+      <div class="form-row">
+        <input class="form-input" id="account-username" value="${esc(auth.username||'')}" placeholder="例）Yuya" onblur="saveUsername(this.value)">
+      </div>
+    </div>
+    <div class="form-hint" style="margin-bottom:8px;">アプリ内での表示名として使われます。</div>
+
+    <div class="section-header">アカウントID</div>
+    <div class="account-id-row">
+      <div>
+        <div class="account-id-row__value">${esc(auth.accountId)}</div>
+        <div class="account-id-row__hint">ツアー表を共有してもらうときに、相手にこのIDを伝えてください</div>
+      </div>
+      <button class="tour-action-btn" onclick="copyAccountId()">${state.accountIdCopied ? 'コピーしました' : 'コピー'}</button>
+    </div>
+
+    <div class="section-header">アプリ名</div>
+    <div class="form-card">
+      <div class="form-row">
+        <input class="form-input" id="account-appname" value="${esc(appName)}" placeholder="例）参戦名義帳" onblur="saveAppName(this.value)">
+      </div>
+    </div>
+    <div class="form-hint" style="margin-bottom:8px;">ホーム画面の見出しなどに使われるアプリの名前です。</div>
+
+    <div class="section-header">背景カラー</div>
+    <div class="theme-picker-row">
+      <div class="theme-picker-row__label">
+        <div class="theme-picker-row__title">アプリのテーマ色</div>
+        <div class="theme-picker-row__hint">背景・ナビゲーションバー・ボタンなど、アプリ全体の色に反映されます</div>
+      </div>
+      <label class="color-picker-row" style="margin-top:0;">
+        <input type="color" value="${appTheme.color}" onchange="applyTheme(this.value); render('none');">
+      </label>
+    </div>
+
+    <button class="btn-primary-block" style="background:var(--error);margin-top:24px;" onclick="logout()">ログアウト</button>
+  `;
+}
+function generateAccountId(email){
+  // メールアドレスから決定論的に生成するため、同じメールで再ログインしても同じIDになる
+  let hash = 0;
+  const key = (email||'')+'|'+((email||'').length);
+  for(let i=0;i<key.length;i++){ hash = ((hash<<5)-hash+key.charCodeAt(i))|0; }
+  const code = Math.abs(hash).toString(36).toUpperCase().padStart(6,'0').slice(0,6);
+  return 'ACC-'+code;
+}
+function copyAccountId(){
+  state.accountIdCopied = true;
+  render('none');
+  setTimeout(()=>{ state.accountIdCopied=false; render('none'); }, 1500);
+}
+function defaultUsername(email){
+  return (email||'').split('@')[0] || null;
+}
+function saveUsername(value){
+  auth.username = value.trim() || null;
+  render('none');
+}
+function saveAppName(value){
+  const trimmed = value.trim();
+  appName = trimmed || null;
+  document.title = (appName || 'アプリ名未設定') + ' - モックアップ';
+  const creditEl = document.getElementById('app-name-credit');
+  if(creditEl) creditEl.textContent = appName || '(アプリ名未設定)';
+  render('none');
+}
+function loginWithEmail(){
+  const emailInput = document.getElementById('login-email');
+  const email = (emailInput && emailInput.value.trim()) || 'you@example.com';
+  auth = { loggedIn:true, email, method:'email', accountId:generateAccountId(email), username:defaultUsername(email) };
+  state.emailDraft = '';
+  render('none');
+}
+function signUpWithEmail(){
+  const emailInput = document.getElementById('login-email');
+  const passInput = document.getElementById('login-password');
+  const confirmInput = document.getElementById('signup-password-confirm');
+  const email = (emailInput && emailInput.value.trim()) || 'you@example.com';
+  const password = passInput ? passInput.value : '';
+  const confirm = confirmInput ? confirmInput.value : '';
+  if(password !== confirm){
+    state.signupError = 'パスワードが一致しません';
+    render('none');
+    return;
+  }
+  state.signupError = null;
+  auth = { loggedIn:true, email, method:'email', accountId:generateAccountId(email), username:defaultUsername(email) };
+  state.emailDraft = '';
+  render('none');
+}
+function loginWithGoogle(){
+  const email = 'you@gmail.com';
+  auth = { loggedIn:true, email, method:'google', accountId:generateAccountId(email), username:defaultUsername(email) };
+  state.emailDraft = '';
+  render('none');
+}
+function logout(){
+  auth = { loggedIn:false, email:null, method:null, accountId:null, username:null };
+  state.authMode = 'login';
+  state.signupError = null;
+  state.emailDraft = '';
+  render('none');
+}
+
+/* =========================================================
+   画面: 名義詳細
+========================================================= */
+function screenIdentityDetail(id){
+  const identity = findIdentity(id);
+  if(!identity) return `<div class="empty-state">名義が見つかりません</div>`;
+  const apps = applicationsForIdentity(identity.id).sort((a,b)=>new Date(b.eventDate)-new Date(a.eventDate));
+
+  const noteBlock = state.editingNoteId===identity.id
+    ? `<textarea class="note-edit-textarea" id="noteInput" placeholder="連絡手段や注意点など" onblur="saveNote(${identity.id}, this.value)">${esc(identity.note)}</textarea>`
+    : `<div class="note-box" style="cursor:pointer;" onclick="startEditNote(${identity.id})">${identity.note ? esc(identity.note) : '<span style="color:var(--ink-faint);">タップして備考を追加</span>'}</div>`;
+
+  return `
+    <div class="profile-card">
+      <div class="profile-avatar-lg" style="background:${identity.color}">${esc(identity.name.slice(0,1))}</div>
+      <div class="profile-name">${esc(identity.name)}</div>
+      <div class="profile-tag">${esc(identity.relation)}</div>
+      <div class="profile-stats">
+        <span>入会 ${fmtDate(identity.joinedDate,false)}</span><span>・</span><span>当選 ${winCount(identity.id)}回</span>
+      </div>
+      <label class="color-picker-row">
+        名義カラー
+        <input type="color" value="${identity.color}" onchange="setIdentityColor(${identity.id}, this.value)">
+      </label>
+      <div class="form-hint" style="text-align:center;margin-top:2px;">一覧やツアー表でこの名義を見分けるための色分けです（背景色には反映されません）</div>
+    </div>
+
+    <div class="section-header">備考</div>
+    ${noteBlock}
+
+    <div class="section-header">共有設定</div>
+    <div class="switch-row">
+      <div>
+        <div class="switch-row__label">当落履歴を共有時に公開する</div>
+        <div class="switch-row__hint">オフにすると、共有プレビューでこの名義の当落履歴が非公開になります</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" ${identity.historyVisible?'checked':''} onchange="toggleHistoryVisible(${identity.id})">
+        <span class="switch__track"><span class="switch__thumb"></span></span>
+      </label>
+    </div>
+
+    <div class="section-header">ファンクラブ会員情報</div>
+    ${identity.memberships.map(m=>`
+      <div class="membership-card">
+        <div class="membership-top">
+          <div>
+            <div class="membership-fc">${esc(m.fc)}</div>
+            ${m.memberNo ? `<div class="membership-no">No. ${esc(m.memberNo)}</div>` : ''}
+          </div>
+          ${renewalBadge(m.renewal)}
+        </div>
+        <div class="membership-meta">
+          <div class="membership-meta__item">更新日 <b>${fmtDate(m.renewal)}</b></div>
+          <div class="membership-meta__item">年会費 <b>${fmtYen(m.fee)}</b></div>
+        </div>
+      </div>`).join('')}
+    <div class="add-row-btn" onclick="navigate('add-membership',{identityId:${identity.id}})">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      会員情報を追加
+    </div>
+
+    <div class="section-header">申込履歴</div>
+    ${apps.length ? apps.map(a=>ticketRow(a, identity.id)).join('') : `<div class="empty-state">この名義ではまだ申込がありません</div>`}
+  `;
+}
+function setIdentityColor(id, color){
+  const identity = findIdentity(id);
+  if(identity) identity.color = color;
+  render('none');
+}
+function startEditNote(id){
+  state.editingNoteId = id;
+  render('none');
+  setTimeout(()=>{ const el=document.getElementById('noteInput'); if(el){ el.focus(); } }, 0);
+}
+function saveNote(id, value){
+  const identity = findIdentity(id);
+  if(identity) identity.note = value.trim();
+  state.editingNoteId = null;
+  render('none');
+}
+function toggleHistoryVisible(id){
+  const identity = findIdentity(id);
+  if(identity) identity.historyVisible = !identity.historyVisible;
+  render('none');
+}
+
+/* =========================================================
+   画面: 申込一覧
+========================================================= */
+function screenApplications(){
+  const viewModes = [{key:'list', label:'リスト'}, {key:'table', label:'ツアー表'}];
+  const modeToggle = `
+    <div class="segmented">
+      ${viewModes.map(o=>`<button class="segmented__btn ${state.appViewMode===o.key?'active':''}" onclick="state.appViewMode='${o.key}'; render('none'); if('${o.key}'==='table'){ ensureTourSharesLoaded(); }">${o.label}</button>`).join('')}
+    </div>`;
+
+  if(state.appViewMode==='table'){
+    return `
+      <div class="big-title">申込</div>
+      ${modeToggle}
+      ${screenApplicationsTable()}
+    `;
+  }
+
+  const filters = ['すべて','下書き','申込中','当選','落選'];
+  let list = applications.slice();
+  if(state.appFilter!=='すべて') list = list.filter(a=>a.status===state.appFilter);
+  if(state.appSearch.trim()){
+    const q = state.appSearch.trim();
+    list = list.filter(a=> a.event.includes(q) || a.artist.includes(q) || a.venue.includes(q));
+  }
+  list.sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
+
+  return `
+    <div class="big-title">申込</div>
+    ${modeToggle}
+    <input class="search-input" placeholder="公演名・会場で検索" value="${esc(state.appSearch)}" oninput="state.appSearch=this.value; renderAppsListOnly();">
+    <div class="segmented">
+      ${filters.map(f=>`<button class="segmented__btn ${state.appFilter===f?'active':''}" onclick="state.appFilter='${f}'; render('none');">${f}</button>`).join('')}
+    </div>
+    <div id="appsListArea">
+      ${list.length ? list.map(a=>ticketRow(a)).join('') : `<div class="empty-state">該当する申込がありません</div>`}
+    </div>
+  `;
+}
+function colorDot(color){
+  return color ? `<span class="color-dot" style="background:${color};"></span>` : '';
+}
+function fmtTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function ensureTourSharesLoaded(){
+  groupApplicationsByTour().forEach(g=>{
+    if(state.sharedTourStatus[g.tour]===undefined) refreshTourShare(g.tour);
+  });
+}
+const refreshIcon = `<svg viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 4v4h-4M6 20v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+/* =========================================================
+   画面: 共有相手を選ぶ（ツアー表の共有時）
+========================================================= */
+function screenShareRecipients(tourName){
+  const prefill = (state.tourShareRecipientIds[tourName] || []).join(', ');
+  return `
+    <div class="big-title">共有相手を選ぶ</div>
+    <div class="big-sub">${esc(tourName)}</div>
+    <div class="form-hint" style="margin-bottom:14px;">共有相手のアカウントIDを入力してください。IDは相手の「アカウント設定」画面で確認できます。共有リンク自体はURLを知っている人なら誰でも閲覧・編集できるため、IDの入力は実際のアクセス制限ではなく記録用である点にご注意ください。</div>
+    <div class="form-card">
+      <div class="form-row">
+        <div class="form-label">共有相手のID（カンマ区切りで複数指定できます）</div>
+        <input class="form-input" id="share-recipient-ids" placeholder="例）ACC-1A2B3C, ACC-9F8E7D" value="${esc(prefill)}">
+      </div>
+    </div>
+    ${auth.loggedIn ? `<div class="form-hint" style="margin-top:12px;">あなたのアカウントID: ${esc(auth.accountId)}（アカウント設定で確認・コピーできます）</div>` : `<div class="form-hint" style="margin-top:12px;">ログインするとあなた自身のアカウントIDが発行され、相手はそのIDを使ってあなたと共有できます。</div>`}
+  `;
+}
+
+function screenApplicationsTable(){
+  const groups = groupApplicationsByTour();
+  if(!groups.length) return `<div class="empty-state">申込データがありません</div>`;
+  return groups.map(g=>{
+    const winN = g.items.filter(a=>a.status==='当選').length;
+    const pendN = g.items.filter(a=>a.status==='申込中').length;
+    const loseN = g.items.filter(a=>a.status==='落選').length;
+    const status = state.sharedTourStatus[g.tour];
+    const cache = state.sharedTourCache[g.tour];
+
+    if(status==='shared' && cache){
+      const foreignTag = name => identities.some(i=>i.name===name) ? '' : `<span class="tag" style="margin-left:4px;white-space:nowrap;">他アカウント</span>`;
+      const rows = cache.items.map(item=>{
+        const seatKey = g.tour+'::'+item.id;
+        const seatCell = state.editingSharedSeatKey===seatKey
+          ? `<input class="seat-input" id="sharedSeatInput" value="${esc(item.seat)}"
+              onkeydown="if(event.key==='Enter'){saveSharedSeat('${esc(g.tour)}', ${item.id}, this.value)}"
+              onblur="saveSharedSeat('${esc(g.tour)}', ${item.id}, this.value)">`
+          : `<span onclick="event.stopPropagation(); startEditSharedSeat('${esc(g.tour)}', ${item.id})" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${item.seat ? esc(item.seat) : '未登録'}</span>`;
+        return `
+          <tr>
+            <td>${fmtDateShort(item.eventDate)}<br><span class="tour-table__venue">${esc(item.venue)}</span></td>
+            <td>${colorDot(item.repColor)}${esc(item.repName)}${foreignTag(item.repName)}</td>
+            <td>${item.companions && item.companions.length ? item.companions.map(c=>colorDot(c.color)+esc(c.name)+foreignTag(c.name)).join('、') : '—'}</td>
+            <td><span class="stamp ${stampClass(item.status)}" style="display:inline-block;cursor:pointer;" onclick="event.stopPropagation(); cycleSharedStatus('${esc(g.tour)}', ${item.id})">${esc(item.status)}</span></td>
+            <td>${seatCell}</td>
+          </tr>`;
+      }).join('');
+      return `
+        <div class="tour-group">
+          <div class="tour-group__header">
+            <div class="tour-group__title-row">
+              <div class="tour-group__title">${esc(g.tour)}</div>
+              <span class="badge badge--ok" style="color:var(--success);background:var(--success-bg);border-color:transparent;">共有中</span>
+            </div>
+            <div class="tour-group__stats">更新 ${fmtTime(cache.updatedAt)} ・ 全${cache.items.length}件</div>
+            <div class="tour-group__stats">共有相手: ${cache.sharedWith && cache.sharedWith.length ? esc(cache.sharedWith.join('、')) : '未指定'}</div>
+            <div class="tour-group__actions">
+              <button class="tour-action-btn" onclick="refreshTourShare('${esc(g.tour)}')">${refreshIcon}最新を取得</button>
+              <button class="tour-action-btn" onclick="shareTour('${esc(g.tour)}', groupApplicationsByTour().find(x=>x.tour==='${esc(g.tour)}').items)">自分の変更を反映</button>
+              <button class="tour-action-btn" onclick="openShareRecipients('${esc(g.tour)}')">共有相手を変更</button>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="tour-table">
+              <thead><tr><th>公演</th><th>代表者</th><th>同行者</th><th>状況</th><th>座席</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <div class="form-hint">タップで状況・座席をその場で編集できます。編集は自動では他の人に届かないため「自分の変更を反映」で共有してください。</div>
+        </div>`;
+    }
+
+    // 未共有 / 読込中 / エラー：ローカルのテーブルを表示
+    const rows = g.items.map(a=>{
+      const rep = findIdentity(a.repIdentityId);
+      const comp = a.companions.length
+        ? a.companions.map(c=>{
+            const ci = c.identityId ? findIdentity(c.identityId) : null;
+            return colorDot(ci?ci.color:null)+esc(c.name);
+          }).join('、')
+        : '—';
+      return `
+        <tr onclick="navigate('application-detail',{id:${a.id}})">
+          <td>${fmtDateShort(a.eventDate)}<br><span class="tour-table__venue">${esc(a.venue)}</span></td>
+          <td>${colorDot(rep?rep.color:null)}${esc(rep?rep.name:'不明')}</td>
+          <td>${comp}</td>
+          <td><span class="stamp ${stampClass(a.status)}" style="display:inline-block;">${esc(a.status)}</span></td>
+        </tr>`;
+    }).join('');
+    const statusPill = status==='loading'
+      ? `<span class="badge badge--soon">確認中…</span>`
+      : status==='error'
+        ? `<span class="badge badge--warn">共有に失敗しました</span>`
+        : `<span class="badge badge--ok">未共有</span>`;
+    const shareHint = hasStorage()
+      ? `<button class="tour-action-btn" onclick="openShareRecipients('${esc(g.tour)}')">共有相手を選んで共有する</button>`
+      : `<div class="form-hint">共有機能は、Claude.aiでこのファイルをアーティファクトとして開いている場合に利用できます。</div>`;
+    return `
+      <div class="tour-group">
+        <div class="tour-group__header">
+          <div class="tour-group__title-row">
+            <div class="tour-group__title">${esc(g.tour)}</div>
+            ${statusPill}
+          </div>
+          <div class="tour-group__stats">全${g.items.length}件・当選${winN}／申込中${pendN}／落選${loseN}</div>
+          <div class="tour-group__actions">${shareHint}</div>
+        </div>
+        <div class="table-scroll">
+          <table class="tour-table">
+            <thead><tr><th>公演</th><th>代表者</th><th>同行者</th><th>状況</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+}
+function renderAppsListOnly(){
+  // 検索入力のたびに全体を再描画すると入力欄のフォーカスが失われるため、
+  // リスト部分のみ差し替える軽量な再描画。
+  let list = applications.slice();
+  if(state.appFilter!=='すべて') list = list.filter(a=>a.status===state.appFilter);
+  const q = state.appSearch.trim();
+  if(q) list = list.filter(a=> a.event.includes(q) || a.artist.includes(q) || a.venue.includes(q));
+  list.sort((a,b)=>new Date(a.eventDate)-new Date(b.eventDate));
+  const area = document.getElementById('appsListArea');
+  if(area) area.innerHTML = list.length ? list.map(a=>ticketRow(a)).join('') : `<div class="empty-state">該当する申込がありません</div>`;
+}
+
+/* =========================================================
+   画面: 申込詳細
+========================================================= */
+function screenApplicationDetail(id){
+  const app = findApplication(id);
+  if(!app) return `<div class="empty-state">申込が見つかりません</div>`;
+  const rep = findIdentity(app.repIdentityId);
+  const companionsHtml = app.companions.length
+    ? app.companions.map(c=> c.identityId
+        ? `<span class="info-value link" onclick="navigate('identity-detail',{id:${c.identityId}})" style="display:block;">${esc(c.name)} ›</span>`
+        : `<span class="info-value" style="display:block;">${esc(c.name)}</span>`
+      ).join('')
+    : `<span class="info-value" style="color:var(--ink-faint);font-weight:400;">なし</span>`;
+
+  const seatValue = state.editingSeatId===app.id
+    ? `<input class="seat-input" id="seatInput" value="${esc(app.seat)}" onkeydown="if(event.key==='Enter'){saveSeat(${app.id}, this.value)}" onblur="saveSeat(${app.id}, this.value)">`
+    : `<span class="info-value mono">${app.seat ? esc(app.seat) : '未登録'}</span> <button class="info-edit-btn" onclick="startEditSeat(${app.id})">編集</button>`;
+
+  return `
+    <div class="ticket-hero">
+      <div class="ticket-hero__main">
+        <div class="ticket-hero__artist">${esc(app.artist)}</div>
+        <div class="ticket-hero__event">${esc(app.event)}</div>
+        <div class="ticket-hero__venue">${esc(app.venue)}</div>
+        <div class="ticket-hero__date">${fmtDate(app.eventDate)}</div>
+      </div>
+      <div class="ticket-hero__stub">
+        <div class="stamp-lg">${esc(app.status)}</div>
+        ${app.seat ? `<div class="ticket-hero__seat">${esc(app.seat)}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="status-changer">
+      <button class="status-btn is-draft ${app.status==='下書き'?'on':''}" onclick="setStatus(${app.id},'下書き')">下書き</button>
+      <button class="status-btn is-pending ${app.status==='申込中'?'on':''}" onclick="setStatus(${app.id},'申込中')">申込中</button>
+      <button class="status-btn is-win ${app.status==='当選'?'on':''}" onclick="setStatus(${app.id},'当選')">当選</button>
+      <button class="status-btn is-lose ${app.status==='落選'?'on':''}" onclick="setStatus(${app.id},'落選')">落選</button>
+    </div>
+
+    <div class="info-list">
+      <div class="info-row">
+        <span class="info-label">代表者（FC名義）</span>
+        <span class="info-value link" onclick="navigate('identity-detail',{id:${app.repIdentityId}})">${esc(rep?rep.name:'不明')} ›</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">同行者</span>
+        <div style="text-align:right;">${companionsHtml}</div>
+      </div>
+      <div class="info-row">
+        <span class="info-label">申込日</span>
+        <span class="info-value">${fmtDate(app.appliedDate,false)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">当落発表日</span>
+        <span class="info-value">${fmtDate(app.resultDate,false)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">座席</span>
+        ${seatValue}
+      </div>
+    </div>
+
+    ${app.note ? `<div class="note-box">${esc(app.note)}</div>` : ''}
+  `;
+}
+function startEditSeat(id){
+  state.editingSeatId = id;
+  render('none');
+  setTimeout(()=>{ const el=document.getElementById('seatInput'); if(el){ el.focus(); el.select(); } }, 0);
+}
+function saveSeat(id, value){
+  const app = findApplication(id);
+  if(app) app.seat = value.trim();
+  state.editingSeatId = null;
+  render('none');
+}
+function setStatus(id, status){
+  const app = findApplication(id);
+  if(!app) return;
+  app.status = status;
+  if(status!=='当選'){ /* 座席はそのまま保持（再当選チェック時に備え消さない） */ }
+  render('none');
+}
+
+/* =========================================================
+   画面: 名義を追加
+========================================================= */
+function screenAddIdentity(){
+  const defaultColor = AVATAR_COLORS[identities.length % AVATAR_COLORS.length];
+  return `
+    <div class="form-section-label">基本情報</div>
+    <div class="form-card">
+      <div class="form-row">
+        <div class="form-label">氏名・呼び方</div>
+        <input class="form-input" id="f-name" placeholder="例）鈴木 花子 / 友人C">
+      </div>
+      <div class="form-row">
+        <div class="form-label">関係性</div>
+        <select class="form-select" id="f-relation">
+          <option value="本人">本人</option>
+          <option value="家族">家族</option>
+          <option value="友人">友人</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-label">入会日（この名義の運用を始めた日）</div>
+        <input class="form-input" type="date" id="f-joined" value="${TODAY}">
+      </div>
+      <div class="form-row">
+        <div class="form-label">名義カラー（一覧・ツアー表での色分けに使用）</div>
+        <div class="color-picker-row" style="margin-top:0;">
+          <input type="color" id="f-color" value="${defaultColor}">
+          <span style="font-weight:400;color:var(--ink-faint);">タップして色を選択</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">メモ</div>
+        <textarea class="form-textarea" id="f-note" placeholder="連絡手段や注意点など"></textarea>
+      </div>
+    </div>
+    <div class="form-hint">保存すると、続けてファンクラブ会員情報を登録する画面に進みます。</div>
+  `;
+}
+function saveIdentity(){
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ document.getElementById('f-name').focus(); return; }
+  const relation = document.getElementById('f-relation').value;
+  const joinedDate = document.getElementById('f-joined').value || TODAY;
+  const color = document.getElementById('f-color').value;
+  const note = document.getElementById('f-note').value.trim();
+  const newId = nextIdentityId++;
+  identities.push({ id:newId, name, relation, color, joinedDate, historyVisible:true, note, memberships:[] });
+  state.stack.pop(); // add-identity を閉じる
+  navigate('identity-detail', {id:newId});
+}
+
+/* =========================================================
+   画面: 会員情報を追加
+========================================================= */
+function screenAddMembership(identityId){
+  const identity = findIdentity(identityId);
+  return `
+    <div class="form-section-label">${esc(identity?identity.name:'')} の会員情報</div>
+    <div class="form-card">
+      <div class="form-row">
+        <div class="form-label">ファンクラブ / アーティスト名</div>
+        <input class="form-input" id="m-fc" placeholder="例）STELLARIS OFFICIAL FAN CLUB">
+      </div>
+      <div class="form-row">
+        <div class="form-label">会員番号（任意）</div>
+        <input class="form-input" id="m-no" placeholder="例）STL-04821">
+      </div>
+      <div class="form-row">
+        <div class="form-label">更新日</div>
+        <input class="form-input" type="date" id="m-renewal" value="${TODAY}">
+      </div>
+      <div class="form-row">
+        <div class="form-label">年会費（円）</div>
+        <input class="form-input" type="number" id="m-fee" placeholder="4000">
+      </div>
+    </div>
+  `;
+}
+function saveMembership(identityId){
+  const identity = findIdentity(identityId);
+  const fc = document.getElementById('m-fc').value.trim();
+  const renewal = document.getElementById('m-renewal').value;
+  if(!fc || !renewal){ return; }
+  const memberNo = document.getElementById('m-no').value.trim();
+  const fee = Number(document.getElementById('m-fee').value || 0);
+  identity.memberships.push({ id:nextMembershipId++, fc, memberNo, renewal, fee });
+  closeModal();
+}
+
+/* =========================================================
+   画面: 申込を追加
+========================================================= */
+function screenAddApplication(){
+  const options = identities.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('');
+  const existingTours = Array.from(new Set(applications.map(a=>a.tour))).sort();
+  return `
+    <div class="form-section-label">公演情報</div>
+    <div class="form-card">
+      <div class="form-row">
+        <div class="form-label">公演名</div>
+        <input class="form-input" id="a-event" placeholder="例）STELLARIS ARENA TOUR 2026 -福岡公演-">
+      </div>
+      <div class="form-row">
+        <div class="form-label">ツアー名（同じツアーの公演をまとめて表で見る際に使用）</div>
+        <input class="form-input" id="a-tour" list="tour-suggestions" placeholder="例）STELLARIS ARENA TOUR 2026">
+        <datalist id="tour-suggestions">${existingTours.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
+        <div class="form-hint" style="margin-top:6px;">空欄の場合は公演名がそのままツアー名として使われます。</div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">アーティスト / グループ</div>
+        <input class="form-input" id="a-artist" placeholder="例）STELLARIS">
+      </div>
+      <div class="form-row">
+        <div class="form-label">会場</div>
+        <input class="form-input" id="a-venue" placeholder="例）マリンメッセ福岡">
+      </div>
+      <div class="form-row">
+        <div class="form-label">公演日</div>
+        <input class="form-input" type="date" id="a-eventdate">
+      </div>
+    </div>
+
+    <div class="form-section-label">申込内容</div>
+    <div class="form-card" id="a-cardType">
+      <div class="form-row">
+        <div class="form-label">代表者（FC名義で申し込む人）</div>
+        <select class="form-select" id="a-identity">${options}</select>
+      </div>
+      ${[1,2,3].map(n=>`
+      <div class="form-row">
+        <div class="form-label">同行者${n}（任意）</div>
+        <select class="form-select" id="a-companion-identity-${n}" style="margin-bottom:8px;">
+          <option value="">指定しない</option>
+          ${identities.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('')}
+        </select>
+        <input class="form-input" id="a-companion-name-${n}" placeholder="名義未登録の場合はここに氏名を入力">
+      </div>`).join('')}
+      <div class="form-hint" style="padding:0 14px 8px;">同行者は最大3人まで追加できます。代表者と同じ人は選べません。</div>
+      <div class="form-row">
+        <div class="form-label">申込日</div>
+        <input class="form-input" type="date" id="a-applied" value="${TODAY}">
+      </div>
+      <div class="form-row">
+        <div class="form-label">当落発表日</div>
+        <input class="form-input" type="date" id="a-result">
+      </div>
+      <div class="form-row">
+        <div class="form-label">ステータス</div>
+        <div class="radio-group">
+          <label class="radio-pill">下書き<input type="radio" name="s-type" id="s-draft"></label>
+          <label class="radio-pill">申込中<input type="radio" name="s-type" id="s-pending" checked></label>
+          <label class="radio-pill">当選<input type="radio" name="s-type" id="s-win"></label>
+          <label class="radio-pill">落選<input type="radio" name="s-type" id="s-lose"></label>
+        </div>
+        <div class="seat-field" style="margin-top:9px;">
+          <input class="form-input" id="a-seat" placeholder="座席（例：アリーナ8列15番）">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">メモ</div>
+        <textarea class="form-textarea" id="a-note" placeholder="任意"></textarea>
+      </div>
+    </div>
+  `;
+}
+function saveApplication(){
+  const event = document.getElementById('a-event').value.trim();
+  const repIdentityId = Number(document.getElementById('a-identity').value);
+  const eventDate = document.getElementById('a-eventdate').value;
+  if(!event || !repIdentityId || !eventDate){ return; }
+  const tour = document.getElementById('a-tour').value.trim() || event;
+  const artist = document.getElementById('a-artist').value.trim();
+  const venue = document.getElementById('a-venue').value.trim();
+
+  const companions = [];
+  [1,2,3].forEach(n=>{
+    const selEl = document.getElementById('a-companion-identity-'+n);
+    const nameEl = document.getElementById('a-companion-name-'+n);
+    const sel = selEl ? selEl.value : '';
+    if(sel && Number(sel)!==repIdentityId && !companions.some(c=>c.identityId===Number(sel))){
+      const ci = findIdentity(sel);
+      companions.push({ identityId:Number(sel), name:ci.name });
+      return;
+    }
+    const nameText = nameEl ? nameEl.value.trim() : '';
+    if(nameText) companions.push({ identityId:null, name:nameText });
+  });
+
+  const appliedDate = document.getElementById('a-applied').value;
+  const resultDate = document.getElementById('a-result').value;
+  const status = document.getElementById('s-draft').checked ? '下書き'
+    : document.getElementById('s-win').checked ? '当選'
+    : document.getElementById('s-lose').checked ? '落選'
+    : '申込中';
+  const seat = document.getElementById('a-seat').value.trim();
+  const note = document.getElementById('a-note').value.trim();
+
+  applications.push({
+    id:nextApplicationId++, repIdentityId, repMembershipId:null, tour, event, artist, venue, eventDate,
+    appliedDate, resultDate, status, seat, companions, note
+  });
+  closeModal();
+}
+
+/* =========================================================
+   ナビゲーションバー
+========================================================= */
+const backIcon = `<svg viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const plusIcon = `<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+const shareIcon = `<svg viewBox="0 0 24 24" fill="none"><path d="M12 15V4M12 4L8 8M12 4l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 13v5a2 2 0 002 2h10a2 2 0 002-2v-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const accountIcon = `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="2"/><path d="M4.5 20c1.4-3.6 4.4-5.5 7.5-5.5s6.1 1.9 7.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+
+function renderNavBar(){
+  const s = cur();
+  const nav = document.getElementById('navBar');
+  let left = `<button class="nav-btn ghost">戻る</button>`;
+  let title = '';
+  let right = `<button class="nav-btn ghost">追加</button>`;
+
+  if(s.screen==='home'){
+    title='ホーム';
+    left = `<button class="nav-icon-btn" onclick="navigate('account')" aria-label="アカウント">${accountIcon}</button>`;
+    right = `<button class="nav-icon-btn" onclick="toggleSheet(true)">${plusIcon}</button>`;
+  }
+  else if(s.screen==='identities'){
+    title='名義';
+    right = `<div style="display:flex;gap:2px;">
+      <button class="nav-icon-btn" onclick="navigate('share-preview')" aria-label="共有プレビュー">${shareIcon}</button>
+      <button class="nav-icon-btn" onclick="openModal('add-identity')" aria-label="名義を追加">${plusIcon}</button>
+    </div>`;
+  }
+  else if(s.screen==='applications'){ title='申込'; right = `<button class="nav-icon-btn" onclick="openModal('add-application')">${plusIcon}</button>`; }
+  else if(s.screen==='identity-detail'){
+    title='名義詳細';
+    left = `<button class="nav-btn" onclick="goBack()">${backIcon}戻る</button>`;
+  }
+  else if(s.screen==='application-detail'){
+    title='申込詳細';
+    left = `<button class="nav-btn" onclick="goBack()">${backIcon}戻る</button>`;
+  }
+  else if(s.screen==='share-preview'){
+    title='共有プレビュー';
+    left = `<button class="nav-btn" onclick="goBack()">${backIcon}戻る</button>`;
+  }
+  else if(s.screen==='account'){
+    title = auth.loggedIn ? 'アカウント設定' : (state.authMode==='signup' ? 'アカウントを作成' : 'ログイン');
+    left = `<button class="nav-btn" onclick="goBack()">${backIcon}戻る</button>`;
+  }
+  else if(s.screen==='share-recipients'){
+    title='共有相手を選ぶ';
+    left = `<button class="nav-btn" onclick="closeModal()">キャンセル</button>`;
+    right = `<button class="nav-btn primary" onclick="confirmShareTour('${esc(s.tourName)}')">共有する</button>`;
+  }
+  else if(s.screen==='add-identity'){
+    title='名義を追加';
+    left = `<button class="nav-btn" onclick="closeModal()">キャンセル</button>`;
+    right = `<button class="nav-btn primary" onclick="saveIdentity()">保存</button>`;
+  }
+  else if(s.screen==='add-membership'){
+    title='会員情報を追加';
+    left = `<button class="nav-btn" onclick="closeModal()">キャンセル</button>`;
+    right = `<button class="nav-btn primary" onclick="saveMembership(${s.identityId})">保存</button>`;
+  }
+  else if(s.screen==='add-application'){
+    title='申込を追加';
+    left = `<button class="nav-btn" onclick="closeModal()">キャンセル</button>`;
+    right = `<button class="nav-btn primary" onclick="saveApplication()">保存</button>`;
+  }
+
+  nav.innerHTML = `${left}<div class="nav-title">${title}</div>${right}`;
+}
+
+/* =========================================================
+   シート（ホームの＋タップ時）
+========================================================= */
+function renderSheet(){
+  const layer = document.getElementById('sheetLayer');
+  if(!state.sheetOpen){ layer.innerHTML=''; return; }
+  layer.innerHTML = `
+    <div class="sheet-overlay" onclick="if(event.target===this) toggleSheet(false)">
+      <div style="width:100%;">
+        <div class="action-sheet">
+          <button class="action-sheet__btn" onclick="toggleSheet(false); openModal('add-identity');">名義を追加</button>
+          <button class="action-sheet__btn" onclick="toggleSheet(false); openModal('add-application');">申込を追加</button>
+        </div>
+        <button class="action-sheet__cancel" onclick="toggleSheet(false)">キャンセル</button>
+      </div>
+    </div>`;
+}
+
+/* =========================================================
+   メインレンダー
+========================================================= */
+function render(direction){
+  const s = cur();
+  const body = document.getElementById('screenBody');
+  let html = '';
+  if(s.screen==='home') html = screenHome();
+  else if(s.screen==='identities') html = screenIdentities();
+  else if(s.screen==='identity-detail') html = screenIdentityDetail(s.id);
+  else if(s.screen==='applications') html = screenApplications();
+  else if(s.screen==='application-detail') html = screenApplicationDetail(s.id);
+  else if(s.screen==='share-preview') html = screenSharePreview();
+  else if(s.screen==='share-recipients') html = screenShareRecipients(s.tourName);
+  else if(s.screen==='account') html = screenAccount();
+  else if(s.screen==='add-identity') html = screenAddIdentity();
+  else if(s.screen==='add-membership') html = screenAddMembership(s.identityId);
+  else if(s.screen==='add-application') html = screenAddApplication();
+
+  body.innerHTML = html;
+  body.classList.remove('anim-push','anim-pop','anim-modal');
+  if(direction==='push') { void body.offsetWidth; body.classList.add('anim-push'); }
+  else if(direction==='pop'){ void body.offsetWidth; body.classList.add('anim-pop'); }
+  else if(direction==='modal'){ void body.offsetWidth; body.classList.add('anim-modal'); }
+  body.scrollTop = 0;
+
+  renderNavBar();
+  renderSheet();
+
+  // タブバーの表示制御（モーダル表示中は隠す）
+  const tabBar = document.getElementById('tabBar');
+  tabBar.style.display = s.modal ? 'none' : 'flex';
+  document.querySelectorAll('.tab-item').forEach(el=>{
+    el.classList.toggle('active', el.dataset.tab===currentTab());
+  });
+}
+
+render();
+</script>
+</body>
+</html>

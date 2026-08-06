@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*credentials*)",
+      "Read(**/Secrets.swift)",
+      "Read(**/firebase-service-account.json)",
+      "Read(**/AuthKey_*.p8)"
+    ]
+  },
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "git commit with --no-verify, or any attempt to bypass a mandatory pre-commit hook (unless the user explicitly requests --no-verify)",
+      "destructive operations on the PostgreSQL database: DROP TABLE / DROP DATABASE, TRUNCATE, DELETE without a WHERE clause, `prisma migrate reset`, or `prisma db push` with --force-reset / --accept-data-loss",
+      "git push --force / --force-with-lease, git reset --hard, or git clean -fd that discards uncommitted work",
+      "deleting or rewriting existing migration directories under apps/api/prisma/migrations/",
+      "outward-facing or repository-level operations: creating/editing/merging/closing pull requests or issues, creating/deleting/editing repositories, changing auth (gh pr / gh issue / gh repo / gh auth), or pushing branches to a remote",
+      "executing arbitrary code through an interpreter whose runtime behavior is not visible in the command itself (python3 -c or a script file, node -e, ts-node -e, or bash/sh running an ad-hoc script), since it can read or transmit secrets or mutate state outside the reviewed build/test commands",
+      "running a command or program inside a Docker container (docker exec / docker compose exec), which can execute arbitrary statements (e.g. psql against the app database) that bypass the database guards above"
+    ],
+    "hard_deny": [
+      "$defaults",
+      "reading, printing (cat/echo/grep), or transmitting the contents of .env, Secrets.swift, AuthKey_*.p8, service-account JSON, or other secret/credential files"
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+name: meigicho
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: meigicho-db
+    environment:
+      POSTGRES_USER: meigicho
+      POSTGRES_PASSWORD: meigicho
+      POSTGRES_DB: meigicho
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meigicho -d meigicho"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: meigicho-api
+    environment:
+      NODE_ENV: development
+      PORT: "8080"
+      DATABASE_URL: postgres://meigicho:meigicho@db:5432/meigicho
+      JWT_ACCESS_SECRET: local-dev-access-secret-change-me
+      JWT_ACCESS_TTL_SECONDS: "3600"
+      REFRESH_TTL_DAYS: "90"
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # Sign in with Apple。実機検証には Apple Developer の Services ID を入れる
+      APPLE_CLIENT_ID: changeme
+      APPLE_ISSUER: https://appleid.apple.com
+      APPLE_JWKS_URL: https://appleid.apple.com/auth/keys
+      # アカウント削除時のトークン失効（DELETE /v1/me）。
+      # ローカルは未設定扱い（空）にして失効をスキップさせる。実機検証時のみ実値を入れる
+      APPLE_TEAM_ID: ""
+      APPLE_KEY_ID: ""
+      # .p8 の中身（PEM）。1 行で書くときは改行を \n にエスケープする
+      APPLE_PRIVATE_KEY: ""
+      # Google Sign-In。受理する aud をカンマ区切りで入れる（iOS / サーバーのクライアント ID）
+      GOOGLE_CLIENT_IDS: changeme.apps.googleusercontent.com
+      # 空にすると https://accounts.google.com と accounts.google.com の両方を受理する
+      GOOGLE_ISSUER: ""
+      GOOGLE_JWKS_URL: https://www.googleapis.com/oauth2/v3/certs
+      # 共有リンクの表示 URL（ローカルの共有 Web オリジン）
+      SHARE_BASE_URL: http://localhost:3001
+      # RevenueCat Webhook（課金）。ローカルはダミー値
+      REVENUECAT_WEBHOOK_SECRET: local-dev-rc-webhook-secret
+      # メール送信（パスワードリセット）。ローカルはダミー値で未設定扱いにしてログへフォールバックする
+      RESEND_API_KEY: ""
+      RESEND_FROM_EMAIL: no-reply@example.com
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

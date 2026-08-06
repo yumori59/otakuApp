@@ -1,0 +1,15 @@
+---
+description: 参戦名義帳 — Cursor 向け索引（詳細は CLAUDE.md / .claude/rules）
+alwaysApply: true
+---
+
+# 参戦名義帳
+
+SwiftUI (meigicho) + NestJS (apps/api) + Prisma + PostgreSQL。
+
+- 仕様の正: `docs/`（01〜05 を優先）
+- AI 運用の正: `CLAUDE.md` と `.claude/rules/`
+- エージェント: `aidlc-planner` → `nest-developer` / `swift-developer` → `code-reviewer`
+- BE レイヤ: Controller → UseCase → Service → Prisma
+- iOS 依存: View → Store → Repository。Features は DataStore/Network を直接参照しない
+- ID: UUID v7（クライアント発行）。検証ゲートは `CLAUDE.md` 参照
