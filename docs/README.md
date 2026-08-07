@@ -82,6 +82,8 @@ MAU 増加・本番安定時は Supabase Pro へ移行。GCP 一体運用や大�
 | 07 | [収益化設計](./07-monetization.md) | プラン仕様、ペイウォール、広告配置、**予想コストと売上・損益** |
 | 08 | [法務・審査リスク](./08-compliance-risk.md) | ストア審査対策、App Store説明文ドラフト、個人情報保護、暗号化方針、セキュリティ、リスク一覧 |
 | 09 | [ロードマップ](./09-roadmap.md) | フェーズ定義、工数見積り、ガント、リリース計画、KPI、意思決定ゲート、拡張候補 |
+| 11 | [開発環境の接続手順](./11-dev-environment-setup.md) | Docker BE + iOSシミュレータの接続、Apple/Google/RevenueCat/AdMobキーの設定 |
+| 12 | [App Store 提出手順](./12-app-store-release.md) | 署名設定、アーカイブ、TestFlight、審査提出チェックリスト |
 
 ### 関心別の入口
 
