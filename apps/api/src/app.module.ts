@@ -19,6 +19,8 @@ import { MeModule } from './me/me.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PublicModule } from './public/public.module';
+import { ShareBoardModule } from './shares/board/share-board.module';
+import { SharesReceivedModule } from './shares/received/shares-received.module';
 import { SharesModule } from './shares/shares.module';
 import { StatsModule } from './stats/stats.module';
 import { SyncModule } from './sync/sync.module';
@@ -43,6 +45,9 @@ import { ToursModule } from './tours/tours.module';
     EventsModule,
     ApplicationsModule,
     SharesModule,
+    ShareBoardModule,
+    SharesReceivedModule,
+    // PublicModule は T2 が公開経路を解体するまで残す（share-account-invites）
     PublicModule,
     HomeModule,
     StatsModule,

@@ -12,7 +12,6 @@ export interface CreateShareLinkInput {
   scopeId: string | null;
   permission: SharePermission;
   maskMemberNo: boolean;
-  sharedWithAccountIds: string[];
   expiresAt: Date | null;
 }
 
@@ -55,7 +54,6 @@ export class SharesService {
         tokenHash: sha256Hex(token),
         permission: input.permission,
         maskMemberNo: input.maskMemberNo,
-        sharedWithAccountIds: input.sharedWithAccountIds,
         expiresAt: input.expiresAt,
       },
     });

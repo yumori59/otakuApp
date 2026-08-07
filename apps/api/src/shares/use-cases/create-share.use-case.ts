@@ -59,7 +59,9 @@ export class CreateShareUseCase {
       scopeId,
       permission,
       maskMemberNo: dto.mask_member_no ?? true,
-      sharedWithAccountIds: dto.shared_with_account_ids ?? [],
+      // dto.shared_with_account_ids はここでは保存しない。share_links の列を削除し
+      // （share-account-invites FR-5-4）、招待は share_recipients が正になる。
+      // 実際の招待作成は T3（api-contract-delta.md §1 の判定順序）が足す。
       expiresAt,
     });
 

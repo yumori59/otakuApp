@@ -42,7 +42,6 @@ function shareRow(overrides: Partial<ShareLink> = {}): ShareLink {
     tokenHash: TOKEN_HASH,
     permission: 'write',
     maskMemberNo: true,
-    sharedWithAccountIds: [],
     expiresAt: new Date('2026-08-31T00:00:00.000Z'),
     revokedAt: null,
     viewCount: 3,

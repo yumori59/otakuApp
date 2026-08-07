@@ -23,6 +23,13 @@ export const ErrorCode = {
   EMAIL_ALREADY_REGISTERED: 'EMAIL_ALREADY_REGISTERED',
   PLAN_LIMIT_SHARE_WRITE: 'PLAN_LIMIT_SHARE_WRITE',
   RATE_LIMITED: 'RATE_LIMITED',
+  // share-account-invites で追加 (api-contract-delta.md §0.1)
+  /** 招待されていないアカウントからの redeem。**POST /v1/shares/received/redeem 専用**。 */
+  SHARE_NOT_INVITED: 'SHARE_NOT_INVITED',
+  /** 招待先 ACC-XXXXXX が存在しない。details.unknown_account_ids を付ける。 */
+  SHARE_RECIPIENT_UNKNOWN: 'SHARE_RECIPIENT_UNKNOWN',
+  /** 自分自身の account_id を招待した。 */
+  SHARE_RECIPIENT_SELF: 'SHARE_RECIPIENT_SELF',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -46,6 +53,9 @@ export const ERROR_CODE_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.EMAIL_ALREADY_REGISTERED]: HttpStatus.CONFLICT,
   [ErrorCode.PLAN_LIMIT_SHARE_WRITE]: HttpStatus.FORBIDDEN,
   [ErrorCode.RATE_LIMITED]: HttpStatus.TOO_MANY_REQUESTS,
+  [ErrorCode.SHARE_NOT_INVITED]: HttpStatus.FORBIDDEN,
+  [ErrorCode.SHARE_RECIPIENT_UNKNOWN]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.SHARE_RECIPIENT_SELF]: HttpStatus.BAD_REQUEST,
 };
 
 /**

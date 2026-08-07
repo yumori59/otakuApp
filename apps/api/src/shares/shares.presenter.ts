@@ -5,6 +5,9 @@ import { isShareActive } from './share-validity';
  * POST /v1/shares の 201 ボディ (api-contract.md §8)。
  * **生トークンを返すのは発行時のこのレスポンスだけ**。
  */
+// NOTE(share-account-invites T1): `shared_with_account_ids` は share_links の列ごと削除した。
+// 招待先は share_recipients が正で、レスポンスの `recipients` は T3 が足す
+// （api-contract-delta.md §1 / §2）。
 export interface ShareCreatedResponse {
   id: string;
   token: string;
@@ -13,7 +16,6 @@ export interface ShareCreatedResponse {
   scope_id: string | null;
   permission: string;
   mask_member_no: boolean;
-  shared_with_account_ids: string[];
   expires_at: string | null;
   created_at: string;
 }
@@ -30,7 +32,6 @@ export interface ShareListItemResponse {
   scope_name: string | null;
   permission: string;
   mask_member_no: boolean;
-  shared_with_account_ids: string[];
   expires_at: string | null;
   revoked_at: string | null;
   view_count: number;
@@ -60,7 +61,6 @@ export function toShareCreatedResponse(
     scope_id: row.scopeId,
     permission: row.permission,
     mask_member_no: row.maskMemberNo,
-    shared_with_account_ids: [...row.sharedWithAccountIds],
     expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
     created_at: row.createdAt.toISOString(),
   };
@@ -78,7 +78,6 @@ export function toShareListItem(
     scope_name: scopeName,
     permission: row.permission,
     mask_member_no: row.maskMemberNo,
-    shared_with_account_ids: [...row.sharedWithAccountIds],
     expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
     revoked_at: row.revokedAt ? row.revokedAt.toISOString() : null,
     view_count: row.viewCount,

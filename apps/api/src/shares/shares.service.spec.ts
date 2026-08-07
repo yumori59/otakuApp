@@ -19,7 +19,6 @@ function shareRow(overrides: Partial<ShareLink> = {}): ShareLink {
     tokenHash: 'a'.repeat(64),
     permission: 'read',
     maskMemberNo: true,
-    sharedWithAccountIds: [],
     expiresAt: new Date('2026-08-31T00:00:00.000Z'),
     revokedAt: null,
     viewCount: 0,
@@ -77,7 +76,6 @@ describe('SharesService', () => {
         scopeId: TOUR_ID,
         permission: 'read',
         maskMemberNo: true,
-        sharedWithAccountIds: ['ACC-3F9A21'],
         expiresAt: new Date('2026-08-31T00:00:00.000Z'),
       });
 
@@ -105,7 +103,6 @@ describe('SharesService', () => {
         scopeId: TOUR_ID,
         permission: 'write',
         maskMemberNo: true,
-        sharedWithAccountIds: [],
         expiresAt: null,
       });
 

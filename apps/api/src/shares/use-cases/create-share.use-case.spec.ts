@@ -19,7 +19,6 @@ function shareRowFrom(data: Record<string, unknown>): ShareLink {
   return {
     permission: 'read',
     maskMemberNo: true,
-    sharedWithAccountIds: [],
     scopeId: null,
     expiresAt: null,
     revokedAt: null,
@@ -206,26 +205,33 @@ describe('CreateShareUseCase', () => {
     expect(res.scope_id).toBeNull();
   });
 
-  it('shared_with_account_ids と mask_member_no を保存する（既定は true / 空配列）', async () => {
+  it('mask_member_no を保存する（既定は true）', async () => {
     await useCase.execute(USER_ID, dto());
     const defaults = prisma.shareLink.create.mock.calls[0][0].data as Record<
       string,
       unknown
     >;
     expect(defaults.maskMemberNo).toBe(true);
-    expect(defaults.sharedWithAccountIds).toEqual([]);
 
     prisma.shareLink.create.mockClear();
-    await useCase.execute(
-      USER_ID,
-      dto({ mask_member_no: false, shared_with_account_ids: ['ACC-3F9A21'] }),
-    );
+    await useCase.execute(USER_ID, dto({ mask_member_no: false }));
     const explicit = prisma.shareLink.create.mock.calls[0][0].data as Record<
       string,
       unknown
     >;
     expect(explicit.maskMemberNo).toBe(false);
-    expect(explicit.sharedWithAccountIds).toEqual(['ACC-3F9A21']);
+  });
+
+  it('share_links に shared_with_account_ids を書かない（列は削除済み / FR-5-4）', async () => {
+    await useCase.execute(
+      USER_ID,
+      dto({ shared_with_account_ids: ['ACC-3F9A21'] }),
+    );
+    const data = prisma.shareLink.create.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(data).not.toHaveProperty('sharedWithAccountIds');
   });
 
   describe('permission (api-contract-delta.md §3)', () => {
