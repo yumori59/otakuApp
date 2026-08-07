@@ -15,12 +15,22 @@ import Domain
 /// ただしラッチは無条件ではない。表示中は `AdsStore.shouldRemainVisible(_:)`（= 自分が消費した
 /// F4-1 / F4-3 だけを除いた再判定）を毎回見て、Plus 化・オフライン・ステータス変更が起きたら畳む。
 struct PlacementAdSlot: View {
+    /// 面ごとの広告フォーマット（`docs/07-monetization.md` §7.2 の配置表）。
+    /// 判定・ラッチのロジックは共通なので、描画する `DesignSystem` の枠だけを切り替える。
+    enum Format {
+        /// インライン・アダプティブバナー（名義一覧 / 名義詳細 / ツアー表）
+        case banner
+        /// ネイティブ（ホーム最下部 / 申込一覧インライン）
+        case native
+    }
+
     @Environment(AdsStore.self) private var adsStore
     @Environment(ProfileStore.self) private var profileStore
     @Environment(\.adsBridge) private var adsBridge
     @Environment(\.adRenderer) private var adRenderer
 
     let placement: AdPlacement
+    var format: Format = .banner
 
     @State private var isVisible = false
 
@@ -31,7 +41,7 @@ struct PlacementAdSlot: View {
     private static let maxChecks = 24
 
     var body: some View {
-        AdSlot(isVisible: isVisible, adUnitID: adsBridge.adUnitID(for: placement))
+        slot
             .task {
                 for _ in 0..<Self.maxChecks {
                     // 機内モード/圏外を測り直して `AdsStore` に反映する（F4-4 / AC-AD-40）
@@ -42,6 +52,17 @@ struct PlacementAdSlot: View {
                     guard !Task.isCancelled else { return }
                 }
             }
+    }
+
+    @ViewBuilder
+    private var slot: some View {
+        let adUnitID = adsBridge.adUnitID(for: placement)
+        switch format {
+        case .banner:
+            AdSlot(isVisible: isVisible, adUnitID: adUnitID)
+        case .native:
+            NativeAdSlot(isVisible: isVisible, adUnitID: adUnitID)
+        }
     }
 
     @MainActor

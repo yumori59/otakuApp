@@ -4,6 +4,10 @@
 <dict>
 	<key>ADMOB_APP_ID</key>
 	<string>$(ADMOB_APP_ID)</string>
+	<key>ADMOB_UNIT_APPLICATIONS_NATIVE</key>
+	<string>$(ADMOB_UNIT_APPLICATIONS_NATIVE)</string>
+	<key>ADMOB_UNIT_HOME_NATIVE</key>
+	<string>$(ADMOB_UNIT_HOME_NATIVE)</string>
 	<key>ADMOB_UNIT_IDENTITIES_BANNER</key>
 	<string>$(ADMOB_UNIT_IDENTITIES_BANNER)</string>
 	<key>ADMOB_UNIT_IDENTITYDETAIL_BANNER</key>

@@ -143,12 +143,14 @@ final class AppEnvironment {
 
     /// `Info.plist` の `ADMOB_UNIT_*`（`project.yml` の設定から流し込む）。
     /// 未設定（空文字）の面は辞書に入れず、`AdSlot` 側で高さ 0 になるようにする（E1 / AC-AD-36）。
-    /// Stage 2（ホーム・申込一覧のネイティブ / リワード）のユニット ID はまだ追加していない。
+    /// リワード広告のユニット ID は Stage 2 の別タスクで追加する。
     private static func resolvedAdUnitIDs() -> [AdPlacement: String] {
         let keys: [AdPlacement: String] = [
             .identitiesBottom: "ADMOB_UNIT_IDENTITIES_BANNER",
             .tourTableBetween: "ADMOB_UNIT_TOURTABLE_BANNER",
-            .identityDetailBottom: "ADMOB_UNIT_IDENTITYDETAIL_BANNER"
+            .identityDetailBottom: "ADMOB_UNIT_IDENTITYDETAIL_BANNER",
+            .homeBottom: "ADMOB_UNIT_HOME_NATIVE",
+            .applicationsInline: "ADMOB_UNIT_APPLICATIONS_NATIVE"
         ]
         return keys.compactMapValues { key in
             let value = (Bundle.main.object(forInfoDictionaryKey: key) as? String)?
