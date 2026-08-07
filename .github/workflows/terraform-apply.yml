@@ -1,0 +1,54 @@
+name: Terraform Apply
+
+# infra/terraform/ の変更を本番へ反映する。事故防止のため push トリガーにはしない。
+# GitHub の Actions タブから「Run workflow」で手動実行する。
+#
+# 前提: infra/terraform/README.md の 0 節（初回セットアップ）が完了していること。
+# 必要な GitHub Variables: GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_TERRAFORM_DEPLOYER_SA,
+#                          CORS_ORIGINS, GOOGLE_CLIENT_IDS, SHARE_BASE_URL, RESEND_FROM_EMAIL,
+#                          APPLE_CLIENT_ID
+# 必要な GitHub Secrets: TF_STATE_BUCKET
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '"apply" と入力して実行を確定する'
+        required: true
+
+jobs:
+  apply:
+    if: github.event.inputs.confirm == 'apply'
+    runs-on: ubuntu-latest
+    environment: production # GitHub の Environment protection rule で追加承認を要求できる
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_DEPLOYER_SA }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: terraform init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+
+      - name: terraform apply
+        run: terraform apply -auto-approve -input=false
+        env:
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+          TF_VAR_github_repository: ${{ github.repository }}
+          TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS }}
+          TF_VAR_google_client_ids: ${{ vars.GOOGLE_CLIENT_IDS }}
+          TF_VAR_share_base_url: ${{ vars.SHARE_BASE_URL }}
+          TF_VAR_resend_from_email: ${{ vars.RESEND_FROM_EMAIL }}
+          TF_VAR_apple_client_id: ${{ vars.APPLE_CLIENT_ID }}

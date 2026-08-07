@@ -1,0 +1,72 @@
+name: Deploy API
+
+# main への apps/api 変更マージで自動デプロイ。
+# インフラの形（Cloud Run の設定・IAM・Secret Manager 等）は変更しない — それは
+# infra/terraform/ + terraform-apply.yml（手動トリガー）の担当。ここはコードの入れ替えのみ。
+#
+# 前提: infra/terraform/README.md の 0 節（初回セットアップ）が完了していること。
+# 必要な GitHub Variables: GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_CI_DEPLOY_SA,
+#                          GCP_ARTIFACT_REPO, GCP_SERVICE_NAME
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/deploy-api.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test -- --passWithNoTests
+      - run: npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # WIF に必須（JSON鍵は使わない）
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build, push, deploy
+        env:
+          REGION: ${{ vars.GCP_REGION }}
+          REPO: ${{ vars.GCP_ARTIFACT_REPO }}
+          SERVICE: ${{ vars.GCP_SERVICE_NAME }}
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+          IMAGE="${REPO}/api:${GITHUB_SHA}"
+          docker build -t "${IMAGE}" apps/api
+          docker push "${IMAGE}"
+
+          # Cloud Run の設定自体（CPU/メモリ/環境変数/シークレット参照等）は
+          # infra/terraform が正。ここではイメージだけを差し替える。
+          gcloud run deploy "${SERVICE}" \
+            --image="${IMAGE}" \
+            --region="${REGION}" \
+            --platform=managed \
+            --quiet

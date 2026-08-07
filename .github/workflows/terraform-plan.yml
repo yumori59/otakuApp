@@ -1,0 +1,52 @@
+name: Terraform Plan
+
+# infra/terraform/ を変更する PR で plan だけを実行し、ログに出す（レビュー用）。
+# apply は行わない — それは terraform-apply.yml（workflow_dispatch = 手動）の担当。
+#
+# 前提: infra/terraform/README.md の 0 節（初回セットアップ・state バケット作成）が完了していること。
+# 必要な GitHub Variables: GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_TERRAFORM_DEPLOYER_SA
+# 必要な GitHub Secrets: TF_STATE_BUCKET（stateバケット名。プロジェクトIDそのままの命名でなければ変数化）
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-plan.yml"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_DEPLOYER_SA }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: terraform init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan
+        run: terraform plan -no-color -input=false
+        env:
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+          TF_VAR_github_repository: ${{ github.repository }}
+          TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS }}
+          TF_VAR_google_client_ids: ${{ vars.GOOGLE_CLIENT_IDS }}
+          TF_VAR_share_base_url: ${{ vars.SHARE_BASE_URL }}
+          TF_VAR_resend_from_email: ${{ vars.RESEND_FROM_EMAIL }}
+          TF_VAR_apple_client_id: ${{ vars.APPLE_CLIENT_ID }}
