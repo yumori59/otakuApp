@@ -3,7 +3,6 @@ import { ShareLink } from '@prisma/client';
 import { AppError } from '../../../common/errors/app-error';
 import { ErrorCode } from '../../../common/errors/error-codes';
 import { EntitlementsService } from '../../../entitlements/entitlements.service';
-import { isShareActive } from '../../share-validity';
 import { SharesService } from '../../shares.service';
 import {
   TourMatrixInternalRow,
@@ -19,12 +18,15 @@ import {
 import { SharedApplicationsService } from '../shared-applications.service';
 
 /**
- * GET /public/shares/:token（認証不要・api-contract.md §8）。
+ * `GET /v1/shares/received/:id` のペイロード組み立て（share-account-invites）。
  *
- * - 未知 / 失効 / 期限切れ（期限ちょうどを含む）は**すべて同一の** `SHARE_INVALID` 404。
- *   存在有無・オーナー・スコープを message からも漏らさない（FR-SH-8 / E-8 / E-9）
- * - `view_count` を増やすのは有効な閲覧に成功したときだけ（AC-SH-13 / AC-SH-14）
- * - 出力の組み立てとマスキングは public-share.presenter.ts に集約
+ * 旧 `GET /public/shares/:token` の token 起点の実装から、**呼び出し元が既に
+ * 有効性・招待判定まで済ませた `ShareLink` 行を受け取る**形へ変更した
+ * （api-contract-delta.md §4.2 ①〜④ は `shares/received/use-cases/get-board.use-case.ts`
+ * / `redeem-share.use-case.ts` が担当。ここは⑤のペイロード組み立てのみ）。
+ *
+ * - `view_count` を増やすのはこの use case が呼ばれた（＝有効な閲覧が確定した）ときだけ
+ * - 出力の組み立てとマスキングは public-share.presenter.ts に集約（NFR-7）
  * - `permission:"write"` のとき item に `item_key` / `rev` / `editable` が増える。
  *   `editable` は**閲覧のたびにオーナーの現在のプラン**で評価する（api-contract-delta.md §4）
  */
@@ -38,13 +40,9 @@ export class ResolveShareUseCase {
     private readonly entitlements: EntitlementsService,
   ) {}
 
-  async execute(token: string): Promise<PublicSharePayload> {
+  /** `link` は呼び出し元が有効性・招待済みを確認済みの前提（BE-4）。 */
+  async execute(link: ShareLink): Promise<PublicSharePayload> {
     const now = new Date();
-    const link = await this.shares.findByToken(token);
-    if (!link || !isShareActive(link, now)) {
-      throw shareInvalid();
-    }
-
     const payload = await this.buildPayload(link, now);
     await this.shares.recordView(link.id, now);
     return payload;

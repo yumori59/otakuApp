@@ -20,7 +20,6 @@ const EVENT_ID = '018f3c2a-eeee-7c90-9d2a-000000000001';
 const APPLICATION_ID = '018f3c2a-cccc-7c90-9d2a-000000000001';
 const IDENTITY_ID = '018f3c2a-aaaa-7c90-9d2a-000000000001';
 const NOW = new Date('2026-08-02T10:00:00.000Z');
-const RAW_TOKEN = 'raw-opaque-share-token';
 const TOKEN_HASH = 'a'.repeat(64);
 const UPDATED_AT = new Date('2026-08-01T09:00:00.000Z');
 
@@ -103,7 +102,7 @@ function collectKeys(value: unknown, acc: string[] = []): string[] {
 }
 
 describe('ResolveShareUseCase', () => {
-  let shares: { findByToken: jest.Mock; recordView: jest.Mock };
+  let shares: { recordView: jest.Mock };
   let tourMatrix: { build: jest.Mock };
   let summary: { build: jest.Mock };
   let sharedApplications: { findUpdatedAtByTour: jest.Mock };
@@ -121,7 +120,6 @@ describe('ResolveShareUseCase', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(NOW);
     shares = {
-      findByToken: jest.fn().mockResolvedValue(shareRow()),
       recordView: jest.fn().mockResolvedValue(undefined),
     };
     tourMatrix = {
@@ -148,69 +146,21 @@ describe('ResolveShareUseCase', () => {
     jest.useRealTimers();
   });
 
-  describe('無効なトークン (AC-SH-11 / 12 / 14)', () => {
-    const cases: Array<[string, ShareLink | null]> = [
-      ['未知トークン', null],
-      ['失効済み', shareRow({ revokedAt: new Date('2026-08-01T00:00:00.000Z') })],
-      ['期限切れ', shareRow({ expiresAt: new Date('2026-08-02T09:59:59.999Z') })],
-      ['期限ちょうど (E-8)', shareRow({ expiresAt: NOW })],
-    ];
-
-    it.each(cases)(
-      'AC-SH-11 %s は SHARE_INVALID 404（区別しない）',
-      async (_label, row) => {
-        shares.findByToken.mockResolvedValue(row);
-
-        const error = await useCase.execute(RAW_TOKEN).catch((e: unknown) => e);
-
-        expect(error).toBeInstanceOf(AppError);
-        expect((error as AppError).code).toBe(ErrorCode.SHARE_INVALID);
-        expect((error as AppError).getStatus()).toBe(404);
-        // 存在有無を message で漏らさない
-        expect((error as AppError).message).not.toContain(SHARE_ID);
-        expect((error as AppError).message).not.toContain(TOUR_ID);
-      },
-    );
-
-    it.each(cases)(
-      'AC-SH-14 %s では view_count を増やさない',
-      async (_label, row) => {
-        shares.findByToken.mockResolvedValue(row);
-
-        await useCase.execute(RAW_TOKEN).catch(() => undefined);
-
-        expect(shares.recordView).not.toHaveBeenCalled();
-      },
-    );
-
-    it('AC-SH-11 4 パターンのエラー本文が完全に一致する', async () => {
-      const bodies: string[] = [];
-      for (const [, row] of cases) {
-        shares.findByToken.mockResolvedValue(row);
-        const error = (await useCase
-          .execute(RAW_TOKEN)
-          .catch((e: unknown) => e)) as AppError;
-        bodies.push(JSON.stringify(error.getResponse()));
-      }
-      expect(new Set(bodies).size).toBe(1);
-    });
-  });
-
   describe('scope_type = tour', () => {
     it('AC-SH-13 有効な閲覧で view_count が +1 され last_viewed_at が更新される', async () => {
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow());
 
       expect(shares.recordView).toHaveBeenCalledWith(SHARE_ID, NOW);
       expect(payload.generated_at).toBe(NOW.toISOString());
     });
 
     it('共有元オーナーの ownerId で matrix を組み立てる (BE-4)', async () => {
-      await useCase.execute(RAW_TOKEN);
+      await useCase.execute(shareRow());
       expect(tourMatrix.build).toHaveBeenCalledWith(USER_ID, TOUR_ID);
     });
 
     it('契約どおりの tour ペイロードを返す', async () => {
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow());
 
       expect(payload).toEqual({
         scope_type: 'tour',
@@ -246,7 +196,7 @@ describe('ResolveShareUseCase', () => {
         ],
       });
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow());
       const item = (payload as unknown as { items: Record<string, unknown>[] }).items[0];
 
       expect(item.rep_name).toBe(MASKED_IDENTITY_NAME);
@@ -262,7 +212,7 @@ describe('ResolveShareUseCase', () => {
         rows: [matrixRow(), matrixRow({ rep_history_visible: false })],
       });
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow());
       const keys = collectKeys(payload);
       const json = JSON.stringify(payload);
 
@@ -301,7 +251,7 @@ describe('ResolveShareUseCase', () => {
     it('AC-SH-17 application 0 件でも 200 + items: []（404 にしない — E-10）', async () => {
       tourMatrix.build.mockResolvedValue({ tour: tourRow(), rows: [] });
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow());
 
       expect(payload).toMatchObject({ scope_type: 'tour', items: [] });
       expect(shares.recordView).toHaveBeenCalledTimes(1);
@@ -313,7 +263,7 @@ describe('ResolveShareUseCase', () => {
       );
 
       const error = (await useCase
-        .execute(RAW_TOKEN)
+        .execute(shareRow())
         .catch((e: unknown) => e)) as AppError;
 
       expect(error.code).toBe(ErrorCode.SHARE_INVALID);
@@ -322,7 +272,7 @@ describe('ResolveShareUseCase', () => {
     });
 
     it('AC-SW-06 read リンクの item に item_key / rev / editable が現れない', async () => {
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow());
       const keys = collectKeys(payload);
 
       expect(payload).toMatchObject({ permission: 'read' });
@@ -335,9 +285,9 @@ describe('ResolveShareUseCase', () => {
     });
 
     it('scope_id が欠けた tour 共有は SHARE_INVALID 404', async () => {
-      shares.findByToken.mockResolvedValue(shareRow({ scopeId: null }));
-
-      await expect(useCase.execute(RAW_TOKEN)).rejects.toMatchObject({
+      await expect(
+        useCase.execute(shareRow({ scopeId: null })),
+      ).rejects.toMatchObject({
         code: ErrorCode.SHARE_INVALID,
       });
       expect(tourMatrix.build).not.toHaveBeenCalled();
@@ -345,12 +295,8 @@ describe('ResolveShareUseCase', () => {
   });
 
   describe('permission = write (api-contract-delta.md §4)', () => {
-    beforeEach(() => {
-      shares.findByToken.mockResolvedValue(shareRow({ permission: 'write' }));
-    });
-
     it('AC-SW-07 item に item_key / rev / editable が付く', async () => {
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow({ permission: 'write' }));
       const item = (payload as unknown as { items: Record<string, unknown>[] })
         .items[0];
 
@@ -363,11 +309,10 @@ describe('ResolveShareUseCase', () => {
     });
 
     it('AC-SW-08 同じ application でもリンク（token_hash）が違えば item_key が違う', async () => {
-      const first = await useCase.execute(RAW_TOKEN);
-      shares.findByToken.mockResolvedValue(
+      const first = await useCase.execute(shareRow({ permission: 'write' }));
+      const second = await useCase.execute(
         shareRow({ permission: 'write', tokenHash: 'c'.repeat(64) }),
       );
-      const second = await useCase.execute(RAW_TOKEN);
 
       const keyOf = (payload: unknown) =>
         (payload as { items: { item_key: string }[] }).items[0].item_key;
@@ -385,7 +330,7 @@ describe('ResolveShareUseCase', () => {
         ),
       );
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow({ permission: 'write' }));
       const items = (payload as unknown as { items: { editable: boolean }[] })
         .items;
 
@@ -410,7 +355,7 @@ describe('ResolveShareUseCase', () => {
         ),
       );
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow({ permission: 'write' }));
       const items = (payload as unknown as { items: { editable: boolean }[] })
         .items;
 
@@ -427,7 +372,7 @@ describe('ResolveShareUseCase', () => {
         }),
       ]);
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow({ permission: 'write' }));
       const item = (payload as unknown as { items: Record<string, unknown>[] })
         .items[0];
 
@@ -440,7 +385,7 @@ describe('ResolveShareUseCase', () => {
     it('AC-SW-22 write でも内部 UUID / owner_id / account_id / token_hash を含まない', async () => {
       setRows([matrixRow(), matrixRow({ rep_history_visible: false })]);
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow({ permission: 'write' }));
       const keys = collectKeys(payload);
       const json = JSON.stringify(payload);
 
@@ -473,23 +418,23 @@ describe('ResolveShareUseCase', () => {
     });
 
     it('AC-SH-13 write リンクの閲覧でも view_count を +1 する', async () => {
-      await useCase.execute(RAW_TOKEN);
+      await useCase.execute(shareRow({ permission: 'write' }));
       expect(shares.recordView).toHaveBeenCalledWith(SHARE_ID, NOW);
     });
 
     it('items が 0 件なら updated_at を引かずに 200 + items: []', async () => {
       setRows([]);
 
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(shareRow({ permission: 'write' }));
 
       expect(payload).toMatchObject({ permission: 'write', items: [] });
       expect(sharedApplications.findUpdatedAtByTour).not.toHaveBeenCalled();
     });
 
     it('未知の permission は黙って read に落とさず INTERNAL 500（BE-2）', async () => {
-      shares.findByToken.mockResolvedValue(shareRow({ permission: 'admin' }));
-
-      await expect(useCase.execute(RAW_TOKEN)).rejects.toMatchObject({
+      await expect(
+        useCase.execute(shareRow({ permission: 'admin' })),
+      ).rejects.toMatchObject({
         code: ErrorCode.INTERNAL,
       });
       expect(shares.recordView).not.toHaveBeenCalled();
@@ -498,9 +443,6 @@ describe('ResolveShareUseCase', () => {
 
   describe('scope_type = identity_summary', () => {
     beforeEach(() => {
-      shares.findByToken.mockResolvedValue(
-        shareRow({ scopeType: 'identity_summary', scopeId: null }),
-      );
       summary.build.mockResolvedValue([
         {
           displayName: '自分',
@@ -517,8 +459,12 @@ describe('ResolveShareUseCase', () => {
       ]);
     });
 
+    function identitySummaryRow(): ShareLink {
+      return shareRow({ scopeType: 'identity_summary', scopeId: null });
+    }
+
     it('AC-SH-18 visible:false の名義は件数キー自体を含めない (D10)', async () => {
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(identitySummaryRow());
 
       expect(payload).toEqual({
         scope_type: 'identity_summary',
@@ -537,7 +483,7 @@ describe('ResolveShareUseCase', () => {
     });
 
     it('AC-SH-16 identity_summary も内部 UUID / account_id を含まない', async () => {
-      const payload = await useCase.execute(RAW_TOKEN);
+      const payload = await useCase.execute(identitySummaryRow());
       const keys = collectKeys(payload);
       const json = JSON.stringify(payload);
 
@@ -550,16 +496,16 @@ describe('ResolveShareUseCase', () => {
     });
 
     it('共有元オーナーの ownerId で集計する (BE-4)', async () => {
-      await useCase.execute(RAW_TOKEN);
+      await useCase.execute(identitySummaryRow());
       expect(summary.build).toHaveBeenCalledWith(USER_ID);
       expect(tourMatrix.build).not.toHaveBeenCalled();
     });
   });
 
   it('未知の scope_type は黙って落とさず INTERNAL 500（BE-2）', async () => {
-    shares.findByToken.mockResolvedValue(shareRow({ scopeType: 'calendar' }));
-
-    await expect(useCase.execute(RAW_TOKEN)).rejects.toMatchObject({
+    await expect(
+      useCase.execute(shareRow({ scopeType: 'calendar' })),
+    ).rejects.toMatchObject({
       code: ErrorCode.INTERNAL,
     });
     expect(shares.recordView).not.toHaveBeenCalled();
