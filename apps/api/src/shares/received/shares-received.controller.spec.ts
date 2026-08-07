@@ -5,7 +5,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { ThrottlerStorage } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerStorage } from '@nestjs/throttler';
+import { THROTTLER_CONFIG } from '../../common/throttling/throttler-config';
 import { configureApp } from '../../app.setup';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -16,9 +17,11 @@ import { GetBoardUseCase } from './use-cases/get-board.use-case';
 import { ListInboxUseCase } from './use-cases/list-inbox.use-case';
 import { RedeemShareUseCase } from './use-cases/redeem-share.use-case';
 import { SetHiddenUseCase } from './use-cases/set-hidden.use-case';
+import { UpdateItemUseCase } from './use-cases/update-item.use-case';
 
 const USER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';
 const SHARE_ID = '018f3c2a-1111-7c90-9d2a-000000000001';
+const ITEM_KEY = 'jK3n0pQrStUvWxYz';
 
 describe('SharesReceivedController', () => {
   let app: INestApplication;
@@ -26,15 +29,18 @@ describe('SharesReceivedController', () => {
   let getBoard: { execute: jest.Mock };
   let redeemShare: { execute: jest.Mock };
   let setHidden: { execute: jest.Mock };
+  let updateItem: { execute: jest.Mock };
 
   async function buildApp(): Promise<INestApplication> {
     const moduleRef = await Test.createTestingModule({
+      imports: [ThrottlerModule.forRoot(THROTTLER_CONFIG)],
       controllers: [SharesReceivedController],
       providers: [
         { provide: ListInboxUseCase, useValue: listInbox },
         { provide: GetBoardUseCase, useValue: getBoard },
         { provide: RedeemShareUseCase, useValue: redeemShare },
         { provide: SetHiddenUseCase, useValue: setHidden },
+        { provide: UpdateItemUseCase, useValue: updateItem },
         {
           provide: ThrottlerStorage,
           useValue: {
@@ -69,6 +75,9 @@ describe('SharesReceivedController', () => {
       execute: jest.fn().mockResolvedValue({ share_id: SHARE_ID }),
     };
     setHidden = { execute: jest.fn().mockResolvedValue(undefined) };
+    updateItem = {
+      execute: jest.fn().mockResolvedValue({ item_key: ITEM_KEY, status: 'won' }),
+    };
     app = await buildApp();
   });
 
@@ -83,6 +92,7 @@ describe('SharesReceivedController', () => {
       SharesReceivedController.prototype.redeem,
       SharesReceivedController.prototype.hide,
       SharesReceivedController.prototype.unhide,
+      SharesReceivedController.prototype.update,
     ];
     handlers.forEach((handler) => {
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBeUndefined();
@@ -105,13 +115,17 @@ describe('SharesReceivedController', () => {
     const unhide = await request(server).delete(
       `/v1/shares/received/${SHARE_ID}/hide`,
     );
+    const patch = await request(server)
+      .patch(`/v1/shares/received/${SHARE_ID}/items/${ITEM_KEY}`)
+      .send({ rev: 'AbCdEfGhIjKlMnOp', status: 'won' });
 
-    const results = [list, get, redeem, hide, unhide];
+    const results = [list, get, redeem, hide, unhide, patch];
     results.forEach((res) => expect(res.status).toBe(401));
     expect(listInbox.execute).not.toHaveBeenCalled();
     expect(getBoard.execute).not.toHaveBeenCalled();
     expect(redeemShare.execute).not.toHaveBeenCalled();
     expect(setHidden.execute).not.toHaveBeenCalled();
+    expect(updateItem.execute).not.toHaveBeenCalled();
   });
 
   it('認証済み GET /v1/shares/received は { items } を返す', async () => {
@@ -179,6 +193,55 @@ describe('SharesReceivedController', () => {
 
     expect(res.status).toBe(204);
     expect(setHidden.execute).toHaveBeenCalledWith(USER_ID, SHARE_ID, true);
+  });
+
+  it('PATCH /v1/shares/received/:id/items/:item_key は use case へ userId / id / item_key / dto を渡す', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/v1/shares/received/${SHARE_ID}/items/${ITEM_KEY}`)
+      .set('Authorization', 'Bearer valid.access.token')
+      .send({ rev: 'AbCdEfGhIjKlMnOp', status: 'won' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ item_key: ITEM_KEY, status: 'won' });
+    expect(updateItem.execute).toHaveBeenCalledWith(USER_ID, SHARE_ID, ITEM_KEY, {
+      rev: 'AbCdEfGhIjKlMnOp',
+      status: 'won',
+    });
+  });
+
+  it('AC-SI-29 招待されていない :id への PATCH は 403 ではなく 404 SHARE_INVALID', async () => {
+    updateItem.execute.mockRejectedValue(
+      new AppError(ErrorCode.SHARE_INVALID, 'share link is invalid'),
+    );
+
+    const res = await request(app.getHttpServer())
+      .patch(`/v1/shares/received/${SHARE_ID}/items/${ITEM_KEY}`)
+      .set('Authorization', 'Bearer valid.access.token')
+      .send({ rev: 'AbCdEfGhIjKlMnOp', status: 'won' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe('SHARE_INVALID');
+  });
+
+  it('PATCH のボディ検証は DTO に寄せる（status も seat も無ければ 400・use case を呼ばない）', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/v1/shares/received/${SHARE_ID}/items/${ITEM_KEY}`)
+      .set('Authorization', 'Bearer valid.access.token')
+      .send({ rev: 'AbCdEfGhIjKlMnOp' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(updateItem.execute).not.toHaveBeenCalled();
+  });
+
+  it('PATCH の未知 status は 400（黙って applied に落とさない — BE-2）', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/v1/shares/received/${SHARE_ID}/items/${ITEM_KEY}`)
+      .set('Authorization', 'Bearer valid.access.token')
+      .send({ rev: 'AbCdEfGhIjKlMnOp', status: 'maybe' });
+
+    expect(res.status).toBe(400);
+    expect(updateItem.execute).not.toHaveBeenCalled();
   });
 
   it('DELETE /v1/shares/received/:id/hide は 204 で hidden:false を渡す', async () => {

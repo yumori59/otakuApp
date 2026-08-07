@@ -3,7 +3,6 @@ import { Application, ShareLink } from '@prisma/client';
 import { AppError } from '../../../common/errors/app-error';
 import { ErrorCode } from '../../../common/errors/error-codes';
 import { EntitlementsService } from '../../../entitlements/entitlements.service';
-import { isShareActive } from '../../share-validity';
 import { SharesService } from '../../shares.service';
 import {
   TourMatrixInternalRow,
@@ -22,16 +21,25 @@ import {
 } from '../shared-applications.service';
 
 /**
- * `PATCH /public/shares/:token/items/:item_key`（認証不要 / api-contract-delta.md §4）。
+ * `PATCH /v1/shares/received/:id/items/:item_key`（**Bearer 必須** / api-contract-delta.md §4.3）。
  *
- * **判定順序が契約**（この順番を変えない）:
- * ① token 未知 / 失効 / 期限切れ → `SHARE_INVALID` 404
- * ② `permission !== "write"`      → `FORBIDDEN` 403
- * ③ `scope_type !== "tour"`       → `FORBIDDEN` 403
- * ④ ボディ不正                     → `VALIDATION_ERROR` 400（通常は ValidationPipe）
- * ⑤ `item_key` 不一致              → `SHARE_INVALID` 404
- * ⑥ 対象行が `editable:false`      → `FORBIDDEN` 403（**理由を区別しない**）
- * ⑦ `rev` 不一致                   → `CONFLICT` 409（`details.current`）
+ * **判定順序が契約**（この順番を変えない — AC-SI-29）:
+ * ① `:id` 未知 / 失効 / 期限切れ                     → `SHARE_INVALID` 404
+ * ② オーナー本人でなく、かつ招待リストに無い          → `SHARE_INVALID` 404
+ * ③ `permission !== "write"`                        → `FORBIDDEN` 403
+ * ④ `scope_type !== "tour"`                         → `FORBIDDEN` 403
+ * ⑤ ボディ不正                                       → `VALIDATION_ERROR` 400（通常は ValidationPipe）
+ * ⑥ `item_key` 不一致                                → `SHARE_INVALID` 404
+ * ⑦ 対象行が `editable:false`                        → `FORBIDDEN` 403（**理由を区別しない**）
+ * ⑧ `rev` 不一致                                     → `CONFLICT` 409（`details.current`）
+ *
+ * **①② は `shares/received/use-cases/update-item.use-case.ts` が担当する**（id 起点の解決と
+ * 招待判定）。この use case は有効性・招待済みを確認済みの `ShareLink` を受け取り **③〜⑧ だけ**
+ * を担当する。**② を ③ より後ろに置いてはならない** — 非招待者が 403 を受け取ると
+ * 「そのリンクは read で実在する」ことが分かってしまう（plan.md D10 / AC-SI-29）。
+ *
+ * `item_key` / `rev` の HMAC 鍵は従来どおり `share_links.token_hash`。addressing が
+ * `:token` → `:id` に変わっても鍵はサーバー内部にあるので変わらない。
  *
  * 失敗時は `applications` にも `share_links` にも一切書き込まない。
  * 成功時だけ `share_links.edit_count += 1` / `last_edited_at`（`view_count` は増やさない）。
@@ -47,31 +55,28 @@ export class UpdateShareItemUseCase {
     private readonly entitlements: EntitlementsService,
   ) {}
 
+  /** `link` は呼び出し元が①有効性・②招待済みを確認済みの前提（BE-4）。 */
   async execute(
-    token: string,
+    link: ShareLink,
     itemKey: string,
     dto: UpdateShareItemDto,
   ): Promise<TourShareWriteItem> {
     const now = new Date();
 
-    // ① トークン
-    const link = await this.shares.findByToken(token);
-    if (!link || !isShareActive(link, now)) throw shareInvalid();
-
-    // ② 書き込み権限（read リンクは 403。未知の permission も write ではないので 403）
+    // ③ 書き込み権限（read リンクは 403。未知の permission も write ではないので 403）
     if (link.permission !== 'write') throw forbidden();
 
-    // ③ スコープ（write は tour のみ。DB 不整合も 403）
+    // ④ スコープ（write は tour のみ。DB 不整合も 403）
     if (link.scopeType !== 'tour' || !link.scopeId) throw forbidden();
 
-    // ④ ボディ（ValidationPipe を通らない経路の防御）
+    // ⑤ ボディ（ValidationPipe を通らない経路の防御）
     const patch = toPatch(dto);
 
     const { rows } = await this.loadRows(link.ownerId, link.scopeId);
     const context = await this.buildWriteContext(link);
     const annotate = createShareItemAnnotator(rows, context);
 
-    // ⑤ item_key（他リンクの key / でたらめな key は 404。403 と区別しない）
+    // ⑥ item_key（他リンクの key / でたらめな key は 404。403 と区別しない）
     const target = rows.find((row) =>
       handleEquals(shareItemKey(link.tokenHash, row.application_id), itemKey),
     );
@@ -79,10 +84,10 @@ export class UpdateShareItemUseCase {
 
     const handles = annotate(target);
 
-    // ⑥ editable（history_visible=false / 公演数超過のどちらかは判別できない）
+    // ⑦ editable（history_visible=false / 公演数超過のどちらかは判別できない）
     if (!handles.editable) throw forbidden();
 
-    // ⑦ rev（クライアントが送ってきた値との照合）
+    // ⑧ rev（クライアントが送ってきた値との照合）
     if (!handleEquals(handles.rev, dto.rev)) {
       throw conflict(target.status, target.seat_raw, handles.rev);
     }
@@ -94,7 +99,7 @@ export class UpdateShareItemUseCase {
       expectedUpdatedAt,
       patch,
     );
-    // ⑦' 条件付き更新が 0 件 = 読み取りから更新までの間に他者が更新した
+    // ⑧' 条件付き更新が 0 件 = 読み取りから更新までの間に他者が更新した
     if (!updated) throw await this.conflictFromCurrent(link, target);
 
     await this.shares.recordEdit(link.id, now);
