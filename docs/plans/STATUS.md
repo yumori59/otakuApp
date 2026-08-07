@@ -166,16 +166,21 @@ App Store Review Guideline 2.5 対応。`DELETE /v1/me`（BE）+ アカウント
 | BE RevenueCat Webhook → `entitlements` ミラー | ✅ | `docs/07` §9.2, `docs/plans/backend-domain-modules/` |
 | 本番課金の有効化（API キー・ASC プロダクト・RC Offering） | ⏳ 手動 | `docs/07` §9.1 |
 | AdMob Stage 1（バナー3面: 名義一覧・ツアー表・名義詳細） | ✅ | `docs/plans/admob-integration/`, `docs/07` §7, `09` 1-11 |
+| AdMob ネイティブ広告（ホーム最下部・申込一覧5件目以降10件ごと） | ✅ | `docs/plans/admob-integration/` |
 | `AdSlot` / 広告禁止画面の型ガード（`AdPlacement`許可5面enum + ソース走査テスト） | ✅ | `docs/plans/admob-integration/plan.md` §4 D3 |
-| AdMob Stage 2（ネイティブ広告・リワード広告・SSV） | ❌ 未着手 | `docs/plans/admob-integration/plan.md` §5 Wave1/2/3残り |
+| AdMob リワード広告・SSV | ❌ 対象外（ユーザー判断で不要） | — |
 
 **AdMob Stage 1（2026-08-07 完了）**: `docs/plans/admob-integration/`。Q1〜Q4 はユーザー承認済み（Q1: Network名衝突なし・リネーム不要とSpikeで実証／Q2: docs/08準拠でATTなし・NPA固定／Q3: ボーナス同時枠1枠／Q4: 2段階リリースでStage1先行）。`docs/05`・`docs/09`の矛盾記述は修正済み。
 T0(Spike)→T5(Domain: AdPlacement/AdGatekeeper/AdsStore)→T9(App: SDK初期化+バナーRenderer)→T8(DesignSystem: AdSlot/AdCardChrome)→T10(3画面配線)の順で実装。
 レビューで重大3件検出→修正→再レビューで**重大ゼロ**（`docs/plans/admob-integration/review.md`）。主な修正: `ADMOB_APP_ID`空文字での起動時クラッシュ（SDKがリンクされているだけで検証に落ちる）、`AdSlot`の`GeometryReader`固定高が後続UIに重なる、no-fill時に空の広告カードが残る。
 検証: Domain 183 / DesignSystem 1 / Core 17 / Network 148 テスト全緑、`xcodebuild` BUILD SUCCEEDED、シミュレータ実機起動でクラッシュしないことを確認済み。
 `.claude/rules/feedback_review_patterns.md` に IOS-7〜9 追記（SDKリンクのみで落ちる設定／`xcodegen generate`忘れ／`GeometryReader`固定高）。
-**Stage 2（ネイティブ広告・リワード広告・SSV）は未着手**。`bonus_identity_slots` / `bonus_expires_at` は BE・iOS とも既に3層配線済み（`entitlements.service.ts:87-91` / `MeDTO.swift:63-64` / `AccountModels.swift:99-100`）。不足は `rewarded_views_*` と付与経路（SSV、BE `src/rewards/`新設）のみ。
-**AdMob実アカウント未取得のためユーザー対応が必要**: `ADMOB_APP_ID`・広告ユニットID6本は現状空文字（`DisabledAdRenderer`で安全にno-op）。実配信前の項目一覧は `docs/plans/admob-integration/plan.md` §10.1（U1〜U8）。
+**AdMobネイティブ広告（2026-08-07 完了）**: ユーザー判断で**リワード広告・SSVはスコープ外**（`bonus_identity_slots`等の付与経路は今後も未実装のまま）。
+`AdNativeCard`（DesignSystem・画像/見出し/本文/CTA、画像取得失敗時はテキストのみ）+ `GoogleMobileAdsRenderer.nativeAdView`（`GADAdLoader`）+ ホーム最下部（`homeBottom`）・申込一覧5件目以降10件ごと（`applicationsInline`、1画面上限2枠）に配置。
+レビューで重大1件検出→修正→再レビューで**重大ゼロ**（`docs/plans/admob-integration/review.md`）。修正: `UIHostingController`の内容を後から差し替えてもSwiftUIが再計測せず枠をはみ出す不具合（IOS-10として追記）。
+**仕様判断（2026-08-07 ユーザー承認）**: 申込一覧の広告は「同一placement連続表示禁止」ルールにより実質1画面1枚のみ表示される（2枚目の同時表示は不可）。Domain側のクールダウン仕様は変更せず、`docs/07`の「1画面2枚」は上限であって最低保証ではないと解釈する。
+検証: Domain 188 / DesignSystem 1 テスト全緑、`xcodebuild` BUILD SUCCEEDED。
+**AdMob実アカウント未取得のためユーザー対応が必要**: `ADMOB_APP_ID`・広告ユニットID8本（バナー3+ネイティブ2+未使用のリワード枠）は現状空文字（`DisabledAdRenderer`で安全にno-op）。実配信前の項目一覧は `docs/plans/admob-integration/plan.md` §10.1（U1〜U8）。
 
 **iOS 課金の現状**: `PaywallView`・`PurchasesStore`・`RevenueCatPurchasesService` 実装済み。`REVENUECAT_API_KEY` 未設定時は `DisabledPurchasesService` でスタブ動作。4件目名義追加・共有2本目・設定画面からペイウォール表示。`xcodebuild` BUILD SUCCEEDED（Domain 152 / Network 144 tests 全緑）。
 
