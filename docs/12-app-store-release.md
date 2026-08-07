@@ -92,18 +92,100 @@ TestFlight配信・審査提出までの手順です。**現状（2026-08-07時�
 ## 6. 本番バックエンドのデプロイ
 
 Release ビルドは `meigicho/project.yml` の `configs.Release.API_BASE_URL` を参照する
-（現状ダミー値 `https://api.meigicho.example`）。
+（現状ダミー値 `https://api.meigicho.example`）。[06-infrastructure.md](./06-infrastructure.md) は構成・コスト試算・`gcloud run deploy`のコマンド例が中心で、
+**「アカウント・プロジェクトを何もない状態から作る」手順は無い**ため、ここに初回セットアップの手順をまとめる
+（既にSupabase/GCPプロジェクトがある場合は 6.3 から）。
 
-1. [06-infrastructure.md](./06-infrastructure.md) §4 の手順で Cloud Run にデプロイ
-2. デプロイ後の実URLを `meigicho/project.yml` に設定:
+### 6.1 Supabase プロジェクトを作る
+
+1. [supabase.com](https://supabase.com/) でアカウント作成 → *New Project*
+2. リージョンは **Tokyo（`ap-northeast-1`）** を選択（`docs/08-compliance-risk.md` §2.1 の越境移転回避方針）
+3. プロジェクト作成後、*Project Settings* → *Database* → *Connection string* から
+   **Connection pooling（Transaction mode）** の接続文字列を控える（`?pgbouncer=true` 付き）。
+   これが本番用 `DATABASE_URL` になる
+4. スキーマを反映する（ローカルから直接、または後述のCI経由）:
+   ```bash
+   cd apps/api
+   DATABASE_URL="<Supabaseのpooler接続文字列>" npx prisma db push
+   ```
+   **`.env` は書き換えず、コマンドラインでその場だけ環境変数を渡すこと**（本番接続文字列を平文でリポジトリに残さない）
+
+### 6.2 GCP プロジェクトを作る
+
+1. [Google Cloud Console](https://console.cloud.google.com/) で新規プロジェクトを作成（例: `meigicho-prod`）
+2. 課金アカウントを紐付ける
+3. 必要な API を有効化:
+   ```bash
+   gcloud config set project meigicho-prod
+   gcloud services enable run.googleapis.com \
+     artifactregistry.googleapis.com \
+     secretmanager.googleapis.com \
+     iam.googleapis.com
+   ```
+4. Artifact Registry リポジトリを作成:
+   ```bash
+   gcloud artifacts repositories create meigicho \
+     --repository-format=docker \
+     --location=asia-northeast1
+   ```
+5. デプロイ用サービスアカウントを作成し、権限を付与:
+   ```bash
+   gcloud iam service-accounts create meigicho-api \
+     --display-name="meigicho API runtime"
+
+   gcloud projects add-iam-policy-binding meigicho-prod \
+     --member="serviceAccount:meigicho-api@meigicho-prod.iam.gserviceaccount.com" \
+     --role="roles/secretmanager.secretAccessor"
+   ```
+6. Secret Manager にシークレットを登録（値は `apps/api/.env.example` のキー一覧を参照。
+   実際の値はユーザー自身が用意 — エージェントは秘密ファイル保護のため代行不可）:
+   ```bash
+   echo -n "<6.1で控えたSupabase接続文字列>" | gcloud secrets create database-url --data-file=-
+   echo -n "<ランダムな長い文字列>" | gcloud secrets create jwt-secret --data-file=-
+   echo -n "<RevenueCat Webhook Secret>" | gcloud secrets create rc-webhook --data-file=-
+   ```
+   `apps/api/.env.example` に記載の他の変数（`GOOGLE_CLIENT_IDS` / `RESEND_API_KEY` 等）も同様に登録する
+   （`docs/plans/STATUS.md` §2「BE残課題」参照）
+
+### 6.3 初回デプロイ（手動）
+
+```bash
+cd apps/api
+docker build -t asia-northeast1-docker.pkg.dev/meigicho-prod/meigicho/api:v1 .
+gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
+docker push asia-northeast1-docker.pkg.dev/meigicho-prod/meigicho/api:v1
+
+gcloud run deploy meigicho-api \
+  --image=asia-northeast1-docker.pkg.dev/meigicho-prod/meigicho/api:v1 \
+  --region=asia-northeast1 \
+  --platform=managed \
+  --allow-unauthenticated \
+  --min-instances=0 --max-instances=10 \
+  --cpu=1 --memory=512Mi --concurrency=80 --timeout=30 --cpu-boost \
+  --service-account=meigicho-api@meigicho-prod.iam.gserviceaccount.com \
+  --set-secrets="JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,REVENUECAT_WEBHOOK_SECRET=rc-webhook:latest" \
+  --set-env-vars="NODE_ENV=production"
+```
+
+デプロイ完了後に表示される `https://meigicho-api-xxxxx-an.a.run.app` 形式のURLが本番APIのURL。
+`curl <URL>/health` で疎通確認する。
+
+### 6.4 継続デプロイ（任意・CI化する場合）
+
+2回目以降のデプロイを手動で繰り返さないなら、[06-infrastructure.md](./06-infrastructure.md) §7 の
+GitHub Actions ワークフロー例（Workload Identity Federation・キーレス認証）をそのまま使える。
+`.github/workflows/deploy-api.yml` は未作成のため、導入する場合は同§7の内容をコピーして
+`PROJECT_ID` / `secrets.GCP_WIF_PROVIDER` を6.2で作った値に置き換える。
+
+### 6.5 iOS側にURLを反映
+
+1. デプロイ後の実URLを `meigicho/project.yml` に設定:
    ```yaml
    configs:
      Release:
-       API_BASE_URL: https://<実際のCloud Run URL>
+       API_BASE_URL: https://<6.3で確認した実際のCloud Run URL>
    ```
-3. `apps/api/.env.example` に記載の環境変数（`GOOGLE_CLIENT_IDS` 等）を本番環境のSecret Managerに設定
-   （`docs/plans/STATUS.md` §2「BE残課題」参照。エージェントは秘密ファイル保護のため代行不可）
-4. `xcodegen generate` → Release ビルドで疎通確認
+2. `xcodegen generate` → Release ビルドで疎通確認
 
 ---
 
