@@ -19,10 +19,21 @@ public protocol AdRenderer: Sendable {
         onFailure: @escaping @MainActor () -> Void
     ) -> AnyView?
 
-    // MARK: - Stage 2（本パッケージの対象外。ネイティブ広告・リワード広告）
+    /// ネイティブ広告（カスタムレイアウト、F2-1 / F2-3）。
+    ///
+    /// - `adUnitID` が空の場合は `nil` を返す（呼び出し側は高さ 0 扱い）
+    /// - 要求はできたが**配信されなかった**（no-fill・ネットワーク失敗）場合は `onFailure` を呼ぶ。
+    ///   呼び出し側は枠ごと畳んで空枠を残さない（F4-4 / F5-6 / `docs/07:448`）
+    /// - 広告カードは UIKit 側（`UIViewRepresentable`）で描かれ、SwiftUI からは実寸が見えない。
+    ///   配信後に実測した高さを `onHeightChange` で返し、呼び出し側が枠の高さを確定させる。
+    ///   これが無いとカードがプレースホルダ高さをはみ出して後続コンテンツに重なる（IOS-9 / E18）
+    func nativeAdView(
+        adUnitID: String,
+        onFailure: @escaping @MainActor () -> Void,
+        onHeightChange: @escaping @MainActor (CGFloat) -> Void
+    ) -> AnyView?
 
-    /// ネイティブ広告（カスタムレイアウト、F2-1 / F2-3）。Stage 1 では常に `nil`。
-    func nativeAdView(adUnitID: String) -> AnyView?
+    // MARK: - Stage 2（本パッケージの対象外。リワード広告）
 
     /// リワード動画広告のロード（F2-6 / F6）。Stage 1 では未実装。
     func loadRewardedAd(adUnitID: String) async throws

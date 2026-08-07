@@ -53,11 +53,13 @@ settings:
     # 実 ID を取得するまでは Google 公式のサンプルアプリ ID を置く（plan.md U1 で実 ID に差し替える）。
     # 広告を実際に配信するかどうかは下の ADMOB_UNIT_* が空かどうかで決まる（F1-6 / AC-AD-36）。
     ADMOB_APP_ID: ca-app-pub-3940256099942544~1458002511
-    # 広告ユニット ID（Stage 1 のバナー 3 面のみ。空なら該当面の枠は高さ 0）。
-    # Stage 2（ホーム/申込一覧のネイティブ・リワード）のユニットは Stage 2 で追加する。
+    # 広告ユニット ID（バナー 3 面 + ネイティブ 2 面。空なら該当面の枠は高さ 0）。
+    # リワード広告のユニットは Stage 2 の別タスクで追加する。
     ADMOB_UNIT_IDENTITIES_BANNER: ""
     ADMOB_UNIT_TOURTABLE_BANNER: ""
     ADMOB_UNIT_IDENTITYDETAIL_BANNER: ""
+    ADMOB_UNIT_HOME_NATIVE: ""
+    ADMOB_UNIT_APPLICATIONS_NATIVE: ""
   configs:
     Debug:
       API_BASE_URL: http://localhost:8080
@@ -110,6 +112,8 @@ targets:
         ADMOB_UNIT_IDENTITIES_BANNER: $(ADMOB_UNIT_IDENTITIES_BANNER)
         ADMOB_UNIT_TOURTABLE_BANNER: $(ADMOB_UNIT_TOURTABLE_BANNER)
         ADMOB_UNIT_IDENTITYDETAIL_BANNER: $(ADMOB_UNIT_IDENTITYDETAIL_BANNER)
+        ADMOB_UNIT_HOME_NATIVE: $(ADMOB_UNIT_HOME_NATIVE)
+        ADMOB_UNIT_APPLICATIONS_NATIVE: $(ADMOB_UNIT_APPLICATIONS_NATIVE)
         # ASWebAuthenticationSession のコールバック（reversed client ID スキーム）
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor

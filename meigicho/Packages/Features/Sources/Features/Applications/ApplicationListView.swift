@@ -163,9 +163,16 @@ struct ApplicationsTab: View {
             }
         } else {
             VStack(spacing: 0) {
-                ForEach(apps) { app in
+                ForEach(Array(apps.enumerated()), id: \.element.id) { index, app in
                     ApplicationTicketRow(app: app) {
                         path.append(AppRoute.application(app.id))
+                    }
+                    // 5 件目の後、以降 10 件ごと、1 画面あたり 2 枚まで（F2-3 / docs/07 §7.2）。
+                    // 5 件未満では 1 枚も出さない（plan.md E13）。位置の判定は `Domain.AdInlineSlots`
+                    if AdInlineSlots.shouldInsertAd(afterIndex: index, itemCount: apps.count) {
+                        PlacementAdSlot(placement: .applicationsInline, format: .native)
+                            // `TicketRowView` と同じ行間（`.padding(.bottom, 8)`）に揃える
+                            .padding(.bottom, 8)
                     }
                 }
             }

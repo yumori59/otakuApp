@@ -150,6 +150,10 @@ struct HomeTab: View {
         upcomingSection
         SectionHeader("当落発表待ちの申込")
         pendingSection
+        // 「当落発表待ちの申込」リストの**後**、画面最下部にネイティブ 1 枚
+        // （F2-1 / docs/07 §7.2）。`stat-row` の直下には置かない
+        PlacementAdSlot(placement: .homeBottom, format: .native)
+            .padding(.top, 16)
     }
 
     private var homeHeader: some View {
