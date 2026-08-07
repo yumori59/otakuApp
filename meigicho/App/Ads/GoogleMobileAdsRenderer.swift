@@ -31,10 +31,17 @@ final class GoogleMobileAdsRenderer: AdRenderer, @unchecked Sendable {
 
     func nativeAdView(
         adUnitID: String,
-        onFailure: @escaping @MainActor () -> Void
+        onFailure: @escaping @MainActor () -> Void,
+        onHeightChange: @escaping @MainActor (CGFloat) -> Void
     ) -> AnyView? {
         guard !adUnitID.isEmpty else { return nil }
-        return AnyView(NativeAdRepresentable(adUnitID: adUnitID, onFailure: onFailure))
+        return AnyView(
+            NativeAdRepresentable(
+                adUnitID: adUnitID,
+                onFailure: onFailure,
+                onHeightChange: onHeightChange
+            )
+        )
     }
 
     func loadRewardedAd(adUnitID: String) async throws {
@@ -87,26 +94,43 @@ private struct BannerAdRepresentable: UIViewRepresentable {
 /// ネイティブ広告（小）の SwiftUI ラッパー（F2-1 / F2-3）。
 ///
 /// `GADNativeAdView` をコンテナにし、内側に `DesignSystem.AdNativeCard`（カスタムレイアウト、
-/// AdMob 標準テンプレートは使わない・F5-5）を `UIHostingController` で載せる。クリック計測・
-/// 遷移は SDK が `headlineView` / `bodyView` / `callToActionView` / `iconView` に登録した
-/// アセットビュー経由で行うため、`AdNativeCard` 側はタップ処理を持たない
-/// （`AdNativeCard` のドキュメント参照）。
+/// AdMob 標準テンプレートは使わない・F5-5）を `UIHostingController` で載せる。
+///
+/// レイアウト: SwiftUI は UIKit 側の中身の入れ替わりを検知しないので、カードの実寸を
+/// `UIHostingController.sizeThatFits(in:)` で測って `onHeightChange` で返し、
+/// `NativeAdSlot` に枠の高さを確定させる（IOS-9 / E18 / AC-AD-34）。
+///
+/// クリック計測・遷移は SDK が `GADNativeAdView` のアセットビューに付けるタップ認識で行う。
+/// アセットごとの `UILabel` / `UIButton` を持たない構成なので、**カード全面を覆う 1 枚の
+/// 透明ビューだけ**を `headlineView`（ネイティブ広告の必須アセット）として登録する。
+/// 同じビューを複数のアセットプロパティへ重複登録すると SDK がタップ認識を重ねて付け、
+/// 1 タップが複数クリックとして計上されうる（無効トラフィック扱いのリスク）ため行わない。
 private struct NativeAdRepresentable: UIViewRepresentable {
     let adUnitID: String
     /// 要求はできたが配信されなかった（no-fill・ネットワーク失敗）場合に呼ぶ（F4-4 / F5-6）
     let onFailure: @MainActor () -> Void
+    /// 配信後に実測したカード高さを返す（IOS-9 / E18）
+    let onHeightChange: @MainActor (CGFloat) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onFailure: onFailure) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onFailure: onFailure, onHeightChange: onHeightChange)
+    }
 
     func makeUIView(context: Context) -> GADNativeAdView {
         let adView = GADNativeAdView()
-        adView.setContentHuggingPriority(.defaultLow, for: .vertical)
         context.coordinator.attach(to: adView)
         context.coordinator.load(adUnitID: adUnitID)
         return adView
     }
 
-    func updateUIView(_ uiView: GADNativeAdView, context: Context) {}
+    func updateUIView(_ uiView: GADNativeAdView, context: Context) {
+        // 幅の変化（回転・Split View）や Dynamic Type 変更後に測り直す
+        context.coordinator.remeasure()
+    }
+
+    static func dismantleUIView(_ uiView: GADNativeAdView, coordinator: Coordinator) {
+        MainActor.assumeIsolated { coordinator.detach() }
+    }
 
     /// `GADNativeAdLoaderDelegate` を受ける入れ物。SDK 型は本ファイル（`#if canImport`）の外に出さない。
     /// AdMob は本デリゲートをメインスレッドで呼ぶ（ドキュメント保証）ため `@MainActor` に固定し、
@@ -115,16 +139,31 @@ private struct NativeAdRepresentable: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, @preconcurrency GADNativeAdLoaderDelegate {
         private let onFailure: @MainActor () -> Void
+        private let onHeightChange: @MainActor (CGFloat) -> Void
         private var adLoader: GADAdLoader?
         private weak var adView: GADNativeAdView?
         private var hostingController: UIHostingController<AdNativeCard>?
+        private var lastReportedHeight: CGFloat = 0
 
-        init(onFailure: @escaping @MainActor () -> Void) {
+        init(
+            onFailure: @escaping @MainActor () -> Void,
+            onHeightChange: @escaping @MainActor (CGFloat) -> Void
+        ) {
             self.onFailure = onFailure
+            self.onHeightChange = onHeightChange
         }
 
         func attach(to adView: GADNativeAdView) {
             self.adView = adView
+        }
+
+        /// `UIViewRepresentable` の破棄時に子 VC の関係を解く（コンテインメントの後始末）。
+        func detach() {
+            hostingController?.willMove(toParent: nil)
+            hostingController?.view.removeFromSuperview()
+            hostingController?.removeFromParent()
+            hostingController = nil
+            adLoader = nil
         }
 
         func load(adUnitID: String) {
@@ -151,6 +190,23 @@ private struct NativeAdRepresentable: UIViewRepresentable {
             onFailure()
         }
 
+        /// カードの実寸を測って `NativeAdSlot` に返す。幅未確定のうちは何もしない。
+        func remeasure() {
+            guard let hostingController, let adView else { return }
+            let width = adView.bounds.width
+            guard width > 0 else { return }
+            let fitted = hostingController.sizeThatFits(
+                in: CGSize(width: width, height: .greatestFiniteMagnitude)
+            )
+            let height = ceil(fitted.height)
+            guard height > 0, abs(height - lastReportedHeight) >= 0.5 else { return }
+            lastReportedHeight = height
+            // `updateUIView` 経由でも呼ばれるため、SwiftUI のレイアウトパス中に
+            // `@State` を書き換えないよう次のランループへ逃がす
+            let notify = onHeightChange
+            DispatchQueue.main.async { MainActor.assumeIsolated { notify(height) } }
+        }
+
         private func attach(_ nativeAd: GADNativeAd) {
             guard let adView else { return }
 
@@ -166,24 +222,39 @@ private struct NativeAdRepresentable: UIViewRepresentable {
             hostingController = hosting
             hosting.view.backgroundColor = .clear
             hosting.view.translatesAutoresizingMaskIntoConstraints = false
+            // `UIHostingController` は VC 階層に入れて初めてトレイト・ライフサイクルが正しく伝播する
+            let parentViewController = AdRequestFactory.currentRootViewController()
+            parentViewController?.addChild(hosting)
 
             adView.subviews.forEach { $0.removeFromSuperview() }
             adView.addSubview(hosting.view)
             NSLayoutConstraint.activate([
                 hosting.view.topAnchor.constraint(equalTo: adView.topAnchor),
-                hosting.view.bottomAnchor.constraint(equalTo: adView.bottomAnchor),
                 hosting.view.leadingAnchor.constraint(equalTo: adView.leadingAnchor),
                 hosting.view.trailingAnchor.constraint(equalTo: adView.trailingAnchor),
             ])
+            if parentViewController != nil { hosting.didMove(toParent: parentViewController) }
 
-            // クリック計測・遷移のためのアセットビュー登録。個別の UILabel / UIButton を持たないため
-            // 同じホスティングビューを割り当てる（SDK は `nativeAd` セット後にタップ範囲を管理する）。
-            adView.headlineView = hosting.view
-            adView.bodyView = nativeAd.body != nil ? hosting.view : nil
-            adView.iconView = nativeAd.icon != nil ? hosting.view : nil
-            adView.callToActionView = nativeAd.callToAction != nil ? hosting.view : nil
+            // クリック計測・遷移用。カード全面を覆う透明ビュー 1 枚だけを必須アセット
+            // （headline）として登録する。重複登録はしない（上のドキュメント参照）
+            let clickOverlay = UIView()
+            clickOverlay.backgroundColor = .clear
+            clickOverlay.translatesAutoresizingMaskIntoConstraints = false
+            adView.addSubview(clickOverlay)
+            NSLayoutConstraint.activate([
+                clickOverlay.topAnchor.constraint(equalTo: adView.topAnchor),
+                clickOverlay.bottomAnchor.constraint(equalTo: adView.bottomAnchor),
+                clickOverlay.leadingAnchor.constraint(equalTo: adView.leadingAnchor),
+                clickOverlay.trailingAnchor.constraint(equalTo: adView.trailingAnchor),
+            ])
+            adView.headlineView = clickOverlay
 
             adView.nativeAd = nativeAd
+
+            // 実寸を測って枠の高さを確定させる。レイアウト確定後に測る必要があるので
+            // 一度レイアウトを流してから測り、幅未確定なら次の `updateUIView` で拾う
+            adView.layoutIfNeeded()
+            remeasure()
         }
     }
 }

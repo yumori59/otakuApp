@@ -13,7 +13,8 @@ struct DisabledAdRenderer: AdRenderer {
 
     func nativeAdView(
         adUnitID: String,
-        onFailure: @escaping @MainActor () -> Void
+        onFailure: @escaping @MainActor () -> Void,
+        onHeightChange: @escaping @MainActor (CGFloat) -> Void
     ) -> AnyView? { nil }
 
     func loadRewardedAd(adUnitID: String) async throws {

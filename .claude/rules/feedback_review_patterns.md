@@ -33,6 +33,7 @@
 | IOS-7 | **SDK をリンクしただけで起動時に落ちる設定を空のまま置く** | GoogleMobileAds の `GADApplicationIdentifier` は空文字 / キー欠落だと SDK が起動時検証で NSException を投げる（`GADMobileAds.start` を呼ばなくても落ちる）。「未設定なら初期化しない」ファクトリでは防げない。SDK 追加時は `xcodebuild build` だけで完了とせず、**シミュレータに install → launch してプロセス生存を確認**する |
 | IOS-8 | **`project.yml` を直して `xcodegen generate` を忘れる** | ビルド設定と Info.plist の変数展開は `Meigicho.xcodeproj/project.pbxproj` に焼き込まれている。再生成しないと変更が効かず「直したのに直らない」になる |
 | IOS-9 | **`GeometryReader` で高さを固定して子を包む** | `GeometryReader` は子をクリップせず理想サイズも尊重しない。固定高で包むと中身が後続コンテンツに重なる。高さは `.frame(minHeight:)` で下限として確保し、`GeometryReader` は `background` に置いて幅の計測だけに使う |
+| IOS-10 | **`UIViewRepresentable` の中身を非同期で差し替えても SwiftUI は測り直さない** | SwiftUI が `sizeThatFits` を呼ぶのは中身が空のロード前だけ。あとから `UIHostingController.view` を貼っても枠は伸びず、はみ出して後続コンテンツに重なる（IOS-9 と同じ症状・原因は別）。UIKit 側で実寸を測って `@State` へ返し、`.frame(height:)` を確定させる |
 
 ---
 
