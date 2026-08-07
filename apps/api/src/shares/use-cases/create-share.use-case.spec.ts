@@ -1,19 +1,21 @@
-import { ConfigService } from '@nestjs/config';
 import { ShareLink } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { sha256Hex } from '../../common/util/hash.util';
 import { EntitlementsService } from '../../entitlements/entitlements.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ToursService } from '../../tours/tours.service';
+import { ShareRecipientsService } from '../share-recipients.service';
 import { CreateShareDto } from '../dto/create-share.dto';
 import { SharesService } from '../shares.service';
 import { CreateShareUseCase } from './create-share.use-case';
 
 const USER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';
+const OWN_ACCOUNT_ID = 'ACC-100000';
+const OTHER_USER_ID = '018f3c2a-7b1e-7c90-9d2a-000000000099';
+const RECIPIENT_ACCOUNT_ID = 'ACC-9F8E7D';
 const TOUR_ID = '018f3c2a-dddd-7c90-9d2a-000000000001';
 const NOW = new Date('2026-08-01T00:00:00.000Z');
 const DAY_MS = 24 * 60 * 60 * 1000;
-const BASE_URL = 'https://share.example.com';
 
 function shareRowFrom(data: Record<string, unknown>): ShareLink {
   return {
@@ -24,21 +26,31 @@ function shareRowFrom(data: Record<string, unknown>): ShareLink {
     revokedAt: null,
     viewCount: 0,
     lastViewedAt: null,
+    editCount: 0,
+    lastEditedAt: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...data,
   } as unknown as ShareLink;
 }
 
+/** `profiles` の accountId → 行の対応。テストごとに上書きできる。 */
+function profileRow(accountId: string, userId: string, displayName: string | null = null) {
+  return { id: userId, accountId, displayName };
+}
+
 describe('CreateShareUseCase', () => {
   let prisma: {
     shareLink: { create: jest.Mock; count: jest.Mock };
+    shareRecipient: { createMany: jest.Mock };
+    profile: { findUnique: jest.Mock; findMany: jest.Mock };
     event: { count: jest.Mock };
+    $transaction: jest.Mock;
   };
   let shares: SharesService;
+  let shareRecipients: ShareRecipientsService;
   let tours: { assertOwned: jest.Mock };
   let entitlements: { shareLimit: jest.Mock; shareWriteEventLimit: jest.Mock };
-  let config: { get: jest.Mock };
   let useCase: CreateShareUseCase;
 
   beforeEach(() => {
@@ -48,25 +60,42 @@ describe('CreateShareUseCase', () => {
         create: jest.fn(({ data }) => Promise.resolve(shareRowFrom(data))),
         count: jest.fn().mockResolvedValue(0),
       },
+      shareRecipient: { createMany: jest.fn().mockResolvedValue(undefined) },
+      profile: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ accountId: OWN_ACCOUNT_ID }),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            profileRow(RECIPIENT_ACCOUNT_ID, OTHER_USER_ID, 'ゆう'),
+          ]),
+      },
       event: { count: jest.fn().mockResolvedValue(0) },
+      $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(prisma)),
     };
-    shares = new SharesService(prisma as unknown as PrismaService);
+    shareRecipients = new ShareRecipientsService(
+      prisma as unknown as PrismaService,
+    );
+    shares = new SharesService(
+      prisma as unknown as PrismaService,
+      shareRecipients,
+    );
     tours = {
       assertOwned: jest
         .fn()
         .mockResolvedValue({ id: TOUR_ID, name: 'STELLARIS LIVE TOUR 2026' }),
     };
     entitlements = {
-      shareLimit: jest.fn().mockResolvedValue(1),
+      shareLimit: jest.fn().mockResolvedValue(null),
       shareWriteEventLimit: jest.fn().mockResolvedValue(3),
     };
-    config = { get: jest.fn().mockReturnValue(BASE_URL) };
 
     useCase = new CreateShareUseCase(
       shares,
       tours as unknown as ToursService,
       entitlements as unknown as EntitlementsService,
-      config as unknown as ConfigService,
+      shareRecipients,
     );
   });
 
@@ -78,6 +107,7 @@ describe('CreateShareUseCase', () => {
     return {
       scope_type: 'tour',
       scope_id: TOUR_ID,
+      shared_with_account_ids: [RECIPIENT_ACCOUNT_ID],
       ...overrides,
     } as CreateShareDto;
   }
@@ -94,7 +124,7 @@ describe('CreateShareUseCase', () => {
     expect(data.tokenHash).toBe(sha256Hex(res.token));
     expect(Object.keys(data)).not.toContain('token');
     expect(JSON.stringify(data)).not.toContain(res.token);
-    expect(res.url).toBe(`${BASE_URL}/s/${res.token}`);
+    expect(res.url).toBe(`meigicho://share/${res.token}`);
   });
 
   it('AC-SH-04 expires_at 省略時は +30 日 (Q8)', async () => {
@@ -140,6 +170,7 @@ describe('CreateShareUseCase', () => {
   });
 
   it('AC-SH-03 上限判定は失効済み / 期限切れを除外して数える', async () => {
+    entitlements.shareLimit.mockResolvedValue(1);
     await useCase.execute(USER_ID, dto());
 
     expect(prisma.shareLink.count).toHaveBeenCalledWith({
@@ -223,15 +254,126 @@ describe('CreateShareUseCase', () => {
   });
 
   it('share_links に shared_with_account_ids を書かない（列は削除済み / FR-5-4）', async () => {
-    await useCase.execute(
-      USER_ID,
-      dto({ shared_with_account_ids: ['ACC-3F9A21'] }),
-    );
+    await useCase.execute(USER_ID, dto());
     const data = prisma.shareLink.create.mock.calls[0][0].data as Record<
       string,
       unknown
     >;
     expect(data).not.toHaveProperty('sharedWithAccountIds');
+  });
+
+  describe('招待 (api-contract-delta.md §1)', () => {
+    it('AC-SI-01 shared_with_account_ids が未指定は VALIDATION_ERROR 400（DTO を通らない経路の防御）', async () => {
+      await expect(
+        useCase.execute(
+          USER_ID,
+          dto({ shared_with_account_ids: undefined }),
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+      expect(prisma.shareLink.create).not.toHaveBeenCalled();
+    });
+
+    it('AC-SI-01 shared_with_account_ids が空配列は VALIDATION_ERROR 400', async () => {
+      await expect(
+        useCase.execute(USER_ID, dto({ shared_with_account_ids: [] })),
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+      expect(prisma.shareLink.create).not.toHaveBeenCalled();
+    });
+
+    it('AC-SI-02 存在しない ACC-ID は SHARE_RECIPIENT_UNKNOWN 400 + details。共有は作られない', async () => {
+      prisma.profile.findMany.mockResolvedValue([]);
+
+      await expect(
+        useCase.execute(
+          USER_ID,
+          dto({ shared_with_account_ids: ['ACC-000000'] }),
+        ),
+      ).rejects.toMatchObject({
+        code: ErrorCode.SHARE_RECIPIENT_UNKNOWN,
+        details: { unknown_account_ids: ['ACC-000000'] },
+      });
+      expect(prisma.shareLink.create).not.toHaveBeenCalled();
+    });
+
+    it('AC-SI-03 成功時、share_recipients に招待件数分の行が user_id 解決済みで作られる', async () => {
+      await useCase.execute(USER_ID, dto());
+
+      expect(prisma.shareRecipient.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            accountId: RECIPIENT_ACCOUNT_ID,
+            userId: OTHER_USER_ID,
+          }),
+        ],
+      });
+    });
+
+    it('AC-SI-04 同じ ACC-ID の重複指定は重複排除して 1 行だけ作る（400 にしない）', async () => {
+      await useCase.execute(
+        USER_ID,
+        dto({
+          shared_with_account_ids: [
+            RECIPIENT_ACCOUNT_ID,
+            RECIPIENT_ACCOUNT_ID,
+          ],
+        }),
+      );
+
+      const call = prisma.shareRecipient.createMany.mock.calls[0][0] as {
+        data: unknown[];
+      };
+      expect(call.data).toHaveLength(1);
+    });
+
+    it('AC-SI-06 自分自身の ACC-ID を招待すると SHARE_RECIPIENT_SELF 400', async () => {
+      await expect(
+        useCase.execute(
+          USER_ID,
+          dto({ shared_with_account_ids: [OWN_ACCOUNT_ID] }),
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.SHARE_RECIPIENT_SELF });
+      expect(prisma.shareLink.create).not.toHaveBeenCalled();
+    });
+
+    it('AC-SI-13 判定順序: Free で上限超過かつ未知 ID 混在なら SHARE_RECIPIENT_UNKNOWN が先に返る', async () => {
+      entitlements.shareLimit.mockResolvedValue(1);
+      prisma.shareLink.count.mockResolvedValue(1);
+      prisma.profile.findMany.mockResolvedValue([]);
+
+      await expect(
+        useCase.execute(
+          USER_ID,
+          dto({ shared_with_account_ids: ['ACC-000000'] }),
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.SHARE_RECIPIENT_UNKNOWN });
+      expect(prisma.shareLink.create).not.toHaveBeenCalled();
+    });
+
+    it('AC-SI-13 self 判定は実在確認より先（未知 + self 混在でも SELF が先に返る）', async () => {
+      prisma.profile.findMany.mockResolvedValue([]);
+
+      await expect(
+        useCase.execute(
+          USER_ID,
+          dto({
+            shared_with_account_ids: [OWN_ACCOUNT_ID, 'ACC-000000'],
+          }),
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.SHARE_RECIPIENT_SELF });
+    });
+
+    it('作成レスポンスの recipients は account_id / display_name / invited_at / last_viewed_at のみ', async () => {
+      const res = await useCase.execute(USER_ID, dto());
+
+      expect(res.recipients).toEqual([
+        {
+          account_id: RECIPIENT_ACCOUNT_ID,
+          display_name: 'ゆう',
+          invited_at: res.created_at,
+          last_viewed_at: null,
+        },
+      ]);
+    });
   });
 
   describe('permission (api-contract-delta.md §3)', () => {
@@ -341,14 +483,5 @@ describe('CreateShareUseCase', () => {
         useCase.execute(USER_ID, dto({ permission: 'write' })),
       ).rejects.toMatchObject({ code: ErrorCode.PLAN_LIMIT_SHARE });
     });
-  });
-
-  it('SHARE_BASE_URL 未設定なら INTERNAL 500（壊れた URL を返さない）', async () => {
-    config.get.mockReturnValue(undefined);
-
-    await expect(useCase.execute(USER_ID, dto())).rejects.toMatchObject({
-      code: ErrorCode.INTERNAL,
-    });
-    expect(prisma.shareLink.create).not.toHaveBeenCalled();
   });
 });

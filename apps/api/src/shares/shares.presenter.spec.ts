@@ -1,5 +1,6 @@
 import { ShareLink } from '@prisma/client';
 import {
+  ShareRecipientResponse,
   toShareCreatedResponse,
   toShareListItem,
   shareUrl,
@@ -10,6 +11,15 @@ const SHARE_ID = '018f3c2a-1111-7c90-9d2a-000000000001';
 const USER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';
 const TOUR_ID = '018f3c2a-dddd-7c90-9d2a-000000000001';
 const RAW_TOKEN = 'raw-opaque-share-token';
+
+const RECIPIENTS: ShareRecipientResponse[] = [
+  {
+    account_id: 'ACC-3F9A21',
+    display_name: 'ゆう',
+    invited_at: '2026-08-01T00:00:00.000Z',
+    last_viewed_at: null,
+  },
+];
 
 function shareRow(overrides: Partial<ShareLink> = {}): ShareLink {
   return {
@@ -50,7 +60,12 @@ function collectKeys(value: unknown, acc: string[] = []): string[] {
 describe('shares.presenter', () => {
   describe('toShareListItem', () => {
     it('AC-SH-09 レスポンスに token / token_hash キーが存在しない (FR-SH-6)', () => {
-      const item = toShareListItem(shareRow(), 'STELLARIS LIVE TOUR 2026', NOW);
+      const item = toShareListItem(
+        shareRow(),
+        'STELLARIS LIVE TOUR 2026',
+        RECIPIENTS,
+        NOW,
+      );
 
       const keys = collectKeys(item);
       expect(keys).not.toContain('token');
@@ -61,7 +76,12 @@ describe('shares.presenter', () => {
     });
 
     it('AC-SH-09 契約どおりのキーだけを返す', () => {
-      const item = toShareListItem(shareRow(), 'STELLARIS LIVE TOUR 2026', NOW);
+      const item = toShareListItem(
+        shareRow(),
+        'STELLARIS LIVE TOUR 2026',
+        RECIPIENTS,
+        NOW,
+      );
 
       expect(Object.keys(item).sort()).toEqual(
         [
@@ -71,6 +91,7 @@ describe('shares.presenter', () => {
           'scope_name',
           'permission',
           'mask_member_no',
+          'recipients',
           'expires_at',
           'revoked_at',
           'view_count',
@@ -88,6 +109,7 @@ describe('shares.presenter', () => {
         scope_name: 'STELLARIS LIVE TOUR 2026',
         permission: 'read',
         mask_member_no: true,
+        recipients: RECIPIENTS,
         expires_at: '2026-08-31T00:00:00.000Z',
         revoked_at: null,
         view_count: 3,
@@ -99,10 +121,16 @@ describe('shares.presenter', () => {
       });
     });
 
+    it('recipients[].hidden_at は返さない（オーナーに非表示を見せない — Q3）', () => {
+      const item = toShareListItem(shareRow(), null, RECIPIENTS, NOW);
+      expect(collectKeys(item.recipients)).not.toContain('hidden_at');
+    });
+
     it('AC-SW-23 未編集のリンクは edit_count:0 / last_edited_at:null', () => {
       const item = toShareListItem(
         shareRow({ editCount: 0, lastEditedAt: null }),
         null,
+        [],
         NOW,
       );
 
@@ -111,7 +139,7 @@ describe('shares.presenter', () => {
     });
 
     it('owner_id は含めない (BE-4)', () => {
-      const item = toShareListItem(shareRow(), null, NOW);
+      const item = toShareListItem(shareRow(), null, [], NOW);
       expect(collectKeys(item)).not.toContain('owner_id');
       expect(JSON.stringify(item)).not.toContain(USER_ID);
     });
@@ -120,6 +148,7 @@ describe('shares.presenter', () => {
       const item = toShareListItem(
         shareRow({ revokedAt: new Date('2026-08-01T12:00:00.000Z') }),
         null,
+        [],
         NOW,
       );
       expect(item.is_active).toBe(false);
@@ -127,12 +156,22 @@ describe('shares.presenter', () => {
     });
 
     it('is_active: expires_at が now ちょうどなら false（E-8）', () => {
-      const item = toShareListItem(shareRow({ expiresAt: NOW }), null, NOW);
+      const item = toShareListItem(
+        shareRow({ expiresAt: NOW }),
+        null,
+        [],
+        NOW,
+      );
       expect(item.is_active).toBe(false);
     });
 
     it('is_active: expires_at が null なら true', () => {
-      const item = toShareListItem(shareRow({ expiresAt: null }), null, NOW);
+      const item = toShareListItem(
+        shareRow({ expiresAt: null }),
+        null,
+        [],
+        NOW,
+      );
       expect(item.is_active).toBe(true);
       expect(item.expires_at).toBeNull();
     });
@@ -141,6 +180,7 @@ describe('shares.presenter', () => {
       const item = toShareListItem(
         shareRow({ scopeType: 'identity_summary', scopeId: null }),
         null,
+        [],
         NOW,
       );
       expect(item.scope_id).toBeNull();
@@ -150,14 +190,11 @@ describe('shares.presenter', () => {
 
   describe('toShareCreatedResponse', () => {
     it('AC-SH-01 生トークンと URL を返す（発行時のみ）', () => {
-      const res = toShareCreatedResponse(
-        shareRow(),
-        RAW_TOKEN,
-        'https://share.example.com',
-      );
+      const res = toShareCreatedResponse(shareRow(), RAW_TOKEN, RECIPIENTS);
 
       expect(res.token).toBe(RAW_TOKEN);
-      expect(res.url).toBe(`https://share.example.com/s/${RAW_TOKEN}`);
+      expect(res.url).toBe(`meigicho://share/${RAW_TOKEN}`);
+      expect(res.recipients).toEqual(RECIPIENTS);
       expect(Object.keys(res).sort()).toEqual(
         [
           'id',
@@ -167,6 +204,7 @@ describe('shares.presenter', () => {
           'scope_id',
           'permission',
           'mask_member_no',
+          'recipients',
           'expires_at',
           'created_at',
         ].sort(),
@@ -174,27 +212,24 @@ describe('shares.presenter', () => {
     });
 
     it('token_hash / owner_id は返さない', () => {
-      const res = toShareCreatedResponse(
-        shareRow(),
-        RAW_TOKEN,
-        'https://share.example.com',
-      );
+      const res = toShareCreatedResponse(shareRow(), RAW_TOKEN, RECIPIENTS);
       const keys = collectKeys(res);
       expect(keys).not.toContain('token_hash');
       expect(keys).not.toContain('owner_id');
       expect(JSON.stringify(res)).not.toContain(shareRow().tokenHash);
       expect(JSON.stringify(res)).not.toContain(USER_ID);
     });
+
+    it('shared_with_account_ids キーは含めない（recipients が正）', () => {
+      const res = toShareCreatedResponse(shareRow(), RAW_TOKEN, RECIPIENTS);
+      expect(collectKeys(res)).not.toContain('shared_with_account_ids');
+    });
   });
 
   describe('shareUrl', () => {
-    it('SHARE_BASE_URL の末尾スラッシュを重複させない', () => {
-      expect(shareUrl('https://share.example.com/', 'abc')).toBe(
-        'https://share.example.com/s/abc',
-      );
-      expect(shareUrl('https://share.example.com', 'abc')).toBe(
-        'https://share.example.com/s/abc',
-      );
+    it('meigicho://share/<token> を返す（D9: https の公開経路は廃止済み）', () => {
+      expect(shareUrl('abc')).toBe('meigicho://share/abc');
+      expect(shareUrl(RAW_TOKEN)).toBe(`meigicho://share/${RAW_TOKEN}`);
     });
   });
 });

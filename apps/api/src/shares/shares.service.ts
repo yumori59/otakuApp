@@ -4,6 +4,7 @@ import { ShareLink } from '@prisma/client';
 import { AppError } from '../common/errors/app-error';
 import { randomToken, sha256Hex } from '../common/util/hash.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { ShareRecipientsService } from './share-recipients.service';
 import { SharePermission, ShareScopeType } from './dto/create-share.dto';
 import { ShareListItemResponse, toShareListItem } from './shares.presenter';
 
@@ -21,13 +22,22 @@ export interface CreatedShareLink {
   token: string;
 }
 
+/** `POST /v1/shares` で招待する 1 件（実在確認済み・`share_recipients` の行データ）。 */
+export interface CreateShareRecipientInput {
+  accountId: string;
+  userId: string;
+}
+
 /**
  * 共有リンク (share_links) のドメイン・認可 (ownerId)・Prisma アクセス (ADR-009)。
  * トークンは `sha256Hex` した値だけを保存し、平文検索もしない (FR-SH-1)。
  */
 @Injectable()
 export class SharesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shareRecipients: ShareRecipientsService,
+  ) {}
 
   /** 上限判定用。失効済み / 期限切れは数えない（AC-SH-03）。 */
   async countActive(userId: string, now: Date = new Date()): Promise<number> {
@@ -40,22 +50,41 @@ export class SharesService {
     });
   }
 
-  async create(
+  /**
+   * `share_links` + `share_recipients` を 1 トランザクションで作成する
+   * （api-contract-delta.md §1 判定順序 ⑥）。招待は既に実在確認済みのものだけを渡すこと。
+   */
+  async createWithRecipients(
     userId: string,
     input: CreateShareLinkInput,
+    recipients: CreateShareRecipientInput[],
   ): Promise<CreatedShareLink> {
     const token = randomToken();
-    const row = await this.prisma.shareLink.create({
-      data: {
-        id: randomUUID(),
-        ownerId: userId,
-        scopeType: input.scopeType,
-        scopeId: input.scopeId,
-        tokenHash: sha256Hex(token),
-        permission: input.permission,
-        maskMemberNo: input.maskMemberNo,
-        expiresAt: input.expiresAt,
-      },
+    const id = randomUUID();
+    const row = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.shareLink.create({
+        data: {
+          id,
+          ownerId: userId,
+          scopeType: input.scopeType,
+          scopeId: input.scopeId,
+          tokenHash: sha256Hex(token),
+          permission: input.permission,
+          maskMemberNo: input.maskMemberNo,
+          expiresAt: input.expiresAt,
+        },
+      });
+      if (recipients.length > 0) {
+        await tx.shareRecipient.createMany({
+          data: recipients.map((recipient) => ({
+            id: randomUUID(),
+            shareLinkId: id,
+            accountId: recipient.accountId,
+            userId: recipient.userId,
+          })),
+        });
+      }
+      return created;
     });
     return { row, token };
   }
@@ -68,24 +97,34 @@ export class SharesService {
     });
 
     const scopeNames = await this.tourNames(userId, rows);
+    const recipientsByShareLink = await this.shareRecipients.listByShareLinks(
+      rows.map((row) => row.id),
+    );
     const now = new Date();
     return rows.map((row) =>
       toShareListItem(
         row,
         row.scopeId ? (scopeNames.get(row.scopeId) ?? null) : null,
+        recipientsByShareLink.get(row.id) ?? [],
         now,
       ),
     );
   }
 
-  /** 失効。冪等（既に失効済みなら何もしない）。他人の id は NOT_FOUND 404 (BE-4)。 */
-  async revoke(userId: string, id: string): Promise<void> {
+  /** 自分の共有リンクを 1 件取得する。他人 / 未知の id は NOT_FOUND 404 (BE-4)。 */
+  async findOwned(userId: string, id: string): Promise<ShareLink> {
     const existing = await this.prisma.shareLink.findFirst({
       where: { id, ownerId: userId },
     });
     if (!existing) {
       throw AppError.notFound(`share not found: ${id}`);
     }
+    return existing;
+  }
+
+  /** 失効。冪等（既に失効済みなら何もしない）。他人の id は NOT_FOUND 404 (BE-4)。 */
+  async revoke(userId: string, id: string): Promise<void> {
+    const existing = await this.findOwned(userId, id);
     if (existing.revokedAt) return;
 
     await this.prisma.shareLink.update({

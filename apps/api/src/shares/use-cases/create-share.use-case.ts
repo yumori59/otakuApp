@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { EntitlementsService } from '../../entitlements/entitlements.service';
 import { ToursService } from '../../tours/tours.service';
+import { ShareRecipientsService } from '../share-recipients.service';
 import {
   CreateShareDto,
   DAY_MS,
@@ -15,13 +15,17 @@ import {
 } from '../dto/create-share.dto';
 import {
   ShareCreatedResponse,
+  ShareRecipientResponse,
   toShareCreatedResponse,
 } from '../shares.presenter';
 import { SharesService } from '../shares.service';
 
 /**
- * POST /v1/shares（api-contract.md §8）。
- * scope の所有検証 → プラン上限 → 発行 の順に行い、Prisma には触らない (BE-3 / ADR-009)。
+ * POST /v1/shares（api-contract-delta.md §1）。
+ * **判定順序（この順を変えない — AC-SI-13）**:
+ * ① DTO 検証（形式・件数。ValidationPipe 済み） → ② self 判定 → ③ 実在確認
+ * → ④ PLAN_LIMIT_SHARE → ⑤ PLAN_LIMIT_SHARE_WRITE → ⑥ 作成（share_links + share_recipients を 1 TX で）
+ * Prisma には触らない (BE-3 / ADR-009)。
  */
 @Injectable()
 export class CreateShareUseCase {
@@ -29,43 +33,85 @@ export class CreateShareUseCase {
     private readonly shares: SharesService,
     private readonly tours: ToursService,
     private readonly entitlements: EntitlementsService,
-    private readonly config: ConfigService,
+    private readonly shareRecipients: ShareRecipientsService,
   ) {}
 
   async execute(
     userId: string,
     dto: CreateShareDto,
   ): Promise<ShareCreatedResponse> {
-    // 壊れた URL を返さないよう、設定不備は副作用を出す前に 500 にする
-    const baseUrl = this.config.get<string>('SHARE_BASE_URL');
-    if (!baseUrl) {
-      throw new AppError(
-        ErrorCode.INTERNAL,
-        'SHARE_BASE_URL is not configured',
-      );
-    }
-
     const permission = resolvePermission(dto);
     const scopeId = await this.resolveScopeId(userId, dto);
     const expiresAt = resolveExpiresAt(dto.expires_at);
+
+    // ② self → ③ 実在確認（PLAN_LIMIT より前 — Free の打ち間違え原因を特定できるように）
+    const accountIds = dedupe(dto.shared_with_account_ids);
+    await this.assertNotSelf(userId, accountIds);
+    const recipients = await this.assertKnownAccounts(accountIds);
+
+    // ④ PLAN_LIMIT_SHARE → ⑤ PLAN_LIMIT_SHARE_WRITE
     await this.assertShareLimit(userId);
-    // 本数上限 (PLAN_LIMIT_SHARE) の後に公演数上限を見る（plan.md 5.2）
     if (permission === 'write' && scopeId) {
       await this.assertWriteEventLimit(userId, scopeId);
     }
 
-    const { row, token } = await this.shares.create(userId, {
-      scopeType: dto.scope_type,
-      scopeId,
-      permission,
-      maskMemberNo: dto.mask_member_no ?? true,
-      // dto.shared_with_account_ids はここでは保存しない。share_links の列を削除し
-      // （share-account-invites FR-5-4）、招待は share_recipients が正になる。
-      // 実際の招待作成は T3（api-contract-delta.md §1 の判定順序）が足す。
-      expiresAt,
-    });
+    // ⑥ 作成
+    const { row, token } = await this.shares.createWithRecipients(
+      userId,
+      {
+        scopeType: dto.scope_type,
+        scopeId,
+        permission,
+        maskMemberNo: dto.mask_member_no ?? true,
+        expiresAt,
+      },
+      recipients.map((recipient) => ({
+        accountId: recipient.accountId,
+        userId: recipient.userId,
+      })),
+    );
 
-    return toShareCreatedResponse(row, token, baseUrl);
+    const recipientResponses: ShareRecipientResponse[] = recipients.map(
+      (recipient) => ({
+        account_id: recipient.accountId,
+        display_name: recipient.displayName,
+        invited_at: row.createdAt.toISOString(),
+        last_viewed_at: null,
+      }),
+    );
+
+    return toShareCreatedResponse(row, token, recipientResponses);
+  }
+
+  /** 呼び出し元自身の account_id を招待に含めていないか（AC-SI-06）。 */
+  private async assertNotSelf(
+    userId: string,
+    accountIds: string[],
+  ): Promise<void> {
+    const ownAccountId = await this.shareRecipients.resolveOwnAccountId(
+      userId,
+    );
+    if (ownAccountId && accountIds.includes(ownAccountId)) {
+      throw new AppError(
+        ErrorCode.SHARE_RECIPIENT_SELF,
+        'cannot invite yourself',
+      );
+    }
+  }
+
+  /** 招待先が全て実在するか（AC-SI-02）。未知が 1 件でもあれば作成しない。 */
+  private async assertKnownAccounts(accountIds: string[]) {
+    const { resolved, unknown } = await this.shareRecipients.resolveAccountIds(
+      accountIds,
+    );
+    if (unknown.length > 0) {
+      throw new AppError(
+        ErrorCode.SHARE_RECIPIENT_UNKNOWN,
+        `unknown account ids: ${unknown.join(', ')}`,
+        { unknown_account_ids: unknown },
+      );
+    }
+    return resolved;
   }
 
   /** tour スコープは自分の未削除 tour のみ（他人 / 未知は 404 — BE-4）。 */
@@ -160,4 +206,17 @@ function resolveExpiresAt(raw: string | undefined): Date {
     );
   }
   return new Date(at);
+}
+
+/**
+ * 重複排除する（AC-SI-04。400 にしない）。
+ * DTO を通らない経路の防御として、空/未指定も VALIDATION_ERROR 400 にする（AC-SI-01）。
+ */
+function dedupe(accountIds: string[] | undefined): string[] {
+  if (!accountIds || accountIds.length === 0) {
+    throw AppError.validation(
+      'shared_with_account_ids must contain at least one account id',
+    );
+  }
+  return [...new Set(accountIds)];
 }
