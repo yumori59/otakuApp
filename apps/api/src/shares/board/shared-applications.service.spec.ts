@@ -1,5 +1,5 @@
 import { Application } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { SharedApplicationsService } from './shared-applications.service';
 
 const OWNER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';

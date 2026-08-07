@@ -1,6 +1,6 @@
-import { AppError } from '../common/errors/app-error';
-import { ErrorCode } from '../common/errors/error-codes';
-import { TourMatrixInternalRow } from '../tours/tour-matrix.service';
+import { AppError } from '../../common/errors/app-error';
+import { ErrorCode } from '../../common/errors/error-codes';
+import { TourMatrixInternalRow } from '../../tours/tour-matrix.service';
 import { shareItemKey, shareItemRev } from './share-item-key';
 
 /**

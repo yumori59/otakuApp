@@ -1,12 +1,12 @@
 import { ShareLink, Tour } from '@prisma/client';
-import { AppError } from '../../common/errors/app-error';
-import { ErrorCode } from '../../common/errors/error-codes';
-import { EntitlementsService } from '../../entitlements/entitlements.service';
-import { SharesService } from '../../shares/shares.service';
+import { AppError } from '../../../common/errors/app-error';
+import { ErrorCode } from '../../../common/errors/error-codes';
+import { EntitlementsService } from '../../../entitlements/entitlements.service';
+import { SharesService } from '../../shares.service';
 import {
   TourMatrixInternalRow,
   TourMatrixService,
-} from '../../tours/tour-matrix.service';
+} from '../../../tours/tour-matrix.service';
 import { IdentitySummaryService } from '../identity-summary.service';
 import { MASKED_IDENTITY_NAME } from '../public-share.presenter';
 import { shareItemKey, shareItemRev } from '../share-item-key';

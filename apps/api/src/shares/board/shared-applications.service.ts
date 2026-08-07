@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Application } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /** 共有先に開放するのは status / seat だけ（api-contract-delta.md §4）。 */
 export interface SharedItemPatch {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { IdentitiesService } from '../identities/identities.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { IdentitiesService } from '../../identities/identities.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * identity_summary 共有の集計行（**内部表現**）。

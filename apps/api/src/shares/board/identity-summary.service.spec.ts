@@ -1,5 +1,5 @@
-import { IdentitiesService } from '../identities/identities.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { IdentitiesService } from '../../identities/identities.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { IdentitySummaryService } from './identity-summary.service';
 
 const USER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';

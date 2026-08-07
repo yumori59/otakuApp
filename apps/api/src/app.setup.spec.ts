@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from './app.module';
-import { configureApp } from './app.setup';
+import { GLOBAL_PREFIX_EXCLUDE, configureApp } from './app.setup';
 import { PrismaService } from './prisma/prisma.service';
 
 describe('bootstrap configuration', () => {
@@ -45,6 +45,24 @@ describe('bootstrap configuration', () => {
 
   it('/v1/health は存在しない（exclude が効いている）', async () => {
     const res = await request(app.getHttpServer()).get('/v1/health');
+    expect(res.status).toBe(404);
+  });
+
+  it('AC-SI-30 GLOBAL_PREFIX_EXCLUDE は health / readyz のみ（公開共有経路は含めない）', () => {
+    expect(GLOBAL_PREFIX_EXCLUDE.sort()).toEqual(['health', 'readyz'].sort());
+  });
+
+  it('AC-SI-30 GET /public/shares/:token は廃止済みで 404', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/public/shares/some-token',
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('AC-SI-32 GET /v1/public/shares/:token も 404', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/v1/public/shares/some-token',
+    );
     expect(res.status).toBe(404);
   });
 

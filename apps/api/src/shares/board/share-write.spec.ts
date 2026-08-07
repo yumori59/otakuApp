@@ -1,5 +1,5 @@
-import { ErrorCode } from '../common/errors/error-codes';
-import { TourMatrixInternalRow } from '../tours/tour-matrix.service';
+import { ErrorCode } from '../../common/errors/error-codes';
+import { TourMatrixInternalRow } from '../../tours/tour-matrix.service';
 import { shareItemKey, shareItemRev } from './share-item-key';
 import {
   ShareWriteContext,

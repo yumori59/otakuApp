@@ -10,8 +10,8 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-import { APPLICATION_STATUSES } from '../../applications/dto/application-status';
-import type { ApplicationStatus } from '../../applications/dto/application-status';
+import { APPLICATION_STATUSES } from '../../../applications/dto/application-status';
+import type { ApplicationStatus } from '../../../applications/dto/application-status';
 
 /** rev は base64url 16 文字だが、長さは契約に固定せず上限だけ持つ。 */
 export const MAX_REV_LENGTH = 64;

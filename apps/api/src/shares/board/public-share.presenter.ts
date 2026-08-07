@@ -1,5 +1,5 @@
-import { SharePermission } from '../shares/dto/create-share.dto';
-import { TourMatrixInternalRow } from '../tours/tour-matrix.service';
+import { SharePermission } from '../dto/create-share.dto';
+import { TourMatrixInternalRow } from '../../tours/tour-matrix.service';
 import { IdentitySummaryRow } from './identity-summary.service';
 import {
   ShareItemHandles,
