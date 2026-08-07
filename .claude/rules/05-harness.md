@@ -20,13 +20,20 @@
 /loop xcodebuild (CLAUDE.md のコマンド) が BUILD SUCCEEDED になるまで実装を反復
 ```
 
+## CI/CD (2026-08-07 導入)
+
+`main` への `apps/api/**` 変更マージで `.github/workflows/deploy-api.yml` が
+test → build → Cloud Run デプロイまで自動実行する（GitHub リポジトリ未作成の間は動かない）。
+インフラ（Cloud Run 設定・IAM・Secret Manager）は `infra/terraform/` が正。
+詳細は `docs/06-infrastructure.md` §7 と `infra/terraform/README.md`。
+
 ## 未導入 (意図的に Phase B 外)
 
 | 項目 | 状態 |
 |---|---|
 | pre-commit hook | 未導入 — コミット前に検証ゲートを手動実行 |
 | Claude Code Pre/PostToolUse hooks | 未導入 — `settings.json` は deny/autoMode のみ |
-| CI (GitHub Actions) | 未導入 |
+| CI での lint/format 強制 | 未導入（test/build のみ） |
 | push 前の review.md 強制 | 未導入 — 運用ルール (`04-review.md`) でカバー |
 
 導入するときは本ファイルと `CLAUDE.md` を更新する。

@@ -276,7 +276,11 @@ Cloud Run 費用の本丸は件数より **CPU/メモリ時間**（処理を短�
 | CPU throttling | true | アイドル費用抑制 |
 | startup-cpu-boost | true | コールドスタート短縮 |
 
-### 4.2 gcloud デプロイ例
+### 4.2 gcloud デプロイ例（参考・現在は Terraform + GitHub Actions が正）
+
+以下は設定値の意味を理解するための手動コマンド例。**実際のCloud Runリソースは
+[`infra/terraform/`](../infra/terraform/) が正**（§7参照）。手動でこのコマンドを叩くと
+Terraformのstateとズレるので、通常運用では使わないこと。
 
 ```bash
 gcloud run deploy meigicho-api \
@@ -380,79 +384,28 @@ volumes:
 
 ---
 
-## 7. CI/CD（GitHub Actions）
+## 7. CI/CD（GitHub Actions）・IaC（Terraform）
 
-流れ: `test/lint` → `docker build` → Artifact Registry push → `gcloud run deploy`（任意で migration Job）。
-認証は **Workload Identity Federation（キーレス）**。JSON 鍵を Secrets に置かない。
+**実装済み**（2026-08-07）。以下は実ファイルの索引。設計の詳細・初回セットアップ手順は
+それぞれのファイル自身のコメント/READMEを正とする（本節はここでは概要のみ）。
 
-```yaml
-# .github/workflows/deploy-api.yml
-name: Deploy API
+| ファイル | 役割 |
+|---|---|
+| [`infra/terraform/`](../infra/terraform/) | Cloud Run・Artifact Registry・Secret Manager・IAM・WIFプールをコード化。**README.md に初回セットアップ手順**（state用GCSバケット作成 → 初回だけ手動apply → Secret Manager値投入 → GitHub Variables設定） |
+| [`.github/workflows/deploy-api.yml`](../.github/workflows/deploy-api.yml) | `main`への`apps/api/**`変更マージで自動実行。test → build → push → `gcloud run deploy --image=...`（Cloud Run自体の設定はTerraformが正、ここではイメージ差し替えのみ） |
+| [`.github/workflows/terraform-plan.yml`](../.github/workflows/terraform-plan.yml) | `infra/terraform/**`変更のPRで`terraform plan`のみ自動実行（レビュー用、applyしない） |
+| [`.github/workflows/terraform-apply.yml`](../.github/workflows/terraform-apply.yml) | インフラ変更の本適用。事故防止のため`workflow_dispatch`（手動実行）のみ |
 
-on:
-  push:
-    branches: [main]
-    paths: ["apps/api/**", ".github/workflows/deploy-api.yml"]
+認証は **Workload Identity Federation（キーレス）**。JSON鍵はどこにも置かない。
+サービスアカウントは用途別に4つに分けている（runtime / deploy / plan(読み取り専用) / apply(強権限)）。
+`terraform apply` 用の強権限SAは **`terraform-apply.yml` @ `refs/heads/main` から発行されたトークンだけ**が
+借用できる。権限分離の一覧は [`infra/terraform/README.md`](../infra/terraform/README.md) §2 が正。
 
-env:
-  PROJECT_ID: meigicho-prod
-  REGION: asia-northeast1
-  SERVICE: meigicho-api
-  REPO: meigicho
+**DBマイグレーションはCI/CDに含めない**（`apps/api/prisma/migrations/` が未整備で `db push` のみの運用のため）。
+本番コンテナは `NODE_ENV=production` のとき起動時の自動 `prisma db push` をスキップする
+（`apps/api/docker-entrypoint.sh`）。スキーマ変更は当面、人が明示的に実行する運用とする。
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: apps/api/package-lock.json
-      - run: npm ci
-      - run: npm test && npm run build
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ci-deploy@meigicho-prod.iam.gserviceaccount.com
-      - uses: google-github-actions/setup-gcloud@v2
-      - name: Build, push, deploy
-        run: |
-          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/api:${GITHUB_SHA}"
-          docker build -t "${IMAGE}" apps/api && docker push "${IMAGE}"
-          gcloud run deploy "${SERVICE}" \
-            --image="${IMAGE}" \
-            --region="${REGION}" \
-            --platform=managed \
-            --min-instances=0 \
-            --max-instances=10 \
-            --cpu=1 \
-            --memory=512Mi \
-            --concurrency=80 \
-            --timeout=30 \
-            --service-account="meigicho-api@${PROJECT_ID}.iam.gserviceaccount.com" \
-            --set-secrets="JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,REVENUECAT_WEBHOOK_SECRET=rc-webhook:latest"
-```
-
-Cloud SQL 段階 C 採用時のみ `--add-cloudsql-instances` を追加する。
-
-- `develop` → `meigicho-stg` へ同型 workflow
-- production は `main` または semver タグのみ
-- DB マイグレーションはデプロイ前に前進のみ
+- production は `main` へのマージのみ。staging環境は現状未構築（`infra/terraform/`はproduction一本、必要になれば`.tfvars`を環境ごとに分けて同じモジュールを再利用する）
 - iOS CI（Xcode Cloud / fastlane）はインフラ費外。TestFlight は Phase 0 から
 
 ---

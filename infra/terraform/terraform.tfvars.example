@@ -1,0 +1,11 @@
+# cp terraform.tfvars.example terraform.tfvars して値を埋める。
+# terraform.tfvars 自体は .gitignore 済み（機密ではないが環境固有値のため）。
+
+project_id         = "meigicho-prod"
+github_repository  = "yourname/meigicho" # "owner/repo" 形式
+
+cors_origins       = "https://your-share-web-origin.example" # iOS ネイティブは対象外。Web埋め込み等があれば追記
+google_client_ids  = "changeme.apps.googleusercontent.com"
+share_base_url     = "https://api.meigicho.example" # 共有プレビューが参照するURL（docs/04-api.md 参照）
+resend_from_email  = "no-reply@example.com"
+apple_client_id    = "jp.meigicho.app" # Apple Developer の Services ID

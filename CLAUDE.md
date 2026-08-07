@@ -43,7 +43,8 @@ xcodebuild -project meigicho/Meigicho.xcodeproj -scheme Meigicho \
 
 既知の未整備 (ゲート対象外。整備したら本節に追加する):
 
-- pre-commit / Claude Code hooks / CI は未導入（ハーネス Phase B 外）
+- pre-commit / Claude Code hooks は未導入（ハーネス Phase B 外）。CI (GitHub Actions) は導入済み — `.claude/rules/05-harness.md` 参照
+- 本番コンテナ起動時の自動 `prisma db push` は `NODE_ENV=production` でスキップする（`apps/api/docker-entrypoint.sh`）。DB スキーマ変更は当面、人が明示的に `prisma db push` / 将来的な `prisma migrate deploy` を実行する運用
 - iOS XCTest は設計書上は各パッケージに置く想定だが、機械ゲートは現状ビルド成功のみ
 - NestJS ドメインモジュール（auth/me/identities/memberships/tours/events/applications/shares/public）は実装済み（`docs/plans/backend-domain-modules/`）。iOS 側（Network/DataStore）は未追従
 - 認証拡張（Google Sign-In・メール+パスワード・パスワードリセット）と共有 write 権限（軽量共同編集）も実装済み（`docs/plans/backend-auth-and-shares-extension/`）。契約は `api-contract-delta.md` が正

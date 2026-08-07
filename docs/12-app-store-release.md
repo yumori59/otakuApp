@@ -92,9 +92,11 @@ TestFlight配信・審査提出までの手順です。**現状（2026-08-07時�
 ## 6. 本番バックエンドのデプロイ
 
 Release ビルドは `meigicho/project.yml` の `configs.Release.API_BASE_URL` を参照する
-（現状ダミー値 `https://api.meigicho.example`）。[06-infrastructure.md](./06-infrastructure.md) は構成・コスト試算・`gcloud run deploy`のコマンド例が中心で、
-**「アカウント・プロジェクトを何もない状態から作る」手順は無い**ため、ここに初回セットアップの手順をまとめる
-（既にSupabase/GCPプロジェクトがある場合は 6.3 から）。
+（現状ダミー値 `https://api.meigicho.example`）。
+
+**Cloud Run側は [`infra/terraform/`](../infra/terraform/) がIaC化済み**（2026-08-07）。
+GCPプロジェクト作成そのものとSupabaseはTerraform管理外なので、6.1・6.2は引き続き手動。
+6.3以降はTerraform + GitHub Actions（`.github/workflows/deploy-api.yml`）に置き換わっている。
 
 ### 6.1 Supabase プロジェクトを作る
 
@@ -110,80 +112,41 @@ Release ビルドは `meigicho/project.yml` の `configs.Release.API_BASE_URL` �
    ```
    **`.env` は書き換えず、コマンドラインでその場だけ環境変数を渡すこと**（本番接続文字列を平文でリポジトリに残さない）
 
-### 6.2 GCP プロジェクトを作る
+### 6.2 GCP プロジェクトを作る（Terraform管理外・手動）
 
 1. [Google Cloud Console](https://console.cloud.google.com/) で新規プロジェクトを作成（例: `meigicho-prod`）
 2. 課金アカウントを紐付ける
-3. 必要な API を有効化:
-   ```bash
-   gcloud config set project meigicho-prod
-   gcloud services enable run.googleapis.com \
-     artifactregistry.googleapis.com \
-     secretmanager.googleapis.com \
-     iam.googleapis.com
-   ```
-4. Artifact Registry リポジトリを作成:
-   ```bash
-   gcloud artifacts repositories create meigicho \
-     --repository-format=docker \
-     --location=asia-northeast1
-   ```
-5. デプロイ用サービスアカウントを作成し、権限を付与:
-   ```bash
-   gcloud iam service-accounts create meigicho-api \
-     --display-name="meigicho API runtime"
 
-   gcloud projects add-iam-policy-binding meigicho-prod \
-     --member="serviceAccount:meigicho-api@meigicho-prod.iam.gserviceaccount.com" \
-     --role="roles/secretmanager.secretAccessor"
-   ```
-6. Secret Manager にシークレットを登録（値は `apps/api/.env.example` のキー一覧を参照。
-   実際の値はユーザー自身が用意 — エージェントは秘密ファイル保護のため代行不可）:
-   ```bash
-   echo -n "<6.1で控えたSupabase接続文字列>" | gcloud secrets create database-url --data-file=-
-   echo -n "<ランダムな長い文字列>" | gcloud secrets create jwt-secret --data-file=-
-   echo -n "<RevenueCat Webhook Secret>" | gcloud secrets create rc-webhook --data-file=-
-   ```
-   `apps/api/.env.example` に記載の他の変数（`GOOGLE_CLIENT_IDS` / `RESEND_API_KEY` 等）も同様に登録する
-   （`docs/plans/STATUS.md` §2「BE残課題」参照）
+以降（API有効化・Artifact Registry・サービスアカウント・Secret Manager・Cloud Run本体・
+GitHub Actions用WIF）はすべて **[`infra/terraform/README.md`](../infra/terraform/README.md)** の手順に従う。
+同READMEの「0. 初回だけ・手動で行う準備」を上から実行すると、以下が一括で構築される:
 
-### 6.3 初回デプロイ（手動）
+- state用GCSバケット作成（手動・1回のみ）
+- `terraform apply`（ローカルから1回のみ。以降はCI経由）→ Artifact Registry / Cloud Run / サービスアカウント2種 / WIFプール / Secret Manager「箱」を作成
+- Secret Manager への値投入（`database-url` は6.1で控えたSupabase接続文字列を使う）
+- GitHub RepositoryへVariables/Secretsを登録（`terraform output` の値をそのまま使う）
 
-```bash
-cd apps/api
-docker build -t asia-northeast1-docker.pkg.dev/meigicho-prod/meigicho/api:v1 .
-gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
-docker push asia-northeast1-docker.pkg.dev/meigicho-prod/meigicho/api:v1
+### 6.3 継続デプロイ（自動）
 
-gcloud run deploy meigicho-api \
-  --image=asia-northeast1-docker.pkg.dev/meigicho-prod/meigicho/api:v1 \
-  --region=asia-northeast1 \
-  --platform=managed \
-  --allow-unauthenticated \
-  --min-instances=0 --max-instances=10 \
-  --cpu=1 --memory=512Mi --concurrency=80 --timeout=30 --cpu-boost \
-  --service-account=meigicho-api@meigicho-prod.iam.gserviceaccount.com \
-  --set-secrets="JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,REVENUECAT_WEBHOOK_SECRET=rc-webhook:latest" \
-  --set-env-vars="NODE_ENV=production"
-```
+`infra/terraform/README.md` の初回セットアップ後は、`main`への`apps/api/**`変更マージで
+[`.github/workflows/deploy-api.yml`](../.github/workflows/deploy-api.yml) が自動でtest→build→push→
+`gcloud run deploy`まで実行する。手動でのdocker build/push/deployは不要。
 
-デプロイ完了後に表示される `https://meigicho-api-xxxxx-an.a.run.app` 形式のURLが本番APIのURL。
+インフラ設定（Cloud RunのCPU/メモリ・IAM・Secret Manager等）を変更したい場合は
+`infra/terraform/`を編集してPRを出す→`terraform-plan.yml`が自動でplanを表示→
+マージ後に[`terraform-apply.yml`](../.github/workflows/terraform-apply.yml)をActionsタブから手動実行する
+（事故防止のため自動applyにはしていない）。
+
+初回デプロイ完了後、`terraform output cloud_run_url` で本番APIのURLを確認できる。
 `curl <URL>/health` で疎通確認する。
 
-### 6.4 継続デプロイ（任意・CI化する場合）
-
-2回目以降のデプロイを手動で繰り返さないなら、[06-infrastructure.md](./06-infrastructure.md) §7 の
-GitHub Actions ワークフロー例（Workload Identity Federation・キーレス認証）をそのまま使える。
-`.github/workflows/deploy-api.yml` は未作成のため、導入する場合は同§7の内容をコピーして
-`PROJECT_ID` / `secrets.GCP_WIF_PROVIDER` を6.2で作った値に置き換える。
-
-### 6.5 iOS側にURLを反映
+### 6.4 iOS側にURLを反映
 
 1. デプロイ後の実URLを `meigicho/project.yml` に設定:
    ```yaml
    configs:
      Release:
-       API_BASE_URL: https://<6.3で確認した実際のCloud Run URL>
+       API_BASE_URL: https://<terraform output cloud_run_url の値>
    ```
 2. `xcodegen generate` → Release ビルドで疎通確認
 
