@@ -1,7 +1,7 @@
 # review — admob-integration Stage 1（バナー広告のみ）
 
 対象: `main...work/admob-integration`（`7db0ed2` T0 / `c6dd11c` T5 / `bd5aed6` T9 / `2a85534` T8 / `afa9586` T10）
-レビュー実施: code-reviewer（別セッション）。**重大 3 件を検出し、本レビュー内で修正・再検証済み**（修正コミット `8e61061`）。
+レビュー実施: code-reviewer（別セッション）。**重大 3 件を検出し、本レビュー内で修正・再検証済み**（修正コミット `c17bc40`）。
 
 スコープ外（指摘対象外）: Stage 2（ネイティブ / リワード / SSV / PaywallView 連携）、AdMob 実 ID 未取得、起動 TTI 実測（AC-AD-37）、ATT / UMP の実装（意図的に不採用）。
 
