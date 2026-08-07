@@ -11,7 +11,10 @@ struct DisabledAdRenderer: AdRenderer {
         onFailure: @escaping @MainActor () -> Void
     ) -> AnyView? { nil }
 
-    func nativeAdView(adUnitID: String) -> AnyView? { nil }
+    func nativeAdView(
+        adUnitID: String,
+        onFailure: @escaping @MainActor () -> Void
+    ) -> AnyView? { nil }
 
     func loadRewardedAd(adUnitID: String) async throws {
         throw AdRendererError.notImplemented

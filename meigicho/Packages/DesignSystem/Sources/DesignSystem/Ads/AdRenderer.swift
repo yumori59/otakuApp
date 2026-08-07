@@ -19,10 +19,17 @@ public protocol AdRenderer: Sendable {
         onFailure: @escaping @MainActor () -> Void
     ) -> AnyView?
 
-    // MARK: - Stage 2（本パッケージの対象外。ネイティブ広告・リワード広告）
+    /// ネイティブ広告（カスタムレイアウト、F2-1 / F2-3）。
+    ///
+    /// - `adUnitID` が空の場合は `nil` を返す（呼び出し側は高さ 0 扱い）
+    /// - 要求はできたが**配信されなかった**（no-fill・ネットワーク失敗）場合は `onFailure` を呼ぶ。
+    ///   呼び出し側は枠ごと畳んで空枠を残さない（F4-4 / F5-6 / `docs/07:448`）
+    func nativeAdView(
+        adUnitID: String,
+        onFailure: @escaping @MainActor () -> Void
+    ) -> AnyView?
 
-    /// ネイティブ広告（カスタムレイアウト、F2-1 / F2-3）。Stage 1 では常に `nil`。
-    func nativeAdView(adUnitID: String) -> AnyView?
+    // MARK: - Stage 2（本パッケージの対象外。リワード広告）
 
     /// リワード動画広告のロード（F2-6 / F6）。Stage 1 では未実装。
     func loadRewardedAd(adUnitID: String) async throws
