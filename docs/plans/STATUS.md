@@ -194,6 +194,24 @@ T0(Spike)→T5(Domain: AdPlacement/AdGatekeeper/AdsStore)→T9(App: SDK初期化
 
 ---
 
+## 8. インフラ — CI/CD + Terraform IaC（2026-08-07 完了）
+
+`docs/12-app-store-release.md` §6 の「本番デプロイどこから手を付けるか」に対応する形で追加。
+
+| 機能 | 状態 |
+|---|---|
+| BE自動デプロイ（`main`への`apps/api/**`マージで自動test→build→deploy） | ✅ `.github/workflows/deploy-api.yml` |
+| Cloud Run / Artifact Registry / Secret Manager / IAM / WIF のTerraform化 | ✅ `infra/terraform/` |
+| インフラ変更の安全弁（apply は `workflow_dispatch` 手動のみ、PRは`plan`のみ自動） | ✅ `terraform-plan.yml` / `terraform-apply.yml` |
+| 本番コンテナ起動時の自動 `prisma db push --accept-data-loss` の無効化 | ✅ `apps/api/docker-entrypoint.sh`（`NODE_ENV=production`でスキップ） |
+
+- レビュー: 初回 重大4件（`PORT`がCloud Run予約変数で apply/deploy が必ず失敗する／PR起因のplanが強権限SAで実行されていた／WIFのバインディングがコメントの主張より広い／READMEの初回セットアップ手順が実行不能）→ 修正 → 再レビューで**重大ゼロ**（`infra/terraform/review.md`）
+- 検証: `terraform fmt`/`validate`/`plan`（ダミー値・ローカルbackend、36リソース）クリーン、`apps/api` tsc+jest（773テスト）全緑、Dockerで本番/開発分岐を実機確認
+- **発見**: `docker-entrypoint.sh`が本番でも起動のたびにDBスキーマを黙って書き換えていた（`--accept-data-loss`付き）。今回のCI/CD着手で偶然発覚し修正
+- **未整備（意図的スコープ外）**: DBマイグレーションの自動化（`apps/api/prisma/migrations/`が無くdb pushのみの運用のため）。staging環境（productionのみ）。GCPプロジェクト自体の作成はTerraform管理外（手動、`docs/12-app-store-release.md` §6.2）
+- `.claude/rules/feedback_review_patterns.md` に INFRA-1〜5 追記
+- 初回セットアップ手順: `infra/terraform/README.md`
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。
