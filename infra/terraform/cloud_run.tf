@@ -18,6 +18,9 @@ resource "google_cloud_run_v2_service" "api" {
       # （下の lifecycle.ignore_changes 参照）。
       image = "us-docker.pkg.dev/cloudrun/container/hello"
 
+      # Cloud Run はこのポート番号を環境変数 PORT としてコンテナに自動注入する。
+      # PORT は Cloud Run の予約環境変数で、env で明示指定すると API が
+      # 「reserved env names were provided: PORT」で apply 自体を拒否する。
       ports {
         container_port = 8080
       }
@@ -35,10 +38,6 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "NODE_ENV"
         value = "production"
-      }
-      env {
-        name  = "PORT"
-        value = "8080"
       }
       env {
         name  = "CORS_ORIGINS"

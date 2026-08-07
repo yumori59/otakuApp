@@ -35,6 +35,16 @@
 | IOS-9 | **`GeometryReader` で高さを固定して子を包む** | `GeometryReader` は子をクリップせず理想サイズも尊重しない。固定高で包むと中身が後続コンテンツに重なる。高さは `.frame(minHeight:)` で下限として確保し、`GeometryReader` は `background` に置いて幅の計測だけに使う |
 | IOS-10 | **`UIViewRepresentable` の中身を非同期で差し替えても SwiftUI は測り直さない** | SwiftUI が `sizeThatFits` を呼ぶのは中身が空のロード前だけ。あとから `UIHostingController.view` を貼っても枠は伸びず、はみ出して後続コンテンツに重なる（IOS-9 と同じ症状・原因は別）。UIKit 側で実寸を測って `@State` へ返し、`.frame(height:)` を確定させる |
 
+## インフラ (Terraform / GitHub Actions: infra/terraform, .github/workflows)
+
+| # | パターン | 検出観点 |
+|---|---|---|
+| INFRA-1 | **Cloud Run の予約環境変数を明示指定する** | `PORT` は Cloud Run が `ports.container_port` から自動注入する予約名。`env` で渡すと API が `reserved env names were provided: PORT` で apply/deploy ごと拒否する（`K_SERVICE` 等も同様） |
+| INFRA-2 | **値の無い Secret を参照した Cloud Run を作ろうとする** | Secret Manager の「箱」だけ作って値を入れない状態でリビジョンを作ると起動失敗 → `terraform apply` 自体がエラーになる。「箱を作る apply → 値投入 → 本 apply」の順を手順書に書く |
+| INFRA-3 | **PR で走る `terraform plan` に書き込み権限のSAを渡す** | plan は PR ブランチの HCL（provider 設定・data source）を CI 上で評価する＝PR の内容が実行される。plan 用は読み取り専用SAに分け、強権限SAは `attribute.job_workflow_ref` で apply ワークフローに限定する |
+| INFRA-4 | **WIF の principalSet がコメントより広い** | `attribute.repository/...` はリポジトリ全体（全ブランチ・全ワークフロー）を指す。「main だけ」と書いてあっても実際は絞れていない。ブランチ/ワークフロー限定には対応する attribute を `attribute_mapping` に足す |
+| INFRA-5 | **Terraform 管理外リソースへの権限付与漏れ** | state 用 GCS バケットは Terraform 管理外。CI 用SAのプロジェクトロールに GCS 権限が無いと `terraform init` が 403。バケット側 IAM を手順書に含める |
+
 ---
 
 ## 運用

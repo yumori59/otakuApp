@@ -19,6 +19,10 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "google.subject"       = "assertion.sub"
     "attribute.repository" = "assertion.repository"
     "attribute.ref"        = "assertion.ref"
+    # 「どのワークフローファイルから発行されたトークンか」。
+    # 例: "owner/repo/.github/workflows/terraform-apply.yml@refs/heads/main"
+    # terraform_deployer（強権限）の借用をこの値で 1 ワークフローに限定する。
+    "attribute.job_workflow_ref" = "assertion.job_workflow_ref"
   }
 
   # このリポジトリ以外からのトークンは一切受け付けない。
@@ -29,11 +33,20 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 }
 
-# 上記プールに属し、かつ対象リポジトリの refs/heads/main から来たトークンにだけ、
-# ci_deploy サービスアカウントの借用（impersonation）を許可する。
-# ブランチ以外（PR等）からの WIF token は deploy 用SAを名乗れない（terraform-plan.yml 側は別権限を検討）。
+locals {
+  # プール内の「このリポジトリの全ワークフロー／全ブランチ」を指す principalSet。
+  # provider の attribute_condition でリポジトリは既に固定されているため、
+  # これは実質「このリポジトリの GitHub Actions すべて」を意味する。
+  wif_repo_principal = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+
+  # terraform-apply.yml（main ブランチ上）から発行されたトークンだけを指す principalSet。
+  wif_terraform_apply_principal = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.job_workflow_ref/${var.github_repository}/.github/workflows/terraform-apply.yml@refs/heads/main"
+}
+
+# デプロイ用 SA（Cloud Run のイメージ差し替えのみができる弱い権限）は
+# リポジトリ単位で許可する。deploy-api.yml は main への push でしか動かない。
 resource "google_service_account_iam_member" "wif_can_impersonate_ci_deploy" {
   service_account_id = google_service_account.ci_deploy.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+  member             = local.wif_repo_principal
 }

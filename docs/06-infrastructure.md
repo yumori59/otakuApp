@@ -397,6 +397,9 @@ volumes:
 | [`.github/workflows/terraform-apply.yml`](../.github/workflows/terraform-apply.yml) | インフラ変更の本適用。事故防止のため`workflow_dispatch`（手動実行）のみ |
 
 認証は **Workload Identity Federation（キーレス）**。JSON鍵はどこにも置かない。
+サービスアカウントは用途別に4つに分けている（runtime / deploy / plan(読み取り専用) / apply(強権限)）。
+`terraform apply` 用の強権限SAは **`terraform-apply.yml` @ `refs/heads/main` から発行されたトークンだけ**が
+借用できる。権限分離の一覧は [`infra/terraform/README.md`](../infra/terraform/README.md) §2 が正。
 
 **DBマイグレーションはCI/CDに含めない**（`apps/api/prisma/migrations/` が未整備で `db push` のみの運用のため）。
 本番コンテナは `NODE_ENV=production` のとき起動時の自動 `prisma db push` をスキップする
