@@ -5,7 +5,11 @@ import DesignSystem
 /// SDK を初期化せず、広告枠を一切描画しない。既存パターン踏襲: `DisabledPurchasesService`
 /// （`App/Purchases/DisabledPurchasesService.swift`）。
 struct DisabledAdRenderer: AdRenderer {
-    func bannerView(adUnitID: String, width: CGFloat) -> AnyView? { nil }
+    func bannerView(
+        adUnitID: String,
+        width: CGFloat,
+        onFailure: @escaping @MainActor () -> Void
+    ) -> AnyView? { nil }
 
     func nativeAdView(adUnitID: String) -> AnyView? { nil }
 

@@ -9,8 +9,15 @@ import SwiftUI
 @MainActor
 public protocol AdRenderer: Sendable {
     /// インライン・アダプティブバナーを描画する（F2-2 / F2-4 / F2-5）。
-    /// ロードに失敗した場合や `adUnitID` が空の場合は `nil` を返し、呼び出し側は高さ 0 として扱う（E3）。
-    func bannerView(adUnitID: String, width: CGFloat) -> AnyView?
+    ///
+    /// - `adUnitID` が空 / 幅が 0 など、そもそも要求できない場合は `nil` を返す（呼び出し側は高さ 0 扱い）
+    /// - 要求はできたが**配信されなかった**（no-fill・ネットワーク失敗）場合は `onFailure` を呼ぶ。
+    ///   呼び出し側は枠ごと畳んで空枠を残さない（F4-4 / F5-6 / `docs/07:448`）
+    func bannerView(
+        adUnitID: String,
+        width: CGFloat,
+        onFailure: @escaping @MainActor () -> Void
+    ) -> AnyView?
 
     // MARK: - Stage 2（本パッケージの対象外。ネイティブ広告・リワード広告）
 

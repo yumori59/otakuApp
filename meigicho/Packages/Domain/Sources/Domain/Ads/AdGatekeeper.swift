@@ -72,4 +72,22 @@ public struct AdGatekeeper: Sendable {
         if input.lastShownPlacement == placement { return false }
         return true
     }
+
+    /// **すでに表示中**の `placement` を出し続けてよいかを判定する。
+    ///
+    /// `shouldShow` をそのまま再評価すると、自分が記録したインプレッションによって
+    /// F4-1（セッション上限）と F4-3（`lastShownPlacement == placement`）が必ず false に反転し、
+    /// 表示した瞬間に枠が消えてしまう。そこで**自分が消費した 2 条件だけを除いて**再評価する。
+    /// Plus への切り替え（F4-6）・オフライン化（F4-4）・ステータス変更（F4-5）は
+    /// 表示中でも即座に効かせる。
+    public func shouldRemainVisible(_ placement: AdPlacement, input: Input) -> Bool {
+        if input.plan == .plus || input.inGracePeriod { return false }
+        if !input.isOnline { return false }
+        if input.now.timeIntervalSince(input.appLaunchedAt) < Self.launchCooldown { return false }
+        if let lastStatusChangeAt = input.lastStatusChangeAt,
+           input.now.timeIntervalSince(lastStatusChangeAt) < Self.statusChangeCooldown {
+            return false
+        }
+        return true
+    }
 }

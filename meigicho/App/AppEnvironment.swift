@@ -121,11 +121,16 @@ final class AppEnvironment {
         // 広告。UI テストでは SDK にもネットワークにも触らせない（`DisabledAdRenderer` + ユニット ID 空）。
         // `AdsInitializer.start()` は `GoogleMobileAdsRenderer.init` が呼ぶ（`App/Ads/GoogleMobileAdsRenderer.swift:20`）
         adsStore = AdsStore()
-        adRenderer = useInMemoryStores ? DisabledAdRenderer() : AdRendererFactory.make()
+        let adUnitIDs = useInMemoryStores ? [:] : Self.resolvedAdUnitIDs()
+        // ユニット ID が 1 つも無いなら SDK を初期化しない（F1-6 / N6 / AC-AD-36）。
+        // `ADMOB_APP_ID` は plist 検証のため常に非空だが、それだけでは配信を始めない
+        adRenderer = useInMemoryStores
+            ? DisabledAdRenderer()
+            : AdRendererFactory.make(hasConfiguredUnitIDs: !adUnitIDs.isEmpty)
         let adsStore = self.adsStore
         let reachability = self.reachability
         adsBridge = AdsBridge(
-            unitIDs: useInMemoryStores ? [:] : Self.resolvedAdUnitIDs(),
+            unitIDs: adUnitIDs,
             refreshOnline: {
                 guard let reachability else { return }
                 await reachability.refresh()

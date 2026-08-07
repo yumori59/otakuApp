@@ -12,6 +12,8 @@ import Domain
 /// `AdGatekeeper` は F4-3（同一面の連続表示禁止）を `lastShownPlacement == placement` で表すため、
 /// インプレッションを記録した瞬間に同じ面の `shouldShow` は false に反転する。
 /// `isVisible` を直に束ねると表示直後に枠が消えるので、**一度 true にしたらラッチする**。
+/// ただしラッチは無条件ではない。表示中は `AdsStore.shouldRemainVisible(_:)`（= 自分が消費した
+/// F4-1 / F4-3 だけを除いた再判定）を毎回見て、Plus 化・オフライン・ステータス変更が起きたら畳む。
 struct PlacementAdSlot: View {
     @Environment(AdsStore.self) private var adsStore
     @Environment(ProfileStore.self) private var profileStore
@@ -58,8 +60,9 @@ struct PlacementAdSlot: View {
         }
 
         if isVisible {
-            // 表示中にオフラインへ落ちたら枠ごと畳む（空枠を残さない / AC-AD-40）
-            if !adsStore.isOnline { isVisible = false }
+            // 表示中でも Plus 化（F4-6）・オフライン（F4-4 / AC-AD-40）・ステータス変更（F4-5 / AC-AD-39）
+            // は即座に効かせて枠ごと畳む。自分が消費した F4-1 / F4-3 だけを除いた再判定を使う
+            if !adsStore.shouldRemainVisible(placement) { isVisible = false }
             return
         }
 

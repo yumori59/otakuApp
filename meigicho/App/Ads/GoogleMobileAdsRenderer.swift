@@ -20,9 +20,13 @@ final class GoogleMobileAdsRenderer: AdRenderer, @unchecked Sendable {
         AdsInitializer.start()
     }
 
-    func bannerView(adUnitID: String, width: CGFloat) -> AnyView? {
+    func bannerView(
+        adUnitID: String,
+        width: CGFloat,
+        onFailure: @escaping @MainActor () -> Void
+    ) -> AnyView? {
         guard !adUnitID.isEmpty, width > 0 else { return nil }
-        return AnyView(BannerAdRepresentable(adUnitID: adUnitID, width: width))
+        return AnyView(BannerAdRepresentable(adUnitID: adUnitID, width: width, onFailure: onFailure))
     }
 
     func nativeAdView(adUnitID: String) -> AnyView? {
@@ -44,17 +48,37 @@ final class GoogleMobileAdsRenderer: AdRenderer, @unchecked Sendable {
 private struct BannerAdRepresentable: UIViewRepresentable {
     let adUnitID: String
     let width: CGFloat
+    /// no-fill / ロード失敗を呼び出し側（`AdSlot`）へ通知する。空枠を残さないため（F4-4 / F5-6）
+    let onFailure: @MainActor () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onFailure: onFailure) }
 
     func makeUIView(context: Context) -> GADBannerView {
         let adSize = GADCurrentOrientationInlineAdaptiveBannerAdSizeWithWidth(width)
         let banner = GADBannerView(adSize: adSize)
         banner.adUnitID = adUnitID
         banner.rootViewController = Self.currentRootViewController()
+        banner.delegate = context.coordinator
         banner.load(Self.makeRequest())
         return banner
     }
 
     func updateUIView(_ uiView: GADBannerView, context: Context) {}
+
+    /// `GADBannerViewDelegate` を受ける入れ物。SDK 型は本ファイル（`#if canImport`）の外に出さない
+    final class Coordinator: NSObject, GADBannerViewDelegate {
+        private let onFailure: @MainActor () -> Void
+
+        init(onFailure: @escaping @MainActor () -> Void) {
+            self.onFailure = onFailure
+        }
+
+        func bannerView(_ bannerView: GADBannerView, didFailToReceiveAdWithError error: Error) {
+            // SDK はデリゲートをメインスレッドで呼ぶ
+            let handler = onFailure
+            MainActor.assumeIsolated { handler() }
+        }
+    }
 
     private static func makeRequest() -> GADRequest {
         let request = GADRequest()

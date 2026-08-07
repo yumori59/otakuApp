@@ -162,6 +162,52 @@ final class AdGatekeeperTests: XCTestCase {
         }
     }
 
+    // MARK: AC-AD-39 補強 (表示中の枠の再判定 = shouldRemainVisible)
+
+    /// 自分のインプレッションで F4-1 / F4-3 が反転しても、表示中の枠は消えない（ラッチの根拠）
+    func testShouldRemainVisibleIgnoresOwnImpression() {
+        let gatekeeper = AdGatekeeper()
+        let input = makeInput(sessionImpressionCount: 3, lastShownPlacement: .identitiesBottom)
+        XCTAssertFalse(gatekeeper.shouldShow(.identitiesBottom, input: input))
+        XCTAssertTrue(gatekeeper.shouldRemainVisible(.identitiesBottom, input: input))
+    }
+
+    /// F4-5: 表示中でもステータス変更から 60 秒未満なら畳む
+    func testShouldRemainVisibleFalseWithinStatusChangeCooldown() {
+        let gatekeeper = AdGatekeeper()
+        let input = makeInput(
+            lastStatusChangeAt: epoch.addingTimeInterval(-59),
+            sessionImpressionCount: 1,
+            lastShownPlacement: .tourTableBetween
+        )
+        XCTAssertFalse(gatekeeper.shouldRemainVisible(.tourTableBetween, input: input))
+    }
+
+    /// F4-6: 表示中に Plus / grace になったら畳む
+    func testShouldRemainVisibleFalseForPlusAndGrace() {
+        let gatekeeper = AdGatekeeper()
+        XCTAssertFalse(gatekeeper.shouldRemainVisible(.identitiesBottom, input: makeInput(plan: .plus)))
+        XCTAssertFalse(
+            gatekeeper.shouldRemainVisible(.identitiesBottom, input: makeInput(inGracePeriod: true))
+        )
+    }
+
+    /// F4-4: 表示中にオフラインへ落ちたら畳む
+    func testShouldRemainVisibleFalseWhenOffline() {
+        let gatekeeper = AdGatekeeper()
+        XCTAssertFalse(gatekeeper.shouldRemainVisible(.identitiesBottom, input: makeInput(isOnline: false)))
+    }
+
+    /// `AdsStore` 経由でも同じ判定になる（ツアー表でステータスを叩いた直後の挙動）
+    func testAdsStoreShouldRemainVisibleAfterStatusChange() {
+        let store = AdsStore(appLaunchedAt: epoch.addingTimeInterval(-100), now: { self.epoch })
+        store.recordImpression(.tourTableBetween)
+        XCTAssertTrue(store.shouldRemainVisible(.tourTableBetween))
+
+        store.recordStatusChange(at: epoch.addingTimeInterval(-1))
+        XCTAssertFalse(store.shouldRemainVisible(.tourTableBetween))
+    }
+
     // MARK: AC-AD-28 (AdsStore セッションリセット)
 
     func testACAD28_backgroundUnder30SecondsKeepsSession() {

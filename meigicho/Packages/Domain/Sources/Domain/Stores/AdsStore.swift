@@ -59,7 +59,16 @@ public final class AdsStore {
 
     /// `placement` を今表示してよいかを判定する。
     public func shouldShow(_ placement: AdPlacement) -> Bool {
-        let input = AdGatekeeper.Input(
+        gatekeeper.shouldShow(placement, input: currentInput())
+    }
+
+    /// **表示中**の `placement` を出し続けてよいかを判定する（`AdGatekeeper.shouldRemainVisible`）。
+    public func shouldRemainVisible(_ placement: AdPlacement) -> Bool {
+        gatekeeper.shouldRemainVisible(placement, input: currentInput())
+    }
+
+    private func currentInput() -> AdGatekeeper.Input {
+        AdGatekeeper.Input(
             plan: plan,
             inGracePeriod: inGracePeriod,
             isOnline: isOnline,
@@ -69,6 +78,5 @@ public final class AdsStore {
             lastShownPlacement: lastShownPlacement,
             now: now()
         )
-        return gatekeeper.shouldShow(placement, input: input)
     }
 }

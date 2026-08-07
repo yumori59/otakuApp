@@ -232,7 +232,7 @@
 		011E06270776F1FC250AD948 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ADMOB_APP_ID = "";
+				ADMOB_APP_ID = "ca-app-pub-3940256099942544~1458002511";
 				ADMOB_UNIT_IDENTITIES_BANNER = "";
 				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
 				ADMOB_UNIT_TOURTABLE_BANNER = "";
@@ -337,7 +337,7 @@
 		DF11B9F13C4FA27ADDD08A0F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ADMOB_APP_ID = "";
+				ADMOB_APP_ID = "ca-app-pub-3940256099942544~1458002511";
 				ADMOB_UNIT_IDENTITIES_BANNER = "";
 				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
 				ADMOB_UNIT_TOURTABLE_BANNER = "";

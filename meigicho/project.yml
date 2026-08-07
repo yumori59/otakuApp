@@ -46,10 +46,13 @@ settings:
     GOOGLE_IOS_CLIENT_ID: ""
     GOOGLE_REVERSED_CLIENT_ID: ""
     REVENUECAT_API_KEY: ""
-    # AdMob アプリ ID（GADApplicationIdentifier）。空なら SDK を初期化せず広告枠を描画しない
-    # （AdRendererFactory / F1-6 / AC-AD-36）。実 ID は AdMob 管理画面で発行する（plan.md U1）。
-    # 例) ADMOB_APP_ID: ca-app-pub-0123456789012345~0123456789
-    ADMOB_APP_ID: ""
+    # AdMob アプリ ID（GADApplicationIdentifier）。
+    # **空文字・キー欠落は不可**: GoogleMobileAds SDK はリンクされているだけで起動時に
+    # GADApplicationVerifyPublisherInitializedCorrectly を実行し、値が不正なら
+    # NSException（SIGABRT）でアプリを落とす。`GADMobileAds.start` を呼ぶかどうかとは無関係。
+    # 実 ID を取得するまでは Google 公式のサンプルアプリ ID を置く（plan.md U1 で実 ID に差し替える）。
+    # 広告を実際に配信するかどうかは下の ADMOB_UNIT_* が空かどうかで決まる（F1-6 / AC-AD-36）。
+    ADMOB_APP_ID: ca-app-pub-3940256099942544~1458002511
     # 広告ユニット ID（Stage 1 のバナー 3 面のみ。空なら該当面の枠は高さ 0）。
     # Stage 2（ホーム/申込一覧のネイティブ・リワード）のユニットは Stage 2 で追加する。
     ADMOB_UNIT_IDENTITIES_BANNER: ""
