@@ -43,7 +43,9 @@ create table users (
 ```
 
 > モック再レビューの詳細は [10-mock-delta-2026-07-31.md](./10-mock-delta-2026-07-31.md)。
-> `identities.color` は名義識別色のみ（テーマ非連動）。`share_links.shared_with_account_ids` は記録用メタ。
+> `identities.color` は名義識別色のみ（テーマ非連動）。
+> **共有は 2026-08-07 にアカウント招待制へ移行決定**（`share_links.shared_with_account_ids` は廃止、`share_recipients` が ACL の実体）。
+> 本ファイル §4.9 は移行前の記述。正は [`./plans/share-account-invites/api-contract-delta.md`](./plans/share-account-invites/api-contract-delta.md) §0.4。
 ---
 
 ## 1. 設計原則
