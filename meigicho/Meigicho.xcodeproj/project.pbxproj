@@ -8,18 +8,24 @@
 
 /* Begin PBXBuildFile section */
 		0E3D030145EF65BA063B0A9F /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106A6CDA86CB572889B9B234 /* NotificationScheduler.swift */; };
+		122F0650620E5F1934C67539 /* AdRendererFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198B1F542D170F5CB20EFCE5 /* AdRendererFactory.swift */; };
 		174F8F927838A16ABE26C67B /* DisabledPurchasesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89AC02614213E8D880DCCC16 /* DisabledPurchasesService.swift */; };
+		1A4F13DF9639E87C049518B3 /* GoogleMobileAdsRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559F9B6243FA9F367775ABD4 /* GoogleMobileAdsRenderer.swift */; };
 		201398D1F79ADF01E1C1833B /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA2A1668140EF85E5E7A9F1 /* DeepLinkRouter.swift */; };
 		2FFF60494360426137A009B6 /* RevenueCatPurchasesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6056819C81C6654AE50E1027 /* RevenueCatPurchasesService.swift */; };
 		5D5FC4749FA2704C362C75A8 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B6800809AEE21E3827BD0C /* NotificationDelegate.swift */; };
 		62A52FDD8B4150725A1703A1 /* PurchasesServiceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3EE5176701CC96C024E546 /* PurchasesServiceFactory.swift */; };
-		6E4F858011051076176B4E9A /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 795E74327B348E52EC471C5B /* Domain */; };
+		6E4F858011051076176B4E9A /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 8DC9D4487520D96A1A32CAA0 /* DesignSystem */; };
 		87226EAEE19555B99FE46A86 /* MeigichoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F350DE2831395F638385BFE /* MeigichoApp.swift */; };
 		96AEFF98EE160182D1A963AB /* NotificationPermissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1810F73F17E6BC8EED2312E2 /* NotificationPermissionStore.swift */; };
+		97EDF97FB3981BF817BE0AF2 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 42007FBBFAB893D4F14BAED4 /* GoogleMobileAds */; };
 		9DCDB309ED6AB120C967E761 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 288FC8BAE02F849E8A4A3419 /* AppEnvironment.swift */; };
+		AA0779F01DBD7CAA6F83BE00 /* AdsInitializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B2F51B06D93A6B4FEA1D28 /* AdsInitializer.swift */; };
 		CB8956797FEFB21170DBB91E /* Features in Frameworks */ = {isa = PBXBuildFile; productRef = 284B650254D1D7925C7EBBD9 /* Features */; };
-		CF74F980C4963F977AC0EBAD /* DataStore in Frameworks */ = {isa = PBXBuildFile; productRef = A954DD7CF6CC8D8602DA6DD1 /* DataStore */; };
-		F96D3E010C675884BE8E95C3 /* Network in Frameworks */ = {isa = PBXBuildFile; productRef = DCE7B5E69163E21783FFA57E /* Network */; };
+		CF74F980C4963F977AC0EBAD /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 795E74327B348E52EC471C5B /* Domain */; };
+		D16DB5F5DAD031FF154EF25A /* DisabledAdRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7193440DF8FF1849BD64DAAA /* DisabledAdRenderer.swift */; };
+		EAEC792A79B78E3D07583951 /* Network in Frameworks */ = {isa = PBXBuildFile; productRef = DCE7B5E69163E21783FFA57E /* Network */; };
+		F96D3E010C675884BE8E95C3 /* DataStore in Frameworks */ = {isa = PBXBuildFile; productRef = A954DD7CF6CC8D8602DA6DD1 /* DataStore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,12 +34,16 @@
 		0D1313C5C74AB5A46420A697 /* Features */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Features; path = Packages/Features; sourceTree = SOURCE_ROOT; };
 		0F17D588817C8A322E9782A8 /* Domain */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Domain; path = Packages/Domain; sourceTree = SOURCE_ROOT; };
 		106A6CDA86CB572889B9B234 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		13B2F51B06D93A6B4FEA1D28 /* AdsInitializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdsInitializer.swift; sourceTree = "<group>"; };
 		1810F73F17E6BC8EED2312E2 /* NotificationPermissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionStore.swift; sourceTree = "<group>"; };
+		198B1F542D170F5CB20EFCE5 /* AdRendererFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdRendererFactory.swift; sourceTree = "<group>"; };
 		1D3EE5176701CC96C024E546 /* PurchasesServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchasesServiceFactory.swift; sourceTree = "<group>"; };
 		288FC8BAE02F849E8A4A3419 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		559F9B6243FA9F367775ABD4 /* GoogleMobileAdsRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMobileAdsRenderer.swift; sourceTree = "<group>"; };
 		564A8F8FBEC05DBBA6BA5D45 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6056819C81C6654AE50E1027 /* RevenueCatPurchasesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatPurchasesService.swift; sourceTree = "<group>"; };
 		6F350DE2831395F638385BFE /* MeigichoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeigichoApp.swift; sourceTree = "<group>"; };
+		7193440DF8FF1849BD64DAAA /* DisabledAdRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledAdRenderer.swift; sourceTree = "<group>"; };
 		84AF5ADA9F1C3E618A41BEBD /* Core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Core; path = Packages/Core; sourceTree = SOURCE_ROOT; };
 		89AC02614213E8D880DCCC16 /* DisabledPurchasesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledPurchasesService.swift; sourceTree = "<group>"; };
 		ADEECAFC5B7D9D09A95F7C5A /* DesignSystem */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignSystem; path = Packages/DesignSystem; sourceTree = SOURCE_ROOT; };
@@ -48,9 +58,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				CB8956797FEFB21170DBB91E /* Features in Frameworks */,
-				6E4F858011051076176B4E9A /* Domain in Frameworks */,
-				CF74F980C4963F977AC0EBAD /* DataStore in Frameworks */,
-				F96D3E010C675884BE8E95C3 /* Network in Frameworks */,
+				6E4F858011051076176B4E9A /* DesignSystem in Frameworks */,
+				CF74F980C4963F977AC0EBAD /* Domain in Frameworks */,
+				F96D3E010C675884BE8E95C3 /* DataStore in Frameworks */,
+				EAEC792A79B78E3D07583951 /* Network in Frameworks */,
+				97EDF97FB3981BF817BE0AF2 /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +77,17 @@
 				6056819C81C6654AE50E1027 /* RevenueCatPurchasesService.swift */,
 			);
 			path = Purchases;
+			sourceTree = "<group>";
+		};
+		7F6304A503295843FD5B6356 /* Ads */ = {
+			isa = PBXGroup;
+			children = (
+				198B1F542D170F5CB20EFCE5 /* AdRendererFactory.swift */,
+				13B2F51B06D93A6B4FEA1D28 /* AdsInitializer.swift */,
+				7193440DF8FF1849BD64DAAA /* DisabledAdRenderer.swift */,
+				559F9B6243FA9F367775ABD4 /* GoogleMobileAdsRenderer.swift */,
+			);
+			path = Ads;
 			sourceTree = "<group>";
 		};
 		8A6AAFBCA5E4A95CD21ECFB8 /* Packages */ = {
@@ -98,6 +121,7 @@
 				01B6800809AEE21E3827BD0C /* NotificationDelegate.swift */,
 				1810F73F17E6BC8EED2312E2 /* NotificationPermissionStore.swift */,
 				106A6CDA86CB572889B9B234 /* NotificationScheduler.swift */,
+				7F6304A503295843FD5B6356 /* Ads */,
 				75CCEB70C4520B1309EB2044 /* Purchases */,
 			);
 			path = App;
@@ -129,9 +153,11 @@
 			name = Meigicho;
 			packageProductDependencies = (
 				284B650254D1D7925C7EBBD9 /* Features */,
+				8DC9D4487520D96A1A32CAA0 /* DesignSystem */,
 				795E74327B348E52EC471C5B /* Domain */,
 				A954DD7CF6CC8D8602DA6DD1 /* DataStore */,
 				DCE7B5E69163E21783FFA57E /* Network */,
+				42007FBBFAB893D4F14BAED4 /* GoogleMobileAds */,
 			);
 			productName = Meigicho;
 			productReference = ED039E4F8E7B0A56C453A65A /* Meigicho.app */;
@@ -161,6 +187,7 @@
 			mainGroup = EFFF3EBC7E886A5A2BB7FAC4;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				4B328AAB15DCF323D6AE48DF /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
 				2D6D57DB1468FCB8271CB71B /* XCLocalSwiftPackageReference "Packages/Core" */,
 				9D965421F1DB51C866194E9F /* XCLocalSwiftPackageReference "Packages/DataStore" */,
 				D6169CFC0CC5AF9AEF9F6398 /* XCLocalSwiftPackageReference "Packages/DesignSystem" */,
@@ -183,9 +210,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				122F0650620E5F1934C67539 /* AdRendererFactory.swift in Sources */,
+				AA0779F01DBD7CAA6F83BE00 /* AdsInitializer.swift in Sources */,
 				9DCDB309ED6AB120C967E761 /* AppEnvironment.swift in Sources */,
 				201398D1F79ADF01E1C1833B /* DeepLinkRouter.swift in Sources */,
+				D16DB5F5DAD031FF154EF25A /* DisabledAdRenderer.swift in Sources */,
 				174F8F927838A16ABE26C67B /* DisabledPurchasesService.swift in Sources */,
+				1A4F13DF9639E87C049518B3 /* GoogleMobileAdsRenderer.swift in Sources */,
 				87226EAEE19555B99FE46A86 /* MeigichoApp.swift in Sources */,
 				5D5FC4749FA2704C362C75A8 /* NotificationDelegate.swift in Sources */,
 				96AEFF98EE160182D1A963AB /* NotificationPermissionStore.swift in Sources */,
@@ -201,6 +232,10 @@
 		011E06270776F1FC250AD948 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ADMOB_APP_ID = "ca-app-pub-3940256099942544~1458002511";
+				ADMOB_UNIT_IDENTITIES_BANNER = "";
+				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
+				ADMOB_UNIT_TOURTABLE_BANNER = "";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				API_BASE_URL = "https://api.meigicho.example";
 				CLANG_ANALYZER_NONNULL = YES;
@@ -302,6 +337,10 @@
 		DF11B9F13C4FA27ADDD08A0F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ADMOB_APP_ID = "ca-app-pub-3940256099942544~1458002511";
+				ADMOB_UNIT_IDENTITIES_BANNER = "";
+				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
+				ADMOB_UNIT_TOURTABLE_BANNER = "";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				API_BASE_URL = "http://localhost:8080";
 				CLANG_ANALYZER_NONNULL = YES;
@@ -417,14 +456,34 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		4B328AAB15DCF323D6AE48DF /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		284B650254D1D7925C7EBBD9 /* Features */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Features;
 		};
+		42007FBBFAB893D4F14BAED4 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4B328AAB15DCF323D6AE48DF /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
 		795E74327B348E52EC471C5B /* Domain */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Domain;
+		};
+		8DC9D4487520D96A1A32CAA0 /* DesignSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DesignSystem;
 		};
 		A954DD7CF6CC8D8602DA6DD1 /* DataStore */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -28,6 +28,11 @@ packages:
   # RevenueCat:
   #   url: https://github.com/RevenueCat/purchases-ios
   #   from: 5.14.0
+  # GoogleMobileAds: Stage 1（バナーのみ）導入済み。衝突調査は T0 Spike（commit 7db0ed2）で完了。
+  # docs/plans/admob-integration/plan.md §5 Wave2 T9
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads
+    from: 11.0.0
 
 settings:
   base:
@@ -41,6 +46,18 @@ settings:
     GOOGLE_IOS_CLIENT_ID: ""
     GOOGLE_REVERSED_CLIENT_ID: ""
     REVENUECAT_API_KEY: ""
+    # AdMob アプリ ID（GADApplicationIdentifier）。
+    # **空文字・キー欠落は不可**: GoogleMobileAds SDK はリンクされているだけで起動時に
+    # GADApplicationVerifyPublisherInitializedCorrectly を実行し、値が不正なら
+    # NSException（SIGABRT）でアプリを落とす。`GADMobileAds.start` を呼ぶかどうかとは無関係。
+    # 実 ID を取得するまでは Google 公式のサンプルアプリ ID を置く（plan.md U1 で実 ID に差し替える）。
+    # 広告を実際に配信するかどうかは下の ADMOB_UNIT_* が空かどうかで決まる（F1-6 / AC-AD-36）。
+    ADMOB_APP_ID: ca-app-pub-3940256099942544~1458002511
+    # 広告ユニット ID（Stage 1 のバナー 3 面のみ。空なら該当面の枠は高さ 0）。
+    # Stage 2（ホーム/申込一覧のネイティブ・リワード）のユニットは Stage 2 で追加する。
+    ADMOB_UNIT_IDENTITIES_BANNER: ""
+    ADMOB_UNIT_TOURTABLE_BANNER: ""
+    ADMOB_UNIT_IDENTITYDETAIL_BANNER: ""
   configs:
     Debug:
       API_BASE_URL: http://localhost:8080
@@ -65,6 +82,8 @@ targets:
     dependencies:
       - package: Features
         product: Features
+      - package: DesignSystem
+        product: DesignSystem
       - package: Domain
         product: Domain
       - package: DataStore
@@ -74,6 +93,8 @@ targets:
       # RevenueCat: 上の packages ブロックと合わせて一時無効化中
       # - package: RevenueCat
       #   product: RevenueCat
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
     info:
       path: App/Info.plist
       properties:
@@ -82,6 +103,13 @@ targets:
         API_BASE_URL: $(API_BASE_URL)
         GOOGLE_IOS_CLIENT_ID: $(GOOGLE_IOS_CLIENT_ID)
         REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)
+        ADMOB_APP_ID: $(ADMOB_APP_ID)
+        # AdMob SDK が要求する Info.plist キー。値が空でも SDK 自体は初期化しない
+        # （AdRendererFactory が ADMOB_APP_ID 空文字を検出して DisabledAdRenderer を返すため）。
+        GADApplicationIdentifier: $(ADMOB_APP_ID)
+        ADMOB_UNIT_IDENTITIES_BANNER: $(ADMOB_UNIT_IDENTITIES_BANNER)
+        ADMOB_UNIT_TOURTABLE_BANNER: $(ADMOB_UNIT_TOURTABLE_BANNER)
+        ADMOB_UNIT_IDENTITYDETAIL_BANNER: $(ADMOB_UNIT_IDENTITYDETAIL_BANNER)
         # ASWebAuthenticationSession のコールバック（reversed client ID スキーム）
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor

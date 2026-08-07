@@ -66,6 +66,8 @@ struct MeigichoApp: App {
                 .environment(sheetPresenter)
                 .environment(deepLinkCoordinator)
                 .environment(environment.syncStatusStore)
+                // 広告（AdsStore / AdRenderer / AdsBridge）の注入は `AppEnvironment.adsEnvironment` が単独所有する
+                .adsEnvironment(environment)
                 .environment(\.themeStore, themeStore)
                 .environment(\.notificationBridge, notificationBridge)
                 .environment(\.syncActionBridge, syncActionBridge)
