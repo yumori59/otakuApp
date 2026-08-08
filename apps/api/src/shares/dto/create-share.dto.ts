@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -117,13 +118,19 @@ export class CreateShareDto {
   @Validate(ShareExpiresAtConstraint)
   expires_at?: string;
 
-  @IsOptional()
+  /**
+   * 招待先 ACC-XXXXXX（api-contract-delta.md §1）。**必須・1〜20 件**。
+   * 空/未指定は 400（AC-SI-01）。重複は DTO では弾かない（use-case が重複排除する — AC-SI-04）。
+   */
   @IsArray()
+  @ArrayMinSize(1, {
+    message: 'shared_with_account_ids must contain at least one account id',
+  })
   @ArrayMaxSize(MAX_SHARED_WITH_ACCOUNT_IDS)
   @IsString({ each: true })
   @Matches(ACCOUNT_ID_RE, {
     each: true,
     message: 'shared_with_account_ids must match ACC-XXXXXX (uppercase hex)',
   })
-  shared_with_account_ids?: string[];
+  shared_with_account_ids!: string[];
 }

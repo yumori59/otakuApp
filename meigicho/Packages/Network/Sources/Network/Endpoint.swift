@@ -59,7 +59,7 @@ public struct Endpoint: Equatable, Sendable {
     }
 
     /// `URLRequest` を組み立てる。
-    /// **`Authorization` はここでは付けない**（付けるのは `ApiClient` だけ。`PublicApiClient` は渡さない）。
+    /// **`Authorization` はここでは付けない**（付けるのは `ApiClient` だけ）。
     public func urlRequest(baseURL: URL, extraHeaders: [String: String]) throws -> URLRequest {
         var base = baseURL.absoluteString
         while base.hasSuffix("/") { base.removeLast() }

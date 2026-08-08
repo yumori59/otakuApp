@@ -142,8 +142,9 @@ final class AdGatekeeperTests: XCTestCase {
             "Features/Sources/Features/Forms/AddApplicationView.swift",
             "Features/Sources/Features/Forms/SheetContentView.swift",
             "Features/Sources/Features/Share/SharePreviewView.swift",
+            // `OpenSharedBoardView.swift`（token 貼り付け画面）は共有のアカウント招待制化で削除された。
+            // 入口は受信箱（`SharedInbox`）とディープリンクだけ
             "Features/Sources/Features/SharedBoard/SharedBoardView.swift",
-            "Features/Sources/Features/SharedBoard/OpenSharedBoardView.swift",
         ]
 
         let packagesDirectory = URL(fileURLWithPath: #filePath)

@@ -220,4 +220,62 @@ describe('AllExceptionsFilter', () => {
       request_id: '018f3c2a-9999-7c90-9d2a-000000000002',
     });
   });
+
+  it('AC-SI-T1-03 SHARE_NOT_INVITED は 403 envelope で返る', () => {
+    const { host, status, json } = createHost({
+      'x-request-id': '018f3c2a-9999-7c90-9d2a-000000000003',
+    });
+
+    filter.catch(
+      new AppError(ErrorCode.SHARE_NOT_INVITED, 'not invited to this share'),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith({
+      code: 'SHARE_NOT_INVITED',
+      message: 'not invited to this share',
+      details: null,
+      request_id: '018f3c2a-9999-7c90-9d2a-000000000003',
+    });
+  });
+
+  it('AC-SI-T1-04 SHARE_RECIPIENT_UNKNOWN は 400 + details.unknown_account_ids を保つ', () => {
+    const { host, status, json } = createHost({
+      'x-request-id': '018f3c2a-9999-7c90-9d2a-000000000004',
+    });
+
+    filter.catch(
+      new AppError(
+        ErrorCode.SHARE_RECIPIENT_UNKNOWN,
+        'unknown account id',
+        { unknown_account_ids: ['ACC-000000'] },
+      ),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({
+      code: 'SHARE_RECIPIENT_UNKNOWN',
+      message: 'unknown account id',
+      details: { unknown_account_ids: ['ACC-000000'] },
+      request_id: '018f3c2a-9999-7c90-9d2a-000000000004',
+    });
+  });
+
+  it('AC-SI-T1-05 SHARE_RECIPIENT_SELF は 400 envelope で返る', () => {
+    const { host, status, json } = createHost({
+      'x-request-id': '018f3c2a-9999-7c90-9d2a-000000000005',
+    });
+
+    filter.catch(
+      new AppError(ErrorCode.SHARE_RECIPIENT_SELF, 'cannot invite yourself'),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect((json.mock.calls[0][0] as Record<string, unknown>).code).toBe(
+      'SHARE_RECIPIENT_SELF',
+    );
+  });
 });

@@ -47,8 +47,6 @@ services:
       # 空にすると https://accounts.google.com と accounts.google.com の両方を受理する
       GOOGLE_ISSUER: ""
       GOOGLE_JWKS_URL: https://www.googleapis.com/oauth2/v3/certs
-      # 共有リンクの表示 URL（ローカルの共有 Web オリジン）
-      SHARE_BASE_URL: http://localhost:3001
       # RevenueCat Webhook（課金）。ローカルはダミー値
       REVENUECAT_WEBHOOK_SECRET: local-dev-rc-webhook-secret
       # メール送信（パスワードリセット）。ローカルはダミー値で未設定扱いにしてログへフォールバックする

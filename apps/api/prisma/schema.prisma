@@ -8,15 +8,15 @@ datasource db {
 }
 
 model User {
-  id                 String    @id @db.Uuid
-  appleSub           String?   @unique @map("apple_sub")
-  googleSub          String?   @unique @map("google_sub")
-  email              String?
-  passwordHash       String?   @map("password_hash")
-  emailNormalized    String?   @unique @map("email_normalized")
-  passwordUpdatedAt  DateTime? @map("password_updated_at") @db.Timestamptz(6)
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String    @id @db.Uuid
+  appleSub          String?   @unique @map("apple_sub")
+  googleSub         String?   @unique @map("google_sub")
+  email             String?
+  passwordHash      String?   @map("password_hash")
+  emailNormalized   String?   @unique @map("email_normalized")
+  passwordUpdatedAt DateTime? @map("password_updated_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   profile            Profile?
   entitlement        Entitlement?
@@ -29,6 +29,7 @@ model User {
   memberships        Membership[]
   refreshTokens      RefreshToken[]
   passwordResetCodes PasswordResetCode[]
+  shareRecipients    ShareRecipient[]
 
   @@map("users")
 }
@@ -65,17 +66,17 @@ model RefreshToken {
 }
 
 model Profile {
-  id              String    @id @db.Uuid
-  displayName     String?   @map("display_name")
-  accountId       String?   @unique @map("account_id")
-  username        String?
-  appDisplayName  String?   @map("app_display_name")
-  themeColor      String    @default("#0017C1") @map("theme_color")
-  locale          String    @default("ja_JP")
-  timezone        String    @default("Asia/Tokyo")
-  onboardedAt     DateTime? @map("onboarded_at") @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String    @id @db.Uuid
+  displayName    String?   @map("display_name")
+  accountId      String?   @unique @map("account_id")
+  username       String?
+  appDisplayName String?   @map("app_display_name")
+  themeColor     String    @default("#0017C1") @map("theme_color")
+  locale         String    @default("ja_JP")
+  timezone       String    @default("Asia/Tokyo")
+  onboardedAt    DateTime? @map("onboarded_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
 
@@ -83,16 +84,16 @@ model Profile {
 }
 
 model Entitlement {
-  userId              String    @id @map("user_id") @db.Uuid
-  plan                String    @default("free")
-  productId           String?   @map("product_id")
-  store               String?
-  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(6)
-  inGracePeriod       Boolean   @default(false) @map("in_grace_period")
-  revenuecatCustomerId String?  @map("revenuecat_customer_id")
-  bonusIdentitySlots  Int       @default(0) @map("bonus_identity_slots")
-  bonusExpiresAt      DateTime? @map("bonus_expires_at") @db.Timestamptz(6)
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userId               String    @id @map("user_id") @db.Uuid
+  plan                 String    @default("free")
+  productId            String?   @map("product_id")
+  store                String?
+  expiresAt            DateTime? @map("expires_at") @db.Timestamptz(6)
+  inGracePeriod        Boolean   @default(false) @map("in_grace_period")
+  revenuecatCustomerId String?   @map("revenuecat_customer_id")
+  bonusIdentitySlots   Int       @default(0) @map("bonus_identity_slots")
+  bonusExpiresAt       DateTime? @map("bonus_expires_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -100,22 +101,22 @@ model Entitlement {
 }
 
 model Identity {
-  id              String    @id @db.Uuid
-  ownerId         String    @map("owner_id") @db.Uuid
-  displayName     String    @map("display_name")
-  relation        String    @default("other")
-  color           String    @default("#0017C1")
-  joinedOn        DateTime? @map("joined_on") @db.Date
-  note            String?
-  historyVisible  Boolean   @default(false) @map("history_visible")
-  sortOrder       Int       @default(0) @map("sort_order")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  id             String    @id @db.Uuid
+  ownerId        String    @map("owner_id") @db.Uuid
+  displayName    String    @map("display_name")
+  relation       String    @default("other")
+  color          String    @default("#0017C1")
+  joinedOn       DateTime? @map("joined_on") @db.Date
+  note           String?
+  historyVisible Boolean   @default(false) @map("history_visible")
+  sortOrder      Int       @default(0) @map("sort_order")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner        User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   memberships  Membership[]
-  applications Application[] @relation("RepIdentity")
+  applications Application[]          @relation("RepIdentity")
   companions   ApplicationCompanion[]
 
   @@index([ownerId], map: "identities_owner_idx")
@@ -123,19 +124,19 @@ model Identity {
 }
 
 model Membership {
-  id              String    @id @db.Uuid
-  ownerId         String    @map("owner_id") @db.Uuid
-  identityId      String    @map("identity_id") @db.Uuid
-  fanClubNameRaw  String    @map("fan_club_name_raw")
-  memberNoLast4   String?   @map("member_no_last4")
-  rank            String?
-  renewalOn       DateTime? @map("renewal_on") @db.Date
-  feeYen          Int?      @map("fee_yen")
-  autoRenew       Boolean   @default(false) @map("auto_renew")
-  note            String?
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  id             String    @id @db.Uuid
+  ownerId        String    @map("owner_id") @db.Uuid
+  identityId     String    @map("identity_id") @db.Uuid
+  fanClubNameRaw String    @map("fan_club_name_raw")
+  memberNoLast4  String?   @map("member_no_last4")
+  rank           String?
+  renewalOn      DateTime? @map("renewal_on") @db.Date
+  feeYen         Int?      @map("fee_yen")
+  autoRenew      Boolean   @default(false) @map("auto_renew")
+  note           String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   identity     Identity      @relation(fields: [identityId], references: [id], onDelete: Cascade)
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -162,16 +163,16 @@ model Tour {
 }
 
 model Event {
-  id            String    @id @db.Uuid
-  ownerId       String    @map("owner_id") @db.Uuid
-  tourId        String    @map("tour_id") @db.Uuid
-  name          String
-  venueNameRaw  String?   @map("venue_name_raw")
-  eventDate     DateTime? @map("event_date") @db.Date
-  startsAt      DateTime? @map("starts_at") @db.Timestamptz(6)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+  id           String    @id @db.Uuid
+  ownerId      String    @map("owner_id") @db.Uuid
+  tourId       String    @map("tour_id") @db.Uuid
+  name         String
+  venueNameRaw String?   @map("venue_name_raw")
+  eventDate    DateTime? @map("event_date") @db.Date
+  startsAt     DateTime? @map("starts_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tour         Tour          @relation(fields: [tourId], references: [id], onDelete: Cascade)
@@ -229,26 +230,51 @@ model ApplicationCompanion {
 }
 
 model ShareLink {
-  id                   String    @id @db.Uuid
-  ownerId              String    @map("owner_id") @db.Uuid
-  scopeType            String    @map("scope_type")
-  scopeId              String?   @map("scope_id") @db.Uuid
-  tokenHash            String    @unique @map("token_hash")
-  permission           String    @default("read")
-  maskMemberNo         Boolean   @default(true) @map("mask_member_no")
-  sharedWithAccountIds String[]  @default([]) @map("shared_with_account_ids")
-  expiresAt            DateTime? @map("expires_at") @db.Timestamptz(6)
-  revokedAt            DateTime? @map("revoked_at") @db.Timestamptz(6)
-  viewCount            Int       @default(0) @map("view_count")
-  lastViewedAt         DateTime? @map("last_viewed_at") @db.Timestamptz(6)
-  editCount            Int       @default(0) @map("edit_count")
-  lastEditedAt         DateTime? @map("last_edited_at") @db.Timestamptz(6)
-  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String    @id @db.Uuid
+  ownerId      String    @map("owner_id") @db.Uuid
+  scopeType    String    @map("scope_type")
+  scopeId      String?   @map("scope_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  permission   String    @default("read")
+  maskMemberNo Boolean   @default(true) @map("mask_member_no")
+  // sharedWithAccountIds は削除（share-account-invites FR-5-4）。
+  // アクセス制御は share_recipients が正。visibility 列は作らない（Q1=A）。
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  viewCount    Int       @default(0) @map("view_count")
+  lastViewedAt DateTime? @map("last_viewed_at") @db.Timestamptz(6)
+  editCount    Int       @default(0) @map("edit_count")
+  lastEditedAt DateTime? @map("last_edited_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recipients ShareRecipient[]
 
   @@map("share_links")
+}
+
+/// 共有リンクの招待先（share-account-invites）。「招待されたアカウントだけが開ける」の正。
+model ShareRecipient {
+  id           String    @id @db.Uuid
+  shareLinkId  String    @map("share_link_id") @db.Uuid
+  /// 招待時に指定された ACC-XXXXXX（表示・照合用のスナップショット）
+  accountId    String    @map("account_id")
+  /// 招待時に解決した users.id。実在確認が必須なので NOT NULL（Q4=4-1）
+  userId       String    @map("user_id") @db.Uuid
+  /// 受け取り側がこの共有を非表示にした時刻（Q3=3-3）。オーナーには見せない
+  hiddenAt     DateTime? @map("hidden_at") @db.Timestamptz(6)
+  /// 受け取り側が最後に board を開いた時刻（未読判定 + オーナー側の表示）
+  lastViewedAt DateTime? @map("last_viewed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  shareLink ShareLink @relation(fields: [shareLinkId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shareLinkId, accountId])
+  @@index([userId])
+  @@map("share_recipients")
 }
 
 model DeviceToken {

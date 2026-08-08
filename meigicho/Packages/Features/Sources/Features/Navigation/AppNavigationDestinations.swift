@@ -16,8 +16,10 @@ struct AppNavigationDestinations: ViewModifier {
                     SharePreviewView()
                 case .account:
                     AccountView()
-                case .sharedBoard(let token):
-                    SharedBoardView(token: token)
+                case .sharedInbox:
+                    SharedInboxView(path: $path)
+                case .sharedBoard(let shareID):
+                    SharedBoardView(shareID: shareID)
                 }
             }
     }

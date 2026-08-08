@@ -2,6 +2,7 @@ import { ShareLink } from '@prisma/client';
 import { ErrorCode } from '../common/errors/error-codes';
 import { sha256Hex } from '../common/util/hash.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { ShareRecipientsService } from './share-recipients.service';
 import { SharesService } from './shares.service';
 
 const USER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';
@@ -19,11 +20,12 @@ function shareRow(overrides: Partial<ShareLink> = {}): ShareLink {
     tokenHash: 'a'.repeat(64),
     permission: 'read',
     maskMemberNo: true,
-    sharedWithAccountIds: [],
     expiresAt: new Date('2026-08-31T00:00:00.000Z'),
     revokedAt: null,
     viewCount: 0,
     lastViewedAt: null,
+    editCount: 0,
+    lastEditedAt: null,
     createdAt: new Date('2026-08-01T00:00:00.000Z'),
     updatedAt: new Date('2026-08-01T00:00:00.000Z'),
     ...overrides,
@@ -40,9 +42,12 @@ describe('SharesService', () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    shareRecipient: { createMany: jest.Mock };
     tour: { findMany: jest.Mock };
     event: { count: jest.Mock };
+    $transaction: jest.Mock;
   };
+  let shareRecipients: { listByShareLinks: jest.Mock };
   let service: SharesService;
 
   beforeEach(() => {
@@ -56,30 +61,41 @@ describe('SharesService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      shareRecipient: { createMany: jest.fn() },
       tour: { findMany: jest.fn() },
       event: { count: jest.fn() },
+      $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(prisma)),
     };
-    service = new SharesService(prisma as unknown as PrismaService);
+    shareRecipients = {
+      listByShareLinks: jest.fn().mockResolvedValue(new Map()),
+    };
+    service = new SharesService(
+      prisma as unknown as PrismaService,
+      shareRecipients as unknown as ShareRecipientsService,
+    );
   });
 
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  describe('create', () => {
+  describe('createWithRecipients', () => {
     it('AC-SH-01 DB には sha256 hex だけを保存し、生トークンを返す', async () => {
       prisma.shareLink.create.mockImplementation(({ data }) =>
         Promise.resolve(shareRow(data as Partial<ShareLink>)),
       );
 
-      const { token, row } = await service.create(USER_ID, {
-        scopeType: 'tour',
-        scopeId: TOUR_ID,
-        permission: 'read',
-        maskMemberNo: true,
-        sharedWithAccountIds: ['ACC-3F9A21'],
-        expiresAt: new Date('2026-08-31T00:00:00.000Z'),
-      });
+      const { token, row } = await service.createWithRecipients(
+        USER_ID,
+        {
+          scopeType: 'tour',
+          scopeId: TOUR_ID,
+          permission: 'read',
+          maskMemberNo: true,
+          expiresAt: new Date('2026-08-31T00:00:00.000Z'),
+        },
+        [],
+      );
 
       const data = prisma.shareLink.create.mock.calls[0][0].data as Record<
         string,
@@ -93,6 +109,7 @@ describe('SharesService', () => {
       expect(data.permission).toBe('read');
       expect(typeof data.id).toBe('string');
       expect(row.scopeType).toBe('tour');
+      expect(prisma.$transaction).toHaveBeenCalled();
     });
 
     it('AC-SW-02 permission を渡した値のまま保存する（read にハードコードしない）', async () => {
@@ -100,14 +117,17 @@ describe('SharesService', () => {
         Promise.resolve(shareRow(data as Partial<ShareLink>)),
       );
 
-      const { row } = await service.create(USER_ID, {
-        scopeType: 'tour',
-        scopeId: TOUR_ID,
-        permission: 'write',
-        maskMemberNo: true,
-        sharedWithAccountIds: [],
-        expiresAt: null,
-      });
+      const { row } = await service.createWithRecipients(
+        USER_ID,
+        {
+          scopeType: 'tour',
+          scopeId: TOUR_ID,
+          permission: 'write',
+          maskMemberNo: true,
+          expiresAt: null,
+        },
+        [],
+      );
 
       const data = prisma.shareLink.create.mock.calls[0][0].data as Record<
         string,
@@ -115,6 +135,54 @@ describe('SharesService', () => {
       >;
       expect(data.permission).toBe('write');
       expect(row.permission).toBe('write');
+    });
+
+    it('AC-SI-03 招待エントリを share_recipients に同一トランザクションで作成する', async () => {
+      prisma.shareLink.create.mockImplementation(({ data }) =>
+        Promise.resolve(shareRow(data as Partial<ShareLink>)),
+      );
+
+      const { row } = await service.createWithRecipients(
+        USER_ID,
+        {
+          scopeType: 'tour',
+          scopeId: TOUR_ID,
+          permission: 'read',
+          maskMemberNo: true,
+          expiresAt: null,
+        },
+        [{ accountId: 'ACC-3F9A21', userId: 'other-user-uuid' }],
+      );
+
+      expect(prisma.shareRecipient.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            shareLinkId: row.id,
+            accountId: 'ACC-3F9A21',
+            userId: 'other-user-uuid',
+          }),
+        ],
+      });
+    });
+
+    it('招待が 0 件なら shareRecipient.createMany を呼ばない', async () => {
+      prisma.shareLink.create.mockImplementation(({ data }) =>
+        Promise.resolve(shareRow(data as Partial<ShareLink>)),
+      );
+
+      await service.createWithRecipients(
+        USER_ID,
+        {
+          scopeType: 'identity_summary',
+          scopeId: null,
+          permission: 'read',
+          maskMemberNo: true,
+          expiresAt: null,
+        },
+        [],
+      );
+
+      expect(prisma.shareRecipient.createMany).not.toHaveBeenCalled();
     });
   });
 
@@ -175,6 +243,50 @@ describe('SharesService', () => {
 
       expect(prisma.tour.findMany).not.toHaveBeenCalled();
       expect(items[0].scope_name).toBeNull();
+    });
+
+    it('recipients を shareRecipients.listByShareLinks から埋める', async () => {
+      prisma.shareLink.findMany.mockResolvedValue([shareRow()]);
+      prisma.tour.findMany.mockResolvedValue([]);
+      const recipients = [
+        {
+          account_id: 'ACC-3F9A21',
+          display_name: 'ゆう',
+          invited_at: '2026-08-01T00:00:00.000Z',
+          last_viewed_at: null,
+        },
+      ];
+      shareRecipients.listByShareLinks.mockResolvedValue(
+        new Map([[SHARE_ID, recipients]]),
+      );
+
+      const items = await service.list(USER_ID);
+
+      expect(shareRecipients.listByShareLinks).toHaveBeenCalledWith([
+        SHARE_ID,
+      ]);
+      expect(items[0].recipients).toEqual(recipients);
+    });
+  });
+
+  describe('findOwned', () => {
+    it('自分の share を返す', async () => {
+      prisma.shareLink.findFirst.mockResolvedValue(shareRow());
+
+      const row = await service.findOwned(USER_ID, SHARE_ID);
+
+      expect(prisma.shareLink.findFirst).toHaveBeenCalledWith({
+        where: { id: SHARE_ID, ownerId: USER_ID },
+      });
+      expect(row.id).toBe(SHARE_ID);
+    });
+
+    it('他人 / 未知の id は NOT_FOUND 404 (BE-4)', async () => {
+      prisma.shareLink.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.findOwned(OTHER_USER_ID, SHARE_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
     });
   });
 

@@ -5,7 +5,10 @@ import Core
 // **UserDefaults 永続化は廃止**し、共有リンクの正はサーバー（`GET /v1/shares`）だけになった（AC-SH-13）。
 //
 // オーナー側のツアー表は**常にローカルの申込データ**を描く。共有ペイロード
-// （`/public/shares/:token`）はオーナー側から取りに行かない（AC-SH-12）。
+// （`GET /v1/shares/received/:id`）はオーナー側から取りに行かない（AC-SH-12）。
+//
+// 共有は**招待されたアカウントだけ**が開ける（`api-contract-delta.md` §1）。
+// 招待は 1 件以上必須で、`recipients` がアクセス制限そのもの（記録用メタではない）。
 
 /// 1 つのスコープ（ツアー / 名義サマリ）の共有状態。**3 状態**（`plan.md` §7.4-2）。
 public enum ShareLinkState: Equatable, Sendable {
@@ -109,9 +112,14 @@ public final class ShareLinkStore {
         Self.shareState(in: links, scopeType: .identitySummary, scopeID: nil, at: now())
     }
 
-    /// 共有相手の初期値（既存リンクに記録された ID）。
+    /// 共有相手の初期値（既存リンクに招待済みの ID）。
     public func recipientIDs(forTour tourID: UUID) -> [String] {
-        shareState(forTour: tourID).link?.sharedWithAccountIDs ?? []
+        shareState(forTour: tourID).link?.recipients.map(\.accountID) ?? []
+    }
+
+    /// 既存リンクの招待一覧（表示名付き）。
+    public func recipients(forTour tourID: UUID) -> [ShareRecipient] {
+        shareState(forTour: tourID).link?.recipients ?? []
     }
 
     /// スコープに対応する状態を選ぶ**純粋関数**。
@@ -176,11 +184,20 @@ public final class ShareLinkStore {
         recipientIDs: [String]
     ) async -> IssuedShareLink? {
         guard let repository else { return nil }
-        // AC-SH-02-T: 形式が違う ID / 上限超過は**送る前に**弾く（400 を往復させない）
+        // AC-SH-02-T: 形式が違う ID / 件数超過は**送る前に**弾く（400 を往復させない）。
+        // **実在確認はしない**（できない）。存在しない ACC-ID はサーバーが
+        // `.shareRecipientUnknown` で返す（IOS-4: クライアントで独自の制約を足さない）
         let validation = AccountIDValidator.validate(recipientIDs)
         guard case .valid(let ids) = validation else {
             logger.event("share_recipients_rejected")
             actionError = .validation(message: validation.reason)
+            return nil
+        }
+        // 招待は 1 件以上必須（`api-contract-delta.md` §1）。0 件は誰も開けないリンクになるので
+        // サーバーも 400 を返す。UI は 0 件で発行ボタンを無効にするが、ここでも止める
+        guard !ids.isEmpty else {
+            logger.event("share_recipients_empty")
+            actionError = .validation(message: "shared_with_account_ids must contain at least one account id")
             return nil
         }
 
@@ -202,6 +219,58 @@ public final class ShareLinkStore {
             actionError = Self.appError(from: error)
             return nil
         }
+    }
+
+    // MARK: - 招待の追加・削除（発行後）
+
+    /// 招待を追加する（`POST /v1/shares/:id/recipients`）。
+    ///
+    /// **サーバーの戻り値は追加後の全件**なので、手元の `recipients` はそれで置き換える（差分マージしない）。
+    /// 既に招待済みの ID は冪等に無視される。
+    @discardableResult
+    public func addRecipients(shareID: UUID, accountIDs: [String]) async -> [ShareRecipient]? {
+        guard let repository else { return nil }
+        let validation = AccountIDValidator.validate(accountIDs)
+        guard case .valid(let ids) = validation, !ids.isEmpty else {
+            actionError = .validation(message: validation.reason)
+            return nil
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let recipients = try await repository.addRecipients(shareID: shareID, accountIDs: ids)
+            replaceRecipients(shareID: shareID, with: recipients)
+            actionError = nil
+            return recipients
+        } catch {
+            // `.shareRecipientUnknown(accountIDs:)` はここに来る（どの ID が無いかは文言に載る）
+            actionError = Self.appError(from: error)
+            return nil
+        }
+    }
+
+    /// 招待を外す（`DELETE /v1/shares/:id/recipients/:account_id`・冪等）。
+    ///
+    /// **最後の 1 人を外しても成功する**（以後そのリンクは誰も開けない）。UI 側で止めない。
+    public func removeRecipient(shareID: UUID, accountID: String) async {
+        guard let repository else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await repository.removeRecipient(shareID: shareID, accountID: accountID)
+            if let index = links.firstIndex(where: { $0.id == shareID }) {
+                links[index].recipients.removeAll { $0.accountID == accountID }
+            }
+            actionError = nil
+        } catch {
+            actionError = Self.appError(from: error)
+        }
+    }
+
+    private func replaceRecipients(shareID: UUID, with recipients: [ShareRecipient]) {
+        guard let index = links.firstIndex(where: { $0.id == shareID }) else { return }
+        links[index].recipients = recipients
     }
 
     // MARK: - 失効

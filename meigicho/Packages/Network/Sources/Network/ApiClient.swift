@@ -7,7 +7,9 @@ import Domain
 /// - `accessToken` の保持と差し替えを内部に閉じる（actor）
 /// - refresh token は `RefreshTokenStoring`（既定は Keychain）に置く
 /// - **401 を受けたら refresh → 1 回だけ再送**。並行 401 でも refresh は 1 回だけ走る（E-5 / FR-N-6）
-/// - **公開経路（`/public/*`）はこのクライアントで送らない。** `PublicApiClient` を使う（`contract-mapping.md` §5.1）
+/// - **`/v1/*` 専用**。旧公開経路（`/public/shares/:token` 系）は `api-contract-delta.md` Q1=A で廃止された。
+///   受け取り側の共有ボードも含め、全ての経路が Bearer 必須になったため `PublicApiClient` は存在しない
+///   （`api-contract-delta.md` §6.1）
 public actor ApiClient {
     /// リクエストに Bearer を付けるか。
     /// `/v1/auth/*`（apple / google / refresh / logout / register / login / password/reset*）は
@@ -52,23 +54,43 @@ public actor ApiClient {
         as type: T.Type,
         authorization: Authorization = .bearer
     ) async throws -> T {
-        let data = try await perform(endpoint, authorization: authorization)
+        let data = try await perform(endpoint, authorization: authorization, promoteError: nil)
+        return try ResponseValidator.decode(type, from: data)
+    }
+
+    /// エラー envelope を**呼び出し側の文脈で読み替えたい**ときの変種。
+    ///
+    /// `promoteError` が `nil` を返せば通常の `AppError.from(envelope:)` のままになる。
+    /// **`details` の形をこのクライアントに知らせないため**のフック。
+    /// 利用者は `RemoteShareRepository`（`SHARE_RECIPIENT_UNKNOWN` → `details.unknown_account_ids`）と
+    /// `RemoteSharedBoardRepository`（`CONFLICT` → `.shareItemConflict(current:)`）。
+    public func send<T: Decodable & Sendable>(
+        _ endpoint: Endpoint,
+        as type: T.Type,
+        authorization: Authorization = .bearer,
+        promoteError: @escaping @Sendable (APIErrorEnvelope) -> AppError?
+    ) async throws -> T {
+        let data = try await perform(endpoint, authorization: authorization, promoteError: promoteError)
         return try ResponseValidator.decode(type, from: data)
     }
 
     /// 204 など本文が無い経路。
     public func sendVoid(_ endpoint: Endpoint, authorization: Authorization = .bearer) async throws {
-        _ = try await perform(endpoint, authorization: authorization)
+        _ = try await perform(endpoint, authorization: authorization, promoteError: nil)
     }
 
-    private func perform(_ endpoint: Endpoint, authorization: Authorization) async throws -> Data {
+    private func perform(
+        _ endpoint: Endpoint,
+        authorization: Authorization,
+        promoteError: (@Sendable (APIErrorEnvelope) -> AppError?)?
+    ) async throws -> Data {
         guard endpoint.path.isVersioned else {
-            // `/public/*` を Bearer 付きで送らない（誤って認証状態と結びつけない）
-            throw AppError.decoding("ApiClient received a public endpoint. Use PublicApiClient.")
+            // `/health` 系以外の非バージョン経路は存在しない（旧 `/public/*` は廃止済み）
+            throw AppError.decoding("ApiClient received a non-versioned endpoint.")
         }
 
         guard authorization == .bearer else {
-            return try await rawSend(endpoint, bearer: nil)
+            return try await rawSend(endpoint, bearer: nil, promoteError: promoteError)
         }
 
         // 起動直後は access token がメモリに無い（Keychain の refresh token から取り直す）
@@ -78,16 +100,20 @@ public actor ApiClient {
         }
 
         do {
-            return try await rawSend(endpoint, bearer: token)
+            return try await rawSend(endpoint, bearer: token, promoteError: promoteError)
         } catch AppError.unauthenticated {
             // 401 は 1 回だけ refresh して再送する。**再送後の 401 はそのままエラー**（無限ループ防止）
             let refreshed = try await currentAccessToken(replacing: token)
-            return try await rawSend(endpoint, bearer: refreshed)
+            return try await rawSend(endpoint, bearer: refreshed, promoteError: promoteError)
         }
     }
 
     /// リトライを含まない素の送信。
-    private func rawSend(_ endpoint: Endpoint, bearer: String?) async throws -> Data {
+    private func rawSend(
+        _ endpoint: Endpoint,
+        bearer: String?,
+        promoteError: (@Sendable (APIErrorEnvelope) -> AppError?)?
+    ) async throws -> Data {
         var headers: [String: String] = [:]
         if let bearer {
             headers["Authorization"] = "Bearer \(bearer)"
@@ -95,7 +121,16 @@ public actor ApiClient {
         let request = try endpoint.urlRequest(baseURL: configuration.baseURL, extraHeaders: headers)
         do {
             let (data, response) = try await session.data(for: request)
-            try ResponseValidator.validate(data: data, response: response)
+            do {
+                try ResponseValidator.validate(data: data, response: response)
+            } catch let error as AppError {
+                // 2xx 以外。呼び出し側が envelope を読み替えたい場合だけ差し替える
+                guard let promoteError,
+                      let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data),
+                      let promoted = promoteError(envelope)
+                else { throw error }
+                throw promoted
+            }
             return data
         } catch {
             throw ResponseValidator.mapTransportError(error)
@@ -148,7 +183,7 @@ public actor ApiClient {
 
         do {
             let body = try JSONEncoder().encode(RefreshRequest(refreshToken: refreshToken))
-            let data = try await rawSend(.versioned(.post, "/auth/refresh", body: body), bearer: nil)
+            let data = try await rawSend(.versioned(.post, "/auth/refresh", body: body), bearer: nil, promoteError: nil)
             let pair = try ResponseValidator.decode(TokenPairResponse.self, from: data).toDomain(receivedAt: Date())
             guard epoch == sessionEpoch else {
                 // refresh 中にログアウト / 別セッション採用が起きた。**この結果は採用しない**

@@ -71,8 +71,13 @@ struct MeigichoApp: App {
                 .environment(\.themeStore, themeStore)
                 .environment(\.notificationBridge, notificationBridge)
                 .environment(\.syncActionBridge, syncActionBridge)
-                // `meigicho://share/<token>` の受け口 + 共有ボード用ストアの注入（T4b）
-                .sharedBoardDeepLink(environment: environment)
+                // `meigicho://share/<token>` の受け口 + 受信箱 / 共有ボード用ストアの注入。
+                // 未ログインで受けた token はサインイン後に再試行するため `authStore.state` を渡す（FR-4-3）
+                .sharedBoardDeepLink(
+                    environment: environment,
+                    authState: authStore.state,
+                    sheetPresenter: sheetPresenter
+                )
                 .onOpenURL { url in
                     _ = deepLinkCoordinator.handle(url: url)
                 }

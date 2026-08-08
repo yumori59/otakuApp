@@ -49,8 +49,8 @@ final class SharedBoardStoreTests: XCTestCase {
 
     func testWriteLinkRespectsPerRowEditableFlag() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         let rows = try? XCTUnwrap(store.board?.items)
         XCTAssertEqual(store.isEditable(rows![0]), true)
@@ -60,8 +60,8 @@ final class SharedBoardStoreTests: XCTestCase {
 
     func testEditingNonEditableRowShowsRowMessageAndDoesNotCallRepository() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         let locked = try! XCTUnwrap(store.board?.items[1])
         await store.setStatus(.won, for: locked)
@@ -78,8 +78,8 @@ final class SharedBoardStoreTests: XCTestCase {
         repository.updateResult = .success(
             item(key: "K1", rev: "REV-2", status: .won, seat: "1F A列 12番")
         )
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         let target = try! XCTUnwrap(store.board?.items.first)
         await store.setStatus(.won, for: target)
@@ -98,8 +98,8 @@ final class SharedBoardStoreTests: XCTestCase {
     func testEmptySeatIsSentAsEmptyString() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
         repository.updateResult = .success(item(key: "K1", rev: "REV-2", status: .applied, seat: ""))
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         await store.saveSeat("", for: try! XCTUnwrap(store.board?.items.first))
         XCTAssertEqual(repository.lastChange, .seat(""))
@@ -115,8 +115,8 @@ final class SharedBoardStoreTests: XCTestCase {
         repository.updateResult = .failure(
             .shareItemConflict(current: SharedItemSnapshot(status: .lost, seat: "S9", rev: "REV-9"))
         )
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         await store.setStatus(.won, for: try! XCTUnwrap(store.board?.items.first))
 
@@ -136,8 +136,8 @@ final class SharedBoardStoreTests: XCTestCase {
     func testForbiddenRevertsRowAndShowsRowMessage() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
         repository.updateResult = .failure(.forbidden)
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         await store.setStatus(.won, for: try! XCTUnwrap(store.board?.items.first))
 
@@ -146,67 +146,115 @@ final class SharedBoardStoreTests: XCTestCase {
         XCTAssertEqual(store.message(for: store.board!.items[0]), "この行は編集できません")
     }
 
-    // MARK: - AC-SB-11-M: SHARE_INVALID で token を破棄
+    // MARK: - SHARE_INVALID は理由を区別せず「終了」に落とす（AC-SI-21）
 
-    func testShareInvalidOnFetchEndsBoardAndDiscardsToken() async {
+    /// 未知 / 失効 / 期限切れ / **自分が招待されていない** の 4 つはすべて 404 `SHARE_INVALID`。
+    /// クライアントも理由を推測しない（`isNotInvited` は redeem 経路でしか立たない）。
+    func testShareInvalidOnFetchEndsBoard() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
         repository.fetchResult = .failure(.shareInvalid)
-        let tokenStore = StubTokenStore()
-        let store = SharedBoardStore(repository: repository, tokenStore: tokenStore)
+        let store = SharedBoardStore(repository: repository)
 
-        await store.open(token: "DEAD")
+        await store.open(shareID: Self.shareID)
 
         XCTAssertTrue(store.isEnded)
+        XCTAssertFalse(store.isNotInvited, "id 経路で「招待されていない」と断定しない")
         XCTAssertNil(store.board)
-        let removed = await tokenStore.removed
-        XCTAssertEqual(removed, ["DEAD"])
-        let saved = await tokenStore.saved
-        XCTAssertTrue(saved.isEmpty)
     }
 
-    func testSuccessfulFetchSavesToken() async {
-        let repository = StubSharedBoardRepository(board: board(permission: .write))
-        let tokenStore = StubTokenStore()
-        let store = SharedBoardStore(repository: repository, tokenStore: tokenStore)
-
-        await store.open(token: "LIVE")
-
-        let saved = await tokenStore.saved
-        XCTAssertEqual(saved.map(\.token), ["LIVE"])
-        XCTAssertEqual(saved.first?.title, "STELLARIS LIVE TOUR 2026")
-    }
-
-    /// PATCH の `SHARE_INVALID` は「token 失効」と「`item_key` 不一致」の両方で返る（同じ 404）。
+    /// PATCH の `SHARE_INVALID` は「共有の失効」と「`item_key` 不一致」の両方で返る（同じ 404）。
     /// 取り直せれば表が変わっただけ、取り直せなければ共有そのものが終了。
     func testShareInvalidOnUpdateRefetchesBoardToDisambiguate() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
         repository.updateResult = .failure(.shareInvalid)
-        let tokenStore = StubTokenStore()
-        let store = SharedBoardStore(repository: repository, tokenStore: tokenStore)
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         await store.setStatus(.won, for: try! XCTUnwrap(store.board?.items.first))
 
         XCTAssertEqual(repository.fetchCallCount, 2)
         XCTAssertFalse(store.isEnded, "GET が通るなら共有自体は生きている")
         XCTAssertEqual(store.actionError, .notFound)
-        let removed = await tokenStore.removed
-        XCTAssertTrue(removed.isEmpty, "token は破棄しない")
     }
 
     func testShareInvalidOnUpdateEndsBoardWhenRefetchAlsoFails() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
         repository.updateResult = .failure(.shareInvalid)
-        let tokenStore = StubTokenStore()
-        let store = SharedBoardStore(repository: repository, tokenStore: tokenStore)
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
         repository.fetchResult = .failure(.shareInvalid)
 
         await store.setStatus(.won, for: try! XCTUnwrap(store.board?.items.first))
 
         XCTAssertTrue(store.isEnded)
-        let removed = await tokenStore.removed
-        XCTAssertEqual(removed, ["T"])
+    }
+
+    /// PATCH は開いている `share_id` で addressing する（token は現れない）。
+    func testUpdateUsesOpenedShareID() async {
+        let repository = StubSharedBoardRepository(board: board(permission: .write))
+        repository.updateResult = .success(item(key: "K1", rev: "REV-2", status: .won))
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
+
+        await store.setStatus(.won, for: try! XCTUnwrap(store.board?.items.first))
+
+        XCTAssertEqual(repository.lastShareID, Self.shareID)
+    }
+
+    // MARK: - redeem 起点（ディープリンク）
+
+    func testOpenWithTokenRedeemsThenLoadsBoard() async {
+        let repository = StubSharedBoardRepository(board: board(permission: .write))
+        let inbox = StubSharedInboxRepository(redeemResult: .success(Self.shareID))
+        let store = SharedBoardStore(repository: repository, inboxRepository: inbox)
+
+        let resolved = await store.open(token: "TOK")
+
+        XCTAssertEqual(resolved, Self.shareID)
+        XCTAssertEqual(store.openedShareID, Self.shareID)
+        XCTAssertEqual(repository.lastShareID, Self.shareID, "redeem で得た shareID で board を取る")
+        XCTAssertNotNil(store.board)
+        XCTAssertEqual(inbox.lastRedeemedToken, "TOK")
+    }
+
+    /// **`SHARE_NOT_INVITED` は redeem でしか返らない**（`api-contract-delta.md` §4.4）。
+    /// ここだけが「あなたは招待されていない」と言える。
+    func testRedeemNotInvitedShowsDedicatedState() async {
+        let repository = StubSharedBoardRepository(board: board(permission: .write))
+        let inbox = StubSharedInboxRepository(redeemResult: .failure(.shareNotInvited))
+        let store = SharedBoardStore(repository: repository, inboxRepository: inbox)
+
+        let resolved = await store.open(token: "TOK")
+
+        XCTAssertNil(resolved)
+        XCTAssertTrue(store.isNotInvited)
+        XCTAssertFalse(store.isEnded, "「無効なリンク」とは言わない")
+        XCTAssertEqual(store.state, .loaded)
+        XCTAssertEqual(repository.fetchCallCount, 0, "redeem が通らなければ board は取りに行かない")
+    }
+
+    func testRedeemShareInvalidEndsBoard() async {
+        let repository = StubSharedBoardRepository(board: board(permission: .write))
+        let inbox = StubSharedInboxRepository(redeemResult: .failure(.shareInvalid))
+        let store = SharedBoardStore(repository: repository, inboxRepository: inbox)
+
+        await store.open(token: "TOK")
+
+        XCTAssertTrue(store.isEnded)
+        XCTAssertFalse(store.isNotInvited)
+    }
+
+    /// 通信断は「終了」でも「未招待」でもない（再試行できる状態にする）。
+    func testRedeemTransportFailureIsRetriableFailure() async {
+        let repository = StubSharedBoardRepository(board: board(permission: .write))
+        let inbox = StubSharedInboxRepository(redeemResult: .failure(.offline))
+        let store = SharedBoardStore(repository: repository, inboxRepository: inbox)
+
+        await store.open(token: "TOK")
+
+        XCTAssertEqual(store.state.error, .offline)
+        XCTAssertFalse(store.isEnded)
+        XCTAssertFalse(store.isNotInvited)
     }
 
     // MARK: - AC / E-17: 429 は自動リトライしない
@@ -214,8 +262,8 @@ final class SharedBoardStoreTests: XCTestCase {
     func testRateLimitedIsSurfacedWithoutRetry() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
         repository.updateResult = .failure(.rateLimited)
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         await store.setStatus(.won, for: try! XCTUnwrap(store.board?.items.first))
 
@@ -228,8 +276,8 @@ final class SharedBoardStoreTests: XCTestCase {
 
     func testTransportFailureOnReloadKeepsBoard() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
         repository.fetchResult = .failure(.offline)
 
         await store.reload()
@@ -242,13 +290,13 @@ final class SharedBoardStoreTests: XCTestCase {
     /// 閉じたらメモリにも残さない（ローカル永続化を持たない方針と揃える）。
     func testCloseClearsEverything() async {
         let repository = StubSharedBoardRepository(board: board(permission: .write))
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         store.close()
 
         XCTAssertNil(store.board)
-        XCTAssertNil(store.openedToken)
+        XCTAssertNil(store.openedShareID)
         XCTAssertEqual(store.state, .idle)
     }
 
@@ -256,8 +304,8 @@ final class SharedBoardStoreTests: XCTestCase {
 
     func testIdentitySummaryBoardIsNeverEditable() async {
         let repository = StubSharedBoardRepository(board: identitySummaryBoard())
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         XCTAssertEqual(store.board?.scopeType, .identitySummary)
         XCTAssertFalse(store.canEdit)
@@ -269,8 +317,8 @@ final class SharedBoardStoreTests: XCTestCase {
     /// `permission == .write` を騙って渡されても、identity_summary には編集経路が無い。
     func testIdentitySummaryBoardCannotEditEvenWithWritePermission() async {
         let repository = StubSharedBoardRepository(board: identitySummaryBoard(permission: .write))
-        let store = SharedBoardStore(repository: repository, tokenStore: StubTokenStore())
-        await store.open(token: "T")
+        let store = SharedBoardStore(repository: repository)
+        await store.open(shareID: Self.shareID)
 
         XCTAssertFalse(store.canEdit)
         // handle 付きの行を外から差し込んでも repository を呼ばない
@@ -278,18 +326,15 @@ final class SharedBoardStoreTests: XCTestCase {
         XCTAssertEqual(repository.updateCallCount, 0)
     }
 
-    /// 一覧の表示名は tour 名が無くても付く（保存した token の見出しに使う）。
+    /// 画面見出しは tour 名が無くても付く。
     func testIdentitySummaryBoardHasDisplayTitle() async {
         let repository = StubSharedBoardRepository(board: identitySummaryBoard())
-        let tokenStore = StubTokenStore()
-        let store = SharedBoardStore(repository: repository, tokenStore: tokenStore)
+        let store = SharedBoardStore(repository: repository)
 
-        await store.open(token: "LIVE")
+        await store.open(shareID: Self.shareID)
 
         XCTAssertNil(store.board?.tourName)
         XCTAssertNotNil(store.board?.displayTitle)
-        let saved = await tokenStore.saved
-        XCTAssertEqual(saved.first?.title, store.board?.displayTitle)
     }
 
     // MARK: - 行 id の衝突（read リンク）
@@ -323,6 +368,9 @@ final class SharedBoardStoreTests: XCTestCase {
     }
 
     // MARK: - fixtures
+
+    /// 共有の addressing キー。**token ではなく share_id**（UUID v7 形）
+    static let shareID = UUID(uuidString: "018f3c2a-1111-7c90-9d2a-000000000001")!
 
     private func identitySummaryBoard(permission: SharePermission = .read) -> SharedBoard {
         SharedBoard(
@@ -392,26 +440,29 @@ private final class StubSharedBoardRepository: SharedBoardRepository, @unchecked
     private(set) var lastItemKey: String?
     private(set) var lastRev: String?
     private(set) var lastChange: SharedItemChange?
+    private(set) var lastShareID: UUID?
 
     init(board: SharedBoard) {
         fetchResult = .success(board)
     }
 
-    nonisolated func fetchBoard(token: String) async throws -> SharedBoard {
+    nonisolated func fetchBoard(shareID: UUID) async throws -> SharedBoard {
         try await MainActor.run {
             fetchCallCount += 1
+            lastShareID = shareID
             return try fetchResult.get()
         }
     }
 
     nonisolated func updateItem(
-        token: String,
+        shareID: UUID,
         itemKey: String,
         rev: String,
         change: SharedItemChange
     ) async throws -> SharedBoardItem {
         try await MainActor.run {
             updateCallCount += 1
+            lastShareID = shareID
             lastItemKey = itemKey
             lastRev = rev
             lastChange = change
@@ -423,14 +474,23 @@ private final class StubSharedBoardRepository: SharedBoardRepository, @unchecked
     }
 }
 
-private actor StubTokenStore: SharedBoardTokenStoring {
-    private(set) var saved: [SavedSharedBoard] = []
-    private(set) var removed: [String] = []
+@MainActor
+private final class StubSharedInboxRepository: SharedInboxRepository, @unchecked Sendable {
+    var redeemResult: Result<UUID, AppError>
+    private(set) var lastRedeemedToken: String?
 
-    func list() async -> [SavedSharedBoard] { saved }
-    func save(_ board: SavedSharedBoard) async { saved.append(board) }
-    func remove(token: String) async {
-        removed.append(token)
-        saved.removeAll { $0.token == token }
+    init(redeemResult: Result<UUID, AppError>) {
+        self.redeemResult = redeemResult
     }
+
+    nonisolated func list() async throws -> [SharedInboxItem] { [] }
+
+    nonisolated func redeem(token: String) async throws -> UUID {
+        try await MainActor.run {
+            lastRedeemedToken = token
+            return try redeemResult.get()
+        }
+    }
+
+    nonisolated func setHidden(shareID: UUID, hidden: Bool) async throws {}
 }

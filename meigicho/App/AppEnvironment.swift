@@ -21,10 +21,9 @@ final class AppEnvironment {
     private static let syncCursorDefaultsKey = "meigicho.sync.cursor.v1"
 
     let configuration: ApiConfiguration
-    /// 認証あり（`/v1/*`）。T1 が `TokenStore` と 401 refresh を足す
+    /// 認証あり（`/v1/*`）。T1 が `TokenStore` と 401 refresh を足す。
+    /// **共有の受け取り側もこれを使う**（`/public/*` は廃止 — `api-contract-delta.md` §4.2）
     let apiClient: ApiClient
-    /// 認証なし（`/public/*`）。**共有ボード専用。Bearer を持たない**（contract-mapping §5.1）
-    let publicApiClient: PublicApiClient
 
     /// Google サインイン（`GOOGLE_IOS_CLIENT_ID` 未設定なら nil）
     let googleSignIn: (any GoogleSignInProviding)?
@@ -36,11 +35,12 @@ final class AppEnvironment {
     let catalogRepository: any CatalogRepository
     let applicationRepository: any ApplicationRepository
     let shareRepository: any ShareRepository
+    /// 共有ボード（受け取り側・`GET|PATCH /v1/shares/received/:id`）
     let sharedBoardRepository: any SharedBoardRepository
+    /// 受信箱（`GET /v1/shares/received` / `redeem` / `hide`）
+    let sharedInboxRepository: any SharedInboxRepository
     let homeRepository: any HomeRepository
     let statsRepository: any StatsRepository
-    /// 受け取った共有 token（Keychain・**自分の refresh token とは別 service 名前空間**）
-    let sharedBoardTokenStore: any SharedBoardTokenStoring
 
     /// ローカル SSoT の入れ物。UI テスト（インメモリ Store）では作らない
     let modelContainer: ModelContainer?
@@ -67,7 +67,6 @@ final class AppEnvironment {
         let tokenStore: any RefreshTokenStoring = useInMemoryStores ? InMemoryTokenStore() : KeychainTokenStore()
         let apiClient = ApiClient(configuration: configuration, tokenStore: tokenStore)
         self.apiClient = apiClient
-        publicApiClient = PublicApiClient(configuration: configuration)
         googleSignIn = useInMemoryStores ? nil : GoogleSignInService.makeFromBundle()
 
         // 認証・プロフィール・共有リンク（オーナー側）はサーバー直結のまま（同期対象外コレクション）
@@ -109,14 +108,15 @@ final class AppEnvironment {
         shareRepository = useInMemoryStores ? InMemoryShareRepository() : RemoteShareRepository(client: apiClient)
         homeRepository = useInMemoryStores ? InMemoryHomeRepository() : RemoteHomeRepository(client: apiClient)
         statsRepository = useInMemoryStores ? InMemoryStatsRepository() : RemoteStatsRepository(client: apiClient)
-        // 共有ボード（受け取り側）は **`publicApiClient` だけ**を使う。
-        // `apiClient` を渡すと 401 refresh 経由で自分のアカウントがログアウトしうる（R7 / AC-SB-13-M）
+        // 共有の受け取り側は **招待されたアカウントだけ**が開ける経路になった（`api-contract-delta.md` §4.2）。
+        // 公開経路（旧 `PublicApiClient` / `/public/shares/:token`）は廃止済みで、
+        // ボードも受信箱も自分の `apiClient`（Bearer + 401 refresh）で叩く
         sharedBoardRepository = useInMemoryStores
             ? InMemorySharedBoardRepository()
-            : RemoteSharedBoardRepository(client: publicApiClient)
-        sharedBoardTokenStore = useInMemoryStores
-            ? InMemorySharedBoardTokenStore()
-            : KeychainSharedBoardTokenStore()
+            : RemoteSharedBoardRepository(client: apiClient)
+        sharedInboxRepository = useInMemoryStores
+            ? InMemorySharedInboxRepository()
+            : RemoteSharedInboxRepository(client: apiClient)
 
         // 広告。UI テストでは SDK にもネットワークにも触らせない（`DisabledAdRenderer` + ユニット ID 空）。
         // `AdsInitializer.start()` は `GoogleMobileAdsRenderer.init` が呼ぶ（`App/Ads/GoogleMobileAdsRenderer.swift:20`）

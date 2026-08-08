@@ -29,6 +29,13 @@ struct ShareRecipientsView: View {
     @State private var permission: SharePermission = .read
     @State private var recipientError: String?
     @State private var didCopy = false
+    @State private var newRecipientText = ""
+
+    /// 発行フォームの入力を分割しただけの ID（形式検証前）。
+    /// **0 件では発行させない**（招待はアクセス制限そのもの — `api-contract-delta.md` §1）
+    private var parsedRecipientIDs: [String] {
+        AccountIDValidator.parse(recipientText)
+    }
 
     /// 共有対象のツアー。`AppSheet` はツアー名しか運ばないのでここで引き直す。
     private var tourID: UUID? {
@@ -119,7 +126,7 @@ struct ShareRecipientsView: View {
             : "共有相手は表を見るだけで、書き換えはできません。")
             .padding(.bottom, 4)
 
-        SectionHeader("共有相手のID（任意）")
+        SectionHeader("共有相手のID（必須）")
         FormCard {
             FormRow("カンマ区切りで複数指定できます") {
                 FormTextField("例）ACC-1A2B3C, ACC-9F8E7D", text: $recipientText)
@@ -130,13 +137,13 @@ struct ShareRecipientsView: View {
         if let recipientError {
             FormHint(recipientError, isError: true)
         }
-        FormHint("IDは相手の「アカウント設定」画面で確認できます。共有リンクはURLを知っている人なら誰でも開けるため、IDの入力はアクセス制限ではなく記録用である点にご注意ください。")
+        FormHint("IDは相手の「アカウント設定」画面で確認できます。ここに入れたアカウントだけがこの共有リンクを開けます。少なくとも1件は指定してください。")
 
         PrimaryButton(shareLinks.isSaving ? "共有リンクを作成中…" : "この設定で共有する") {
             Task { await createLink() }
         }
         .padding(.top, 16)
-        .disabled(shareLinks.isSaving)
+        .disabled(shareLinks.isSaving || parsedRecipientIDs.isEmpty)
     }
 
     // MARK: - 共有中
@@ -153,13 +160,13 @@ struct ShareRecipientsView: View {
                     Text("期限 \(DateFormatting.formatDate(expiresAt))")
                         .font(DSFont.caption).foregroundStyle(DS.Gray.g600)
                 }
-                Text("共有相手: \(link.sharedWithAccountIDs.isEmpty ? "未指定" : link.sharedWithAccountIDs.joined(separator: "、"))")
-                    .font(DSFont.caption).foregroundStyle(DS.Gray.g600)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
         FormHint("共有相手にできること（閲覧のみ／編集も許可）は、あとから変更できません。変えたいときは共有を停止してから作り直してください。")
+
+        recipientsSection(link)
 
         PrimaryButton(shareLinks.isSaving ? "停止中…" : "共有を停止", isDestructive: true) {
             Task {
@@ -168,6 +175,60 @@ struct ShareRecipientsView: View {
         }
         .padding(.top, 16)
         .disabled(shareLinks.isSaving)
+    }
+
+    // MARK: - 招待の追加 / 削除（発行後）
+
+    /// 招待は**アクセス制限そのもの**。ここに載っているアカウントだけが開ける。
+    /// 追加・削除は `ShareLinkStore.addRecipients` / `removeRecipient` を叩き、
+    /// 手元の `link.recipients`（= `shareLinks.links` 由来）がそのまま新しい一覧になる。
+    @ViewBuilder
+    private func recipientsSection(_ link: Domain.ShareLink) -> some View {
+        SectionHeader("共有相手（ここに入れたアカウントだけが見られます）")
+        FormCard {
+            if link.recipients.isEmpty {
+                FormRow("招待済みのアカウントはありません") {
+                    Text("このリンクはまだ誰も開けません。下からアカウントIDを追加してください。")
+                        .font(DSFont.caption)
+                        .foregroundStyle(DS.Gray.g500)
+                }
+            } else {
+                ForEach(link.recipients) { recipient in
+                    FormRow(recipient.displayLabel) {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(recipient.accountID)
+                                    .font(DSFont.caption)
+                                    .foregroundStyle(DS.Gray.g600)
+                                Text(recipient.hasNeverViewed ? "未閲覧" : "閲覧済み")
+                                    .font(DSFont.caption)
+                                    .foregroundStyle(DS.Gray.g500)
+                            }
+                            Spacer()
+                            Button("削除") {
+                                Task { await shareLinks.removeRecipient(shareID: link.id, accountID: recipient.accountID) }
+                            }
+                            .font(DSFont.caption)
+                            .foregroundStyle(DS.error)
+                            .disabled(shareLinks.isSaving)
+                        }
+                    }
+                }
+            }
+        }
+
+        FormCard {
+            FormRow("アカウントIDを追加（カンマ区切りで複数可）") {
+                FormTextField("例）ACC-1A2B3C", text: $newRecipientText)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+            }
+        }
+        PrimaryButton(shareLinks.isSaving ? "追加中…" : "招待を追加") {
+            Task { await addRecipients(link) }
+        }
+        .padding(.top, 8)
+        .disabled(shareLinks.isSaving || AccountIDValidator.parse(newRecipientText).isEmpty)
     }
 
     // MARK: - 発行直後（token / url が取れるのはここだけ）
@@ -229,5 +290,15 @@ struct ShareRecipientsView: View {
 
         didCopy = false
         await shareLinks.createTourLink(tourID: tourID, permission: permission, recipientIDs: ids)
+    }
+
+    /// 発行後に招待を追加する。**存在確認はサーバー任せ**（IOS-4）。
+    /// 未知の ACC-ID は `AppError.shareRecipientUnknown` → `actionError` の `ErrorBar` に文言で出る。
+    private func addRecipients(_ link: Domain.ShareLink) async {
+        let ids = AccountIDValidator.parse(newRecipientText)
+        guard !ids.isEmpty else { return }
+        if await shareLinks.addRecipients(shareID: link.id, accountIDs: ids) != nil {
+            newRecipientText = ""
+        }
     }
 }

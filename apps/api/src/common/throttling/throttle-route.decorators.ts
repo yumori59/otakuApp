@@ -6,7 +6,7 @@ import {
   THROTTLER_NAME,
   ThrottlerName,
 } from './throttler-config';
-import { TokenThrottlerGuard } from './token-throttler.guard';
+import { UserShareThrottlerGuard } from './user-share-throttler.guard';
 import { UserThrottlerGuard } from './user-throttler.guard';
 
 /**
@@ -55,10 +55,13 @@ export function ThrottleResetSubmit(): ClassDecorator & MethodDecorator {
   );
 }
 
-/** `PATCH /public/shares/:token/items/:item_key` に適用（token・60 回/分）。 */
+/**
+ * `PATCH /v1/shares/received/:id/items/:item_key` に適用
+ * （userId + share_id・60 回/分。api-contract-delta.md §0.3）。
+ */
 export function ThrottleShareWrite(): ClassDecorator & MethodDecorator {
   return applyDecorators(
-    UseGuards(TokenThrottlerGuard),
+    UseGuards(UserShareThrottlerGuard),
     SkipThrottle(skipAllExcept(THROTTLER_NAME.SHARE_WRITE)),
   );
 }

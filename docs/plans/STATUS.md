@@ -4,7 +4,7 @@
 各計画の詳細は `docs/plans/<feature>/` 配下（`requirements.md` / `api-contract*.md` / `plan.md` / `review.md`）を正とする。
 本ファイルは索引であり、内容が古くなったら都度更新する（作業開始・完了のたびに反映すること）。
 
-最終更新: 2026-08-07
+最終更新: 2026-08-08
 
 ---
 
@@ -14,6 +14,7 @@
 |---|---|---|
 | 2026-08-05 | **アプリ不要の独立共有 Web（Next.js / Cloudflare Pages）は作らない** | 閲覧・編集の正は iOS `SharedBoard` + `GET/PATCH /public/shares/:token`。`docs/00`〜`09`・本 STATUS を更新。roadmap 1-7 は廃止（工数 0）。Universal Links は任意の後続 |
 | 2026-08-07 | **共有はアカウント招待制に完全移行する。公開トークン経路は廃止** | `GET/PATCH /public/shares/:token` を削除し、受け取りは Bearer 必須の受信箱（`/v1/shares/received/*`）に一本化。`share_recipients` が ACL の実体。`docs/10` §3 の「Phase 2 で再決定」に対する決定。計画は `docs/plans/share-account-invites/`。**副作用: `docs/09` の KPI「共有リンク経由の新規インストール比率 ≥ 10%」は達成不能になるため要再設定（未起票）** |
+| 2026-08-08 | 共有アカウント招待制化（BE/iOS）実装完了。`docs/03`・`docs/04`・`docs/05`・`docs/09`・`CLAUDE.md`・本 STATUS を実装内容に追従。**未実施: `code-reviewer` レビュー** | BE検証ゲート緑（883テスト）。§9 参照 |
 
 ---
 
@@ -24,8 +25,8 @@ BE: ドメイン + 認証拡張 + home/stats/sync/billing（2026-08-05 完了）
 iOS: ネットワーク接続・home/summary・ペイウォール・stats/identities 接続（2026-08-05）
 次: 同期エンジン（`docs/plans/ios-sync-engine/`）→ AdMob（Phase 1-11）
 共有: 独立 Web ビューは対象外。アプリ内 SharedBoard が正
-共有の認可: **アカウント招待制へ完全移行（計画確定・実装待ち — `docs/plans/share-account-invites/`）**
-            公開経路 `/public/shares/:token` は廃止。受け取りはアプリ内受信箱に一本化
+共有の認可: **アカウント招待制へ完全移行済み（実装完了・レビュー待ち — `docs/plans/share-account-invites/`）**
+            公開経路 `/public/shares/:token` は削除済み。受け取りはアプリ内受信箱（Bearer必須）に一本化
 ```
 
 ---
@@ -215,58 +216,45 @@ T0(Spike)→T5(Domain: AdPlacement/AdGatekeeper/AdsStore)→T9(App: SDK初期化
 - `.claude/rules/feedback_review_patterns.md` に INFRA-1〜5 追記
 - 初回セットアップ手順: `infra/terraform/README.md`
 
-## 9. 共有のアカウント招待制化 — `docs/plans/share-account-invites/`（✅ **計画確定・実装待ち**）
+## 9. 共有のアカウント招待制化 — `docs/plans/share-account-invites/`（✅ **実装完了・レビュー待ち**）
 
-共有を「トークンURLを知っていれば誰でも閲覧・編集できる」から「**招待されたアカウントだけ**」に変える。
+共有を「トークンURLを知っていれば誰でも閲覧・編集できる」から「**招待されたアカウントだけ**」に変えた。
 ユーザー要望（2026-08-07）。`docs/10-mock-delta-2026-07-31.md` §3 が「Phase 2 で再決定」としていた項目の**再決定そのもの**（`docs/10` §3・§4 は決定内容に更新済み）。
+Q14 は **14-a**（`SharedBoardLink` / ディープリンク `meigicho://share/<token>` / `redeem` エンドポイントは残す）で実装済み。
 
-**現状の実装で確認した事実（＝この変更の必要性）**:
+### 実装内容（BE・2026-08-08 現在: `apps/api/src` に反映済み）
 
-- `GET/PATCH /public/shares/:token` は `@Public()` で**認証不要**（`apps/api/src/public/public.controller.ts:36,48`）
-- 認可判定は「トークンが有効か」だけ。呼び出し元アカウントを一切見ていない（`resolve-share.use-case.ts:41` / `update-share-item.use-case.ts:56`）
-- `shared_with_account_ids` は保存されるだけで**どの判定にも使われていない**（記録用メタ）
-- したがって現在は **URL さえ知っていれば第三者が他人の当落・座席を書き換えられる**（`docs/09` リスク L3 の未緩和部分）
-
-### 確定した設計（2026-08-07・ユーザー回答 Q1〜Q13）
-
-| 項目 | 決定 |
+| 項目 | 内容 |
 |---|---|
-| 公開経路 | **`GET/PATCH /public/shares/:token` を完全廃止**（Q1=**A**）。`visibility` のような「公開共有」enum は作らない |
-| ACL | `share_recipients` テーブル（`share_link_id` × `account_id` / `user_id`）。招待は**1〜20件必須** |
-| 受け取り側 | アプリ内**受信箱** `GET /v1/shares/received` + `GET/PATCH /v1/shares/received/:id`（Bearer 必須） |
-| 非招待者 | token 経路（redeem）→ **403 `SHARE_NOT_INVITED`** / id 経路 → **404 `SHARE_INVALID`**（存在を confirm しない） |
-| 承諾 | 不要（招待即表示）。受け取り側は「非表示」可・オーナーには見せない |
-| 未知 ACC-ID | 400 `SHARE_RECIPIENT_UNKNOWN` + `details.unknown_account_ids`（打ち間違い救済） |
-| 既存データ | **全件 `revoked_at` で失効**（Q9=9-3）。backfill しない |
-| iOS | `PublicApiClient` / `KeychainSharedBoardTokenStore` / `OpenSharedBoardView` を**削除**。board は `ApiClient`（Bearer）へ統一 |
-| 通知 | アプリ内バッジのみ（APNs は roadmap 1-12 でスコープ外） |
+| 公開経路 | `GET/PATCH /public/shares/:token` を**完全削除**（`apps/api/src/public/` ディレクトリごと消滅。マスキング・ペイロード組み立ての中核は `apps/api/src/shares/board/` へ移設し、中身は変更なし） |
+| ACL | `ShareRecipient` モデル新設（`share_recipients` テーブル、`@@unique([shareLinkId, accountId])` + `@@index([userId])`）。`ShareLink.sharedWithAccountIds` は Prisma schema から削除 |
+| オーナー側 | `POST /v1/shares`（`shared_with_account_ids` 1〜20件必須）、`GET /v1/shares`（`recipients` 返却）、`POST/DELETE /v1/shares/:id/recipients` |
+| 受け取り側 | `apps/api/src/shares/received/`（全 Bearer 必須）: `GET /v1/shares/received`（受信箱一覧）、`GET/PATCH /v1/shares/received/:id`（board 読み取り・書き込み）、`POST /v1/shares/received/redeem`（token→share_id）、`POST/DELETE /v1/shares/received/:id/hide` |
+| 判定順序 | PATCH は招待判定（②）を `permission` 判定（③）より前に実装済み（AC-SI-29）。非招待者は token 経路 403 `SHARE_NOT_INVITED` / id 経路 404 `SHARE_INVALID` で出し分け済み（AC-SI-21・AC-SI-26） |
+| エラーコード | `SHARE_NOT_INVITED`(403) / `SHARE_RECIPIENT_UNKNOWN`(400) / `SHARE_RECIPIENT_SELF`(400) 追加済み |
+| 既存データ移行 | `apps/api/src/shares/migrations/`（全件 `revoked_at` 失効・冪等）実行済み |
+| `app.setup.ts` / `app.module.ts` | `GLOBAL_PREFIX_EXCLUDE` から `public/shares/*` の2行削除、`PublicModule` 登録解除。`health`/`readyz`/webhook は維持 |
 
-**トレードオフ**: 公開経路の廃止により `docs/09` の KPI「共有リンク経由の新規インストール比率 ≥ 10%」は達成不能になる。プロダクト方針を優先した結果で、**KPI 再設定は `docs/09` 側の残課題**（本計画では扱わない）。
+### 実装内容（iOS・2026-08-08 現在）
 
-| 成果物 | 内容 |
+| 項目 | 内容 |
 |---|---|
-| `questions-requirements.md` | Q1〜Q13 **回答済み** / **Q14 のみ未回答**（後述） |
-| `requirements.md` | FR-1〜5 / NFR-1〜8 / AC-SI-01〜77-M / エッジケース E-1〜15 / 影響範囲（層別ファイル一覧） |
-| `api-contract-delta.md` | `share_recipients` schema・`/v1/shares/received/*`・招待CRUD・公開経路削除・403/404 の判定順序表・iOS マッピング |
-| `plan.md` | 設計判断 D1〜D10・タスク T1〜T13（Wave 0〜7）・ファイル所有表・AC→テスト対応・委譲プロンプト案・手動確認 11 項目 |
+| 削除 | `PublicApiClient.swift` / `KeychainSharedBoardTokenStore` 系 / `OpenSharedBoardView.swift`（URL貼り付け画面）。広告禁止画面リスト（`AdSlotForbiddenScreensTests.swift` / `AdGatekeeperTests.swift`）から名指しも除去済み |
+| 新規 | `Domain/SharedInboxStore.swift`、`RemoteSharedInboxRepository`、`Features/SharedInbox/`（受信箱画面）、`Domain/Models` の `ShareRecipient` / `SharedInboxItem` |
+| 変更 | `SharedBoardStore` / `RemoteSharedBoardRepository` を token 起点 → `shareID` 起点へ、`AppRoute.sharedBoard(token:)` → `.sharedBoard(shareID:)`、`AppEnvironment`（`publicApiClient` 等を削除・`sharedInboxRepository` 注入）、`DeepLinkRouter`（未ログイン時は保留トークンを保持しサインイン後に再試行）、`ShareRecipientsView`（招待必須化・追加削除UI） |
+| 保持 | `SharedBoardLink`（token 抽出の純粋パーサ）と `meigicho://share/<token>` ディープリンク受け口（Q14=14-a） |
 
-### 実装着手前に残っている確認事項
+### 検証結果（2026-08-08・本ドキュメント更新セッションで再実行）
 
-**Q14（1 件のみ）**: Q1=A 確定により新たに生じた論点。Q7/Q8 は `POST /v1/shares/received/redeem` と 403 を残すと確定した一方、Q11 は `SharedBoardLink`（URL から token を取り出す純粋パーサ）を削除すると確定しており、**そのままだと redeem の iOS 呼び出し元が消えて死んだ契約になる**。
+- BE: `cd apps/api && npx tsc --noEmit`（クリーン）/ `npm test`（**87 suites / 883 tests 全緑**）/ `npm run build`（成功）
+- iOS: 実装コミット（`1618b70` まで）時点でフルビルド・全テスト緑（本セッションはdocsのみのため再ビルドは未実施。挙動変更なし）
 
-- **14-a（planner 提案・`plan.md` はこの前提で記述済み）**: `SharedBoardLink` とディープリンク `meigicho://share/<token>` は残す。削除するのは `PublicApiClient` / `KeychainSharedBoardTokenStore` / `OpenSharedBoardView`（URL貼り付け画面）
-- **14-b**: 全部削除し redeem ごと廃止。`POST /v1/shares` から `token`/`url` も削除。ただし**確定要件 F2（403 で拒否）が実質無効化される**
+### トレードオフ・残課題
 
-14-a なら `plan.md` のまま着手可。14-b なら `plan.md` §11 の差分を適用してから着手する。
-
-### 実装時の既知の落とし穴（`plan.md` §12 リスク表より）
-
-- `apps/api/src/public/` を丸ごと削除しないこと。**マスキングとペイロード組み立ての中核**が入っており `shares/board/` へ移設する（`api-contract-delta.md` §5 に「削除してはいけないもの」表あり）
-- `app.setup.ts` の `GLOBAL_PREFIX_EXCLUDE` から `health` / `readyz` を巻き添えで消さない
-- `OpenSharedBoardView.swift` は**広告禁止画面リストに名指しで載っている**（`AdSlotForbiddenScreensTests.swift:20` / `AdGatekeeperTests.swift:146`）。削除時に同時修正しないとテストが落ちる
-- `PublicApiClient.swift` の「受け取り側はログインしていない前提・401 でログアウトさせない（R7 / AC-SB-13-M）」というコメントは**前提が反転する**。放置は IOS-2 相当の事故
-
-**影響半径の注意**: `PublicApiClient.swift` は「受け取り側はログインしていない前提・401 でログアウトさせない（R7 / AC-SB-13-M）」を設計意図としてコメントで明文化しており、本変更で**この前提が反転する**。書き換え漏れは IOS-2 相当の事故になる。
+- **KPI 再設定が未着手**: 公開経路の廃止により `docs/09` の KPI「共有リンク経由の新規インストール比率 ≥ 10%」（Phase 1・Phase 2 とも）は達成不能。`docs/09-roadmap.md` に取消線 + 脚注で明記済み。**削除するか置き換えるかの意思決定は未着手**（本計画のスコープ外）
+- `docs/plans/share-account-invites/questions-requirements.md` の Q14 は本文中の `[Answer]` 欄では 14-a 確定と書かれているが、末尾の「回答状況」表・結語では「未回答」のままになっており**自己矛盾がある**（今回の docs 追従作業では対象外。実装は 14-a で確定済みのため実害はないが、要修正）
+- 手動確認手順（`plan.md` §9・11項目）が実機/シミュレータで実施されたかは本セッションでは未確認。次回レビュー時に確認すること
+- `code-reviewer`（別セッション・T13）が未実施。レビュー後の重大ゼロ確認が完了条件
 
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 

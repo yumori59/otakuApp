@@ -52,6 +52,73 @@ final class ShareLinkStoreTests: XCTestCase {
         }
     }
 
+    /// 招待は 1 件以上必須（`api-contract-delta.md` §1）。0 件は誰も開けないリンクになる。
+    func testCreateWithNoRecipientsIsRejectedBeforeCallingRepository() async {
+        let repository = FakeShareRepository()
+        let store = ShareLinkStore(repository: repository, now: { [now] in now })
+
+        let issued = await store.createTourLink(tourID: tourA, permission: .read, recipientIDs: [])
+
+        XCTAssertNil(issued)
+        let created = await repository.createCalls
+        XCTAssertTrue(created.isEmpty)
+        guard case .validation = store.actionError else {
+            return XCTFail("expected .validation but was \(String(describing: store.actionError))")
+        }
+    }
+
+    // MARK: - 発行後の招待の追加・削除（§3）
+
+    /// `POST /v1/shares/:id/recipients` の戻り値は**追加後の全件**。手元はそれで置き換える。
+    func testAddRecipientsReplacesLocalListWithServerTruth() async {
+        let repository = FakeShareRepository()
+        let store = ShareLinkStore(repository: repository, now: { [now] in now })
+        let issued = await store.createTourLink(
+            tourID: tourA,
+            permission: .read,
+            recipientIDs: ["ACC-3F9A21"]
+        )
+        let shareID = try! XCTUnwrap(issued?.link.id)
+
+        await store.addRecipients(shareID: shareID, accountIDs: ["ACC-9F8E7D"])
+
+        XCTAssertEqual(store.recipientIDs(forTour: tourA), ["ACC-3F9A21", "ACC-9F8E7D"])
+        XCTAssertNil(store.actionError)
+    }
+
+    /// 冪等: 既に招待済みの ID を再送しても重複しない。
+    func testAddRecipientsIsIdempotent() async {
+        let repository = FakeShareRepository()
+        let store = ShareLinkStore(repository: repository, now: { [now] in now })
+        let issued = await store.createTourLink(
+            tourID: tourA,
+            permission: .read,
+            recipientIDs: ["ACC-3F9A21"]
+        )
+        let shareID = try! XCTUnwrap(issued?.link.id)
+
+        await store.addRecipients(shareID: shareID, accountIDs: ["ACC-3F9A21"])
+
+        XCTAssertEqual(store.recipientIDs(forTour: tourA), ["ACC-3F9A21"])
+    }
+
+    /// **最後の 1 人を外しても成功する**（AC-SI-12）。UI 側で止めない。
+    func testRemoveLastRecipientIsAllowed() async {
+        let repository = FakeShareRepository()
+        let store = ShareLinkStore(repository: repository, now: { [now] in now })
+        let issued = await store.createTourLink(
+            tourID: tourA,
+            permission: .read,
+            recipientIDs: ["ACC-3F9A21"]
+        )
+        let shareID = try! XCTUnwrap(issued?.link.id)
+
+        await store.removeRecipient(shareID: shareID, accountID: "ACC-3F9A21")
+
+        XCTAssertTrue(store.recipientIDs(forTour: tourA).isEmpty)
+        XCTAssertNil(store.actionError)
+    }
+
     // MARK: - AC-SH-04-T: permission は enum でしか選べない
 
     func testTourSelectionCarriesChosenPermissionAndIdentitySummaryCarriesNone() {
@@ -89,7 +156,7 @@ final class ShareLinkStoreTests: XCTestCase {
         let repository = FakeShareRepository()
         let store = ShareLinkStore(repository: repository, now: { [now] in now })
 
-        _ = await store.createIdentitySummaryLink()
+        _ = await store.createIdentitySummaryLink(recipientIDs: ["ACC-3F9A21"])
 
         let calls = await repository.createCalls
         XCTAssertEqual(calls[0].selection, .identitySummary)
@@ -103,7 +170,7 @@ final class ShareLinkStoreTests: XCTestCase {
         )
         let store = ShareLinkStore(repository: repository, now: { [now] in now })
 
-        let issued = await store.createTourLink(tourID: tourA, permission: .write)
+        let issued = await store.createTourLink(tourID: tourA, permission: .write, recipientIDs: ["ACC-3F9A21"])
 
         XCTAssertNil(issued)
         XCTAssertEqual(store.actionError, .planLimitShareWrite(limit: 3, current: 8))
@@ -114,7 +181,7 @@ final class ShareLinkStoreTests: XCTestCase {
         let repository = FakeShareRepository(createError: .planLimitShareWrite(limit: nil, current: nil))
         let store = ShareLinkStore(repository: repository, now: { [now] in now })
 
-        _ = await store.createTourLink(tourID: tourA, permission: .write)
+        _ = await store.createTourLink(tourID: tourA, permission: .write, recipientIDs: ["ACC-3F9A21"])
 
         XCTAssertEqual(store.actionError, .planLimitShareWrite(limit: nil, current: nil))
         XCTAssertFalse(store.actionError!.userMessage.isEmpty)
@@ -252,7 +319,7 @@ final class ShareLinkStoreTests: XCTestCase {
             scopeName: nil,
             permission: .read,
             maskMemberNo: true,
-            sharedWithAccountIDs: [],
+            recipients: [],
             expiresAt: expiresAt,
             revokedAt: revokedAt,
             createdAt: createdAt,
@@ -270,7 +337,19 @@ private actor FakeShareRepository: ShareRepository {
         let recipients: [String]
     }
 
+    struct AddRecipientsCall: Equatable {
+        let shareID: UUID
+        let accountIDs: [String]
+    }
+
+    struct RemoveRecipientCall: Equatable {
+        let shareID: UUID
+        let accountID: String
+    }
+
     private(set) var createCalls: [CreateCall] = []
+    private(set) var addRecipientCalls: [AddRecipientsCall] = []
+    private(set) var removeRecipientCalls: [RemoveRecipientCall] = []
     private(set) var revokeCalls: [UUID] = []
     private(set) var listCallCount = 0
 
@@ -309,12 +388,28 @@ private actor FakeShareRepository: ShareRepository {
             scopeID: selection.scopeID,
             permission: selection.permission ?? .read,
             maskMemberNo: maskMemberNo,
-            sharedWithAccountIDs: sharedWithAccountIDs,
+            recipients: sharedWithAccountIDs.map { ShareRecipient(accountID: $0, invitedAt: Date()) },
             createdAt: Date(),
             isActive: true
         )
         links.append(link)
         return IssuedShareLink(link: link, token: token, url: "https://example.invalid/s/\(token)")
+    }
+
+    func addRecipients(shareID: UUID, accountIDs: [String]) async throws -> [ShareRecipient] {
+        addRecipientCalls.append(AddRecipientsCall(shareID: shareID, accountIDs: accountIDs))
+        guard let index = links.firstIndex(where: { $0.id == shareID }) else { throw AppError.notFound }
+        let now = Date()
+        for accountID in accountIDs where !links[index].recipients.contains(where: { $0.accountID == accountID }) {
+            links[index].recipients.append(ShareRecipient(accountID: accountID, invitedAt: now))
+        }
+        return links[index].recipients
+    }
+
+    func removeRecipient(shareID: UUID, accountID: String) async throws {
+        removeRecipientCalls.append(RemoveRecipientCall(shareID: shareID, accountID: accountID))
+        guard let index = links.firstIndex(where: { $0.id == shareID }) else { throw AppError.notFound }
+        links[index].recipients.removeAll { $0.accountID == accountID }
     }
 
     func revoke(id: UUID) async throws {

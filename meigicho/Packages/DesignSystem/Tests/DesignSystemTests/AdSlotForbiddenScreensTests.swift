@@ -17,7 +17,6 @@ final class AdSlotForbiddenScreensTests: XCTestCase {
         "Forms/SheetContentView.swift",
         "Share/SharePreviewView.swift",
         "SharedBoard/SharedBoardView.swift",
-        "SharedBoard/OpenSharedBoardView.swift",
     ]
 
     private var featuresSourcesRoot: URL {

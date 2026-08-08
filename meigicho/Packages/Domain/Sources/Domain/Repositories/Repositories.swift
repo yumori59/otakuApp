@@ -79,24 +79,56 @@ public protocol ApplicationRepository: Sendable {
 public protocol ShareRepository: Sendable {
     func list() async throws -> [ShareLink]
     /// 発行時のみ token / url を受け取れる（C4）。
+    ///
+    /// `sharedWithAccountIDs` は **1 件以上必須**（`POST /v1/shares` のリクエストキーは
+    /// `shared_with_account_ids` のまま）。存在しない ACC-ID が混ざると
+    /// `.shareRecipientUnknown(accountIDs:)`、自分自身を含めると `.validation` で失敗し、
+    /// **共有は作られない**（`api-contract-delta.md` §1 の判定順序）。
     func create(
         _ selection: ShareScopeSelection,
         maskMemberNo: Bool,
         sharedWithAccountIDs: [String]
     ) async throws -> IssuedShareLink
+    /// `POST /v1/shares/:id/recipients`。**戻り値は追加後の全件**（差分ではない）。
+    /// 既に招待済みの ACC-ID は冪等（`invitedAt` も更新されない）。
+    func addRecipients(shareID: UUID, accountIDs: [String]) async throws -> [ShareRecipient]
+    /// `DELETE /v1/shares/:id/recipients/:account_id`。204・冪等。
+    /// **最後の 1 人を外しても成功する**（以後そのリンクは誰も開けない）。
+    func removeRecipient(shareID: UUID, accountID: String) async throws
     func revoke(id: UUID) async throws
 }
 
-/// 共有ボード（受け取り側）。**Bearer を使わない。token が唯一の資格情報**（§5.1）。
-/// 実装は `PublicApiClient` のみを使い、`ApiClient` / `TokenStore` を参照しない。
+/// 共有ボード（受け取り側）。**Bearer 必須**（`GET|PATCH /v1/shares/received/:id`）。
+///
+/// 以前は「受け取った人はログインしていない前提」の公開経路（`/public/shares/:token`）だったが、
+/// **その前提は廃止された**。開けるのは招待されたアカウントとオーナー本人だけで、
+/// addressing は token ではなく `share_id`。実装は通常の `ApiClient`（Bearer）を使う。
+///
+/// 招待されていない `share_id` は **404 `.shareInvalid`** で返る（403 にしない = 存在を confirm しない）。
 public protocol SharedBoardRepository: Sendable {
-    func fetchBoard(token: String) async throws -> SharedBoard
+    func fetchBoard(shareID: UUID) async throws -> SharedBoard
     func updateItem(
-        token: String,
+        shareID: UUID,
         itemKey: String,
         rev: String,
         change: SharedItemChange
     ) async throws -> SharedBoardItem
+}
+
+/// 受信箱（**自分が招待された共有**・Bearer 必須）。`api-contract-delta.md` §4.1 / §4.4 / §4.5。
+public protocol SharedInboxRepository: Sendable {
+    /// `GET /v1/shares/received`。失効・期限切れ・非表示・自分がオーナーのものは含まれない。
+    /// 招待 0 件でも空配列（エラーにしない）。
+    func list() async throws -> [SharedInboxItem]
+    /// `POST /v1/shares/received/redeem`。ディープリンクの token を `share_id` に交換する。
+    ///
+    /// - 招待済み / オーナー本人 → `share_id`
+    /// - **招待されていない → `.shareNotInvited`**（契約上ここだけが 403 で存在を confirm する）
+    /// - 未知 / 失効 / 期限切れ → `.shareInvalid`（3 者を区別しない）
+    func redeem(token: String) async throws -> UUID
+    /// `POST|DELETE /v1/shares/received/:id/hide`。204・冪等。
+    /// 非表示はオーナーには見えない（Q3）。
+    func setHidden(shareID: UUID, hidden: Bool) async throws
 }
 
 /// LWW 差分同期（`docs/04` §4）。実装は Network / 将来の SyncEngine。

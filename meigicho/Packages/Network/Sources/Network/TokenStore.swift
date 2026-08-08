@@ -5,7 +5,8 @@ import Core
 /// refresh token の保管（`questions-requirements.md` Q6）。
 ///
 /// - **refresh token だけ**を保管する。access token はメモリのみ（`ApiClient`）
-/// - 共有ボードの token は**別 service 名前空間**で `SharedBoardTokenStore`（T4b）が持つ。ここに混ぜない
+/// - 共有ボードの token は**保管しない**。ディープリンクで受けた token はその場で `redeem` して
+///   `share_id` に交換するだけ（`SharedBoardTokenStore` は共有のアカウント招待制化で廃止された）
 /// - 値をログに出さない（`AppLogger` は `code` / `requestID` しか受け取れない）
 public protocol RefreshTokenStoring: Sendable {
     func read() async -> String?

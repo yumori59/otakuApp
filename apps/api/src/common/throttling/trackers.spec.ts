@@ -1,4 +1,9 @@
-import { emailTracker, tokenTracker, userTracker } from './trackers';
+import {
+  emailTracker,
+  tokenTracker,
+  userShareTracker,
+  userTracker,
+} from './trackers';
 
 describe('throttling trackers', () => {
   describe('emailTracker', () => {
@@ -31,6 +36,18 @@ describe('throttling trackers', () => {
 
     it('AC-T0-05 params が無ければ空文字', () => {
       expect(tokenTracker({})).toBe('');
+    });
+  });
+
+  describe('userShareTracker', () => {
+    it('AC-SI-05 req.user.id と req.params.id を `:` で連結して返す', () => {
+      expect(
+        userShareTracker({ user: { id: 'user-1' }, params: { id: 'share-1' } }),
+      ).toBe('user-1:share-1');
+    });
+
+    it('AC-SI-05 user / params が無ければ空文字部分を連結する', () => {
+      expect(userShareTracker({})).toBe(':');
     });
   });
 });

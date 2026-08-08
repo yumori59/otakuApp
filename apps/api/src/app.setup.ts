@@ -4,12 +4,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 export const GLOBAL_PREFIX = 'v1';
 
 /** /v1 を付けないルート（api-contract.md §0）。 */
-export const GLOBAL_PREFIX_EXCLUDE = [
-  'health',
-  'readyz',
-  'public/shares/:token',
-  'public/shares/:token/items/:item_key',
-];
+export const GLOBAL_PREFIX_EXCLUDE = ['health', 'readyz'];
 
 /**
  * main.ts と spec で同じグローバル設定を使うための共通化。

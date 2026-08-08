@@ -31,3 +31,23 @@ describe('error-codes (backend-auth-and-shares-extension)', () => {
     expect(errorCodeFromStatus(429)).toBe(ErrorCode.RATE_LIMITED);
   });
 });
+
+describe('error-codes (share-account-invites)', () => {
+  it('AC-SI-T1-01 追加 3 コードが api-contract-delta.md §0.1 のステータスで載っている', () => {
+    expect(ERROR_CODE_STATUS[ErrorCode.SHARE_NOT_INVITED]).toBe(
+      HttpStatus.FORBIDDEN,
+    );
+    expect(ERROR_CODE_STATUS[ErrorCode.SHARE_RECIPIENT_UNKNOWN]).toBe(
+      HttpStatus.BAD_REQUEST,
+    );
+    expect(ERROR_CODE_STATUS[ErrorCode.SHARE_RECIPIENT_SELF]).toBe(
+      HttpStatus.BAD_REQUEST,
+    );
+  });
+
+  it('AC-SI-T1-02 SHARE_INVALID は 404 のまま（招待外も 404 に落とすため）', () => {
+    expect(ERROR_CODE_STATUS[ErrorCode.SHARE_INVALID]).toBe(
+      HttpStatus.NOT_FOUND,
+    );
+  });
+});

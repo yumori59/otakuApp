@@ -7,8 +7,9 @@ import Domain
 /// `auth.signed_in_user`）だけを消す。**画面側の各ストアとテーマ設定はここで揃えてクリアする**
 /// （旧 `AccountView` の logout 経路が `profile.clear()` しか呼んでいなかった取りこぼしの是正）。
 ///
-/// `KeychainSharedBoardTokenStore`（他人から受け取った共有ボードのトークン）は**対象外**
-/// （自アカウントと無関係な受信側の資産のため触らない）。
+/// 受信箱（`SharedInboxStore`）と共有ボード（`SharedBoardStore`）は**ここでは触らない**。
+/// どちらもサーバーが正のメモリ上のデータで、`AuthState.signedOut` を受けた App 層の
+/// `SharedBoardDeepLink`（`App/DeepLinkRouter.swift`）が一括で捨てる。
 @MainActor
 enum AccountLocalDataClearing {
     static func clearAll(

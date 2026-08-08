@@ -1,51 +1,29 @@
 import Foundation
 import Core
 
-// 共有ボード（受け取り側）。**Bearer 認証を使わない経路**（`contract-mapping.md` §4.8 / §5.1）。
+// 共有ボード（受け取り側）。**Bearer 必須の経路**（`api-contract-delta.md` §4.2 / §4.3）。
 //
 // このファイルが知っていること:
-// - 資格情報は URL 中の token だけ。自分のアカウントとは無関係
+// - 共有は**招待されたアカウントだけ**が開ける。受け取り側は必ず自分のアカウントでログインしている
+// - addressing は `share_id`。token はディープリンクの入口でしか現れず、
+//   `redeem`（§4.4）で `share_id` に交換してから使う
 // - `item_key` / `rev` は不透明値。解釈も生成もしない
-// - ボードの内容は**ローカル永続化しない**。保存するのは token と表示用の最小メタだけ
-
-// MARK: - 受け取った共有 token の保管
-
-/// Keychain に保存する 1 本の共有 token とその表示用メタ。
-/// **表データは持たない**（`contract-mapping.md` §5.1）。
-public struct SavedSharedBoard: Equatable, Sendable, Identifiable, Codable {
-    public let token: String
-    /// 一覧表示用のツアー名（取得できたときだけ）
-    public var title: String?
-    public var lastOpenedAt: Date?
-
-    public init(token: String, title: String? = nil, lastOpenedAt: Date? = nil) {
-        self.token = token
-        self.title = title
-        self.lastOpenedAt = lastOpenedAt
-    }
-
-    public var id: String { token }
-}
-
-/// 受け取った共有 token の保管先。
-///
-/// 実装は `Network` の `KeychainSharedBoardTokenStore`（**自分の refresh token とは別 service 名前空間**）。
-/// `Domain` は `Foundation` しか import しないので、protocol だけをここに置く（NFR-5）。
-public protocol SharedBoardTokenStoring: Sendable {
-    func list() async -> [SavedSharedBoard]
-    func save(_ board: SavedSharedBoard) async
-    func remove(token: String) async
-}
+// - ボードの内容は**ローカル永続化しない**（メモリだけ）
+//
+// **旧前提の破棄**: かつてこの経路は `/public/shares/:token` で、
+// 「受け取った人はログインしていない」「公開経路の 401 で自分のアカウントをログアウトさせない」
+// ことを設計の中心に置いていた。Q1=A で公開経路が廃止されたため**その前提はもう無い**。
+// 401 → refresh → 失敗 → ログアウトは自分のセッションに対する想定どおりの挙動になる。
 
 // MARK: - 共有リンクの URL から token を取り出す（純粋関数）
 
-/// 共有リンクの入力（URL 貼り付け / カスタムスキーム）から token を取り出す。
+/// 共有リンクの入力（カスタムスキーム / URL 貼り付け）から token を取り出す。
 ///
-/// **Universal Links は本計画のスコープ外**（`plan.md` §7.7）。ここでは
-/// - カスタムスキーム `meigicho://share/<token>`
-/// - 共有 URL（`https://.../s/<token>` / `https://.../public/shares/<token>` など）
-/// - token そのものの貼り付け
-/// の 3 通りを受ける。**token の中身は解釈しない**（不透明値）。
+/// 発行される URL は **`meigicho://share/<token>` だけ**（`api-contract-delta.md` §1）。
+/// ただしユーザーが手で貼り付ける経路があるので、旧 https 形式と token 直貼りも受け付ける。
+/// **ここは形だけを見る。** 有効か・招待されているかは `redeem`（サーバー）が決める。
+///
+/// Universal Links はスコープ外（`docs/09-roadmap.md` 1-7 と同時の別計画）。
 public enum SharedBoardLink {
     /// アプリのカスタムスキーム（`Info.plist` の `CFBundleURLSchemes`）。
     public static let scheme = "meigicho"
@@ -80,8 +58,9 @@ public enum SharedBoardLink {
             return validated(components.first)
         }
 
-        // http(s) の共有 URL。最後のパス要素を token とみなす。
-        // `/public/shares/<token>` / `/s/<token>` のどちらでも同じ扱い
+        // 旧 https 形式の貼り付け（`/s/<token>` / `/public/shares/<token>`）。
+        // **サーバー側の経路はもう無い**が、古いメッセージから拾った文字列でも
+        // token として `redeem` に回せるように最後のパス要素だけ取り出す
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
         return validated(components.last)
     }
@@ -97,39 +76,41 @@ public enum SharedBoardLink {
 
 /// 共有ボード（受け取り側）のストア。
 ///
-/// **`ApiClient` / `TokenStore` に一切触れない。** 401 での refresh / サイレントログアウトが
-/// 起きる経路と配線で結ばない（`contract-mapping.md` §5.1 の理由 2 / AC-SB-13-M）。
+/// 起点は 2 つ:
+/// - `open(shareID:)` — 受信箱の行タップ（`share_id` を既に持っている）
+/// - `open(token:)` — ディープリンク / 貼り付け（`redeem` で `share_id` に交換してから開く）
 @MainActor
 @Observable
 public final class SharedBoardStore {
     /// 現在開いているボード。**永続化しない**
     public private(set) var board: SharedBoard?
     public private(set) var state: LoadState = .idle
-    /// `SHARE_INVALID` を受けた（この共有は終了している）
+    /// `SHARE_INVALID` を受けた（未知 / 失効 / 期限切れ / 自分は招待されていない）。
+    /// **サーバーは理由を区別しない**ので、こちらも推測して説明しない（NFR-1）
     public private(set) var isEnded = false
+    /// `redeem` が `SHARE_NOT_INVITED` を返した。**この 1 経路だけが「招待されていない」と言える**
+    public private(set) var isNotInvited = false
     /// ボード全体に出す 1 行メッセージ（レート制限など）
     public var actionError: AppError?
     /// 行ごとのメッセージ（`itemID` → 文言）。**その行にだけ出す**
     public private(set) var itemMessages: [String: String] = [:]
     /// 保存中の行（二重送信を防ぐ）
     public private(set) var savingItemIDs: Set<String> = []
-    /// 現在開いている token（画面表示には使わない）
-    public private(set) var openedToken: String?
+    /// 現在開いている共有の id。`reload` と PATCH の addressing に使う
+    public private(set) var openedShareID: UUID?
 
     private let repository: (any SharedBoardRepository)?
-    private let tokenStore: (any SharedBoardTokenStoring)?
-    private let now: @Sendable () -> Date
+    /// `open(token:)`（ディープリンク）のためだけに使う。受信箱一覧は `SharedInboxStore` の担当
+    private let inboxRepository: (any SharedInboxRepository)?
     private let logger = AppLogger(category: "shared-board")
 
-    /// 引数を省略した形は **Preview 専用**（ネットワークにも Keychain にも触らない）。
+    /// 引数を省略した形は **Preview 専用**（ネットワークに触らない）。
     public init(
         repository: (any SharedBoardRepository)? = nil,
-        tokenStore: (any SharedBoardTokenStoring)? = nil,
-        now: @escaping @Sendable () -> Date = { Date() }
+        inboxRepository: (any SharedInboxRepository)? = nil
     ) {
         self.repository = repository
-        self.tokenStore = tokenStore
-        self.now = now
+        self.inboxRepository = inboxRepository
     }
 
     // MARK: - 表示用
@@ -152,22 +133,54 @@ public final class SharedBoardStore {
 
     // MARK: - 取得
 
-    /// token でボードを開く。成功したら token を Keychain に保存する。
-    public func open(token: String) async {
-        openedToken = token
-        isEnded = false
-        actionError = nil
-        itemMessages = [:]
+    /// `share_id` でボードを開く（受信箱からの遷移）。
+    public func open(shareID: UUID) async {
+        openedShareID = shareID
+        resetPresentation()
         state = .loading
-        await load(token: token)
+        await load(shareID: shareID)
     }
 
-    /// いま開いている token で取り直す（ユーザーの明示操作）。
+    /// token でボードを開く（`meigicho://share/<token>` / 貼り付け）。
+    ///
+    /// `redeem` で `share_id` に交換してから `open(shareID:)` と同じ経路に合流する。
+    /// **未招待（403）とリンク無効（404）はここでしか区別できない。**
+    @discardableResult
+    public func open(token: String) async -> UUID? {
+        guard let inboxRepository else {
+            state = .loaded
+            return nil
+        }
+        openedShareID = nil
+        resetPresentation()
+        state = .loading
+        do {
+            let shareID = try await inboxRepository.redeem(token: token)
+            openedShareID = shareID
+            await load(shareID: shareID)
+            return shareID
+        } catch {
+            switch Self.appError(from: error) {
+            case .shareNotInvited:
+                logger.event("shared_board_not_invited")
+                isNotInvited = true
+                state = .loaded
+            case .shareInvalid:
+                isEnded = true
+                state = .loaded
+            case let appError:
+                state = .failed(appError)
+            }
+            return nil
+        }
+    }
+
+    /// いま開いている共有で取り直す（ユーザーの明示操作）。
     public func reload() async {
-        guard let openedToken else { return }
+        guard let openedShareID else { return }
         actionError = nil
         state = .loading
-        await load(token: openedToken)
+        await load(shareID: openedShareID)
     }
 
     public func clearActionError() { actionError = nil }
@@ -178,30 +191,30 @@ public final class SharedBoardStore {
     public func close() {
         board = nil
         state = .idle
-        openedToken = nil
-        isEnded = false
-        actionError = nil
-        itemMessages = [:]
+        openedShareID = nil
+        resetPresentation()
         savingItemIDs = []
     }
 
-    private func load(token: String) async {
+    private func resetPresentation() {
+        isEnded = false
+        isNotInvited = false
+        actionError = nil
+        itemMessages = [:]
+    }
+
+    private func load(shareID: UUID) async {
         guard let repository else {
             state = .loaded
             return
         }
         do {
-            let fetched = try await repository.fetchBoard(token: token)
-            board = fetched
+            board = try await repository.fetchBoard(shareID: shareID)
             state = .loaded
-            await tokenStore?.save(
-                SavedSharedBoard(token: token, title: fetched.displayTitle, lastOpenedAt: now())
-            )
         } catch {
             let appError = Self.appError(from: error)
             if case .shareInvalid = appError {
-                // トークンが未知 / 失効 / 期限切れ。**保存した token を破棄する**（AC-SB-11-M）
-                await discardToken(token)
+                // 未知 / 失効 / 期限切れ / 招待から外された。**理由は区別されない**（AC-SI-21）
                 board = nil
                 isEnded = true
                 state = .loaded
@@ -231,14 +244,14 @@ public final class SharedBoardStore {
         to item: SharedBoardItem,
         optimistic: (inout SharedBoardItem) -> Void
     ) async {
-        guard let repository, let board else { return }
+        guard let repository, board != nil else { return }
         // AC-SB-08-M / AC-SB-09-M: read リンク・`editable: false` の行・identity_summary は編集させない。
         // **理由（プラン超過 / 非公開名義）はサーバーが区別しないので、こちらも推測して説明しない**
         guard let handle = item.handle, handle.editable, canEdit else {
             itemMessages[item.id] = "この行は編集できません"
             return
         }
-        guard let token = openedToken, !savingItemIDs.contains(item.id) else { return }
+        guard let shareID = openedShareID, !savingItemIDs.contains(item.id) else { return }
         guard let index = self.board?.items.firstIndex(where: { $0.id == item.id }) else { return }
 
         let original = self.board?.items[index]
@@ -253,7 +266,7 @@ public final class SharedBoardStore {
 
         do {
             let updated = try await repository.updateItem(
-                token: token,
+                shareID: shareID,
                 itemKey: handle.itemKey,
                 rev: handle.rev,
                 change: change
@@ -264,7 +277,7 @@ public final class SharedBoardStore {
                 Self.appError(from: error),
                 itemID: item.id,
                 original: original,
-                token: token
+                shareID: shareID
             )
         }
     }
@@ -273,7 +286,7 @@ public final class SharedBoardStore {
         _ appError: AppError,
         itemID: String,
         original: SharedBoardItem?,
-        token: String
+        shareID: UUID
     ) async {
         // 失敗したら楽観更新を巻き戻す（`.shareItemConflict` はこの後 current で上書きする）
         if let original { replace(itemID: itemID, with: original) }
@@ -286,9 +299,9 @@ public final class SharedBoardStore {
         case .forbidden:
             itemMessages[itemID] = "この行は編集できません"
         case .shareInvalid:
-            // token 失効か `item_key` 不一致かは**レスポンスから区別できない**（同じ 404）。
+            // 共有の失効か `item_key` 不一致かは**レスポンスから区別できない**（同じ 404）。
             // ボードを取り直して判定する: 取れれば表が変わっただけ、取れなければ共有そのものが終了
-            await load(token: token)
+            await load(shareID: shareID)
             if !isEnded {
                 actionError = .notFound
             }
@@ -324,11 +337,6 @@ public final class SharedBoardStore {
             )
         }
         board?.items[index] = row
-    }
-
-    private func discardToken(_ token: String) async {
-        await tokenStore?.remove(token: token)
-        logger.event("shared_board_token_discarded")
     }
 
     static func appError(from error: Error) -> AppError {

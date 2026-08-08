@@ -3,7 +3,7 @@ import Core
 import Domain
 @testable import Network
 
-/// `contract-mapping.md` §4.7 / `api-contract-delta.md` §3 の DTO 契約（T4）。
+/// `contract-mapping.md` §4.7 / `api-contract-delta.md` §1〜§3 の DTO 契約。
 final class ShareDTOTests: XCTestCase {
     private let decoder = JSONDecoder()
     private let tourID = UUID(uuidString: "018f3c2a-dddd-7c90-9d2a-000000000001")!
@@ -20,7 +20,7 @@ final class ShareDTOTests: XCTestCase {
             CreateShareRequest(
                 selection: .identitySummary,
                 maskMemberNo: true,
-                sharedWithAccountIDs: []
+                sharedWithAccountIDs: ["ACC-3F9A21"]
             )
         )
         XCTAssertEqual(object["scope_type"] as? String, "identity_summary")
@@ -49,7 +49,7 @@ final class ShareDTOTests: XCTestCase {
             CreateShareRequest(
                 selection: .tour(tourID, permission: .write),
                 maskMemberNo: false,
-                sharedWithAccountIDs: []
+                sharedWithAccountIDs: ["ACC-3F9A21", "ACC-9F8E7D"]
             )
         )
         XCTAssertEqual(write["permission"] as? String, "write")
@@ -68,7 +68,7 @@ final class ShareDTOTests: XCTestCase {
             CreateShareRequest(
                 selection: .tour(tourID, permission: .read),
                 maskMemberNo: true,
-                sharedWithAccountIDs: []
+                sharedWithAccountIDs: ["ACC-3F9A21"]
             )
         )
         XCTAssertNil(object.index(forKey: "expires_at"))
@@ -87,7 +87,10 @@ final class ShareDTOTests: XCTestCase {
           "scope_name": "STELLARIS LIVE TOUR 2026",
           "permission": "write",
           "mask_member_no": true,
-          "shared_with_account_ids": ["ACC-3F9A21"],
+          "recipients": [
+            { "account_id": "ACC-3F9A21", "display_name": "ゆう",
+              "invited_at": "2026-08-07T00:00:00.000Z", "last_viewed_at": null }
+          ],
           "expires_at": "2026-08-31T00:00:00.000Z",
           "revoked_at": null,
           "view_count": 3,
@@ -106,9 +109,9 @@ final class ShareDTOTests: XCTestCase {
         XCTAssertFalse(fields.contains("url"))
     }
 
-    // MARK: - 一覧のデコード（edit_count / last_edited_at の追従 = IOS-2）
+    // MARK: - 一覧のデコード（recipients / edit_count / last_edited_at の追従 = IOS-2）
 
-    func testShareResponseDecodesAllFieldsIncludingEditCounts() throws {
+    func testShareResponseDecodesAllFieldsIncludingRecipientsAndEditCounts() throws {
         let json = """
         {
           "items": [{
@@ -118,7 +121,13 @@ final class ShareDTOTests: XCTestCase {
             "scope_name": "STELLARIS LIVE TOUR 2026",
             "permission": "write",
             "mask_member_no": true,
-            "shared_with_account_ids": ["ACC-3F9A21"],
+            "recipients": [
+              { "account_id": "ACC-3F9A21", "display_name": "ゆう",
+                "invited_at": "2026-08-07T00:00:00.000Z",
+                "last_viewed_at": "2026-08-07T09:00:00.000Z" },
+              { "account_id": "ACC-9F8E7D", "display_name": null,
+                "invited_at": "2026-08-07T00:00:00.000Z", "last_viewed_at": null }
+            ],
             "expires_at": "2026-08-31T00:00:00.000Z",
             "revoked_at": null,
             "view_count": 3,
@@ -139,7 +148,12 @@ final class ShareDTOTests: XCTestCase {
         XCTAssertEqual(link.scopeName, "STELLARIS LIVE TOUR 2026")
         XCTAssertEqual(link.permission, .write)
         XCTAssertTrue(link.maskMemberNo)
-        XCTAssertEqual(link.sharedWithAccountIDs, ["ACC-3F9A21"])
+        XCTAssertEqual(link.recipients.map(\.accountID), ["ACC-3F9A21", "ACC-9F8E7D"])
+        XCTAssertEqual(link.recipients[0].displayName, "ゆう")
+        XCTAssertNil(link.recipients[1].displayName)
+        XCTAssertNotNil(link.recipients[0].lastViewedAt)
+        XCTAssertNil(link.recipients[1].lastViewedAt)
+        // `hidden_at` は来ない（Q3）。Domain の `ShareRecipient` にそもそもフィールドが無い
         XCTAssertEqual(link.expiresAt, APIDateFormat.dateTime(from: "2026-08-31T00:00:00.000Z"))
         XCTAssertNil(link.revokedAt)
         XCTAssertEqual(link.viewCount, 3)
@@ -157,7 +171,7 @@ final class ShareDTOTests: XCTestCase {
           "scope_name": null,
           "permission": "read",
           "mask_member_no": true,
-          "shared_with_account_ids": [],
+          "recipients": [],
           "expires_at": null,
           "revoked_at": "2026-08-03T00:00:00.000Z",
           "view_count": 0,
@@ -173,6 +187,7 @@ final class ShareDTOTests: XCTestCase {
         XCTAssertNil(link.scopeID)
         XCTAssertNil(link.expiresAt)
         XCTAssertFalse(link.isActive)
+        XCTAssertTrue(link.recipients.isEmpty)
     }
 
     /// BE-2 の iOS 版: 未知の `permission` を黙って `read` に落とさない。
@@ -185,7 +200,7 @@ final class ShareDTOTests: XCTestCase {
           "scope_name": null,
           "permission": "admin",
           "mask_member_no": true,
-          "shared_with_account_ids": [],
+          "recipients": [],
           "expires_at": null,
           "revoked_at": null,
           "view_count": 0,
@@ -201,17 +216,20 @@ final class ShareDTOTests: XCTestCase {
 
     // MARK: - 発行レスポンス（token / url はここだけ）
 
-    func testCreateShareResponseCarriesTokenAndURL() throws {
+    func testCreateShareResponseCarriesTokenAndURLAndRecipients() throws {
         let json = """
         {
           "id": "018f3c2a-1111-7c90-9d2a-000000000001",
           "token": "abcdef0123456789",
-          "url": "https://share.example/s/abcdef0123456789",
+          "url": "meigicho://share/abcdef0123456789",
           "scope_type": "tour",
           "scope_id": "018f3c2a-dddd-7c90-9d2a-000000000001",
           "permission": "write",
           "mask_member_no": true,
-          "shared_with_account_ids": ["ACC-3F9A21"],
+          "recipients": [
+            { "account_id": "ACC-3F9A21", "display_name": "ゆう",
+              "invited_at": "2026-08-07T00:00:00.000Z", "last_viewed_at": null }
+          ],
           "expires_at": "2026-08-31T00:00:00.000Z",
           "created_at": "2026-08-01T00:00:00.000Z"
         }
@@ -219,14 +237,36 @@ final class ShareDTOTests: XCTestCase {
         let issued = try decoder.decode(CreateShareResponse.self, from: Data(json.utf8)).toDomain()
 
         XCTAssertEqual(issued.token, "abcdef0123456789")
-        XCTAssertEqual(issued.url, "https://share.example/s/abcdef0123456789")
+        // `url` は `meigicho://` カスタムスキーム（`https://.../s/*` は廃止）
+        XCTAssertEqual(issued.url, "meigicho://share/abcdef0123456789")
         XCTAssertEqual(issued.link.permission, .write)
         XCTAssertEqual(issued.link.scopeID, tourID)
+        XCTAssertEqual(issued.link.recipients.map(\.accountID), ["ACC-3F9A21"])
         // 201 は返さないキー。発行直後として自明な値で埋める
         XCTAssertEqual(issued.link.viewCount, 0)
         XCTAssertEqual(issued.link.editCount, 0)
         XCTAssertTrue(issued.link.isActive)
         XCTAssertNil(issued.link.revokedAt)
+    }
+
+    // MARK: - 招待の追加・削除（`api-contract-delta.md` §3）
+
+    func testAddRecipientsRequestEncodesAccountIDs() throws {
+        let data = try JSONEncoder().encode(AddRecipientsRequest(accountIDs: ["ACC-1A2B3C"]))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["account_ids"] as? [String], ["ACC-1A2B3C"])
+    }
+
+    /// レスポンスは**追加後の全件**（差分ではない）。
+    func testRecipientsResponseDecodesAllEntries() throws {
+        let json = """
+        { "recipients": [
+          { "account_id": "ACC-1A2B3C", "display_name": null,
+            "invited_at": "2026-08-07T00:00:00.000Z", "last_viewed_at": null }
+        ] }
+        """
+        let response = try decoder.decode(RecipientsResponse.self, from: Data(json.utf8))
+        XCTAssertEqual(response.recipients.map { $0.toDomain().accountID }, ["ACC-1A2B3C"])
     }
 
     // MARK: - エンドポイント
@@ -245,5 +285,22 @@ final class ShareDTOTests: XCTestCase {
             "http://localhost:8080/v1/shares/018f3c2a-1111-7c90-9d2a-000000000001"
         )
         XCTAssertEqual(delete.httpMethod, "DELETE")
+
+        let addRecipients = try Endpoint
+            .versioned(.post, "/shares/\(id.uuidString.lowercased())/recipients")
+            .urlRequest(baseURL: baseURL, extraHeaders: [:])
+        XCTAssertEqual(
+            addRecipients.url?.absoluteString,
+            "http://localhost:8080/v1/shares/018f3c2a-1111-7c90-9d2a-000000000001/recipients"
+        )
+
+        let removeRecipient = try Endpoint
+            .versioned(.delete, "/shares/\(id.uuidString.lowercased())/recipients/ACC-1A2B3C")
+            .urlRequest(baseURL: baseURL, extraHeaders: [:])
+        XCTAssertEqual(
+            removeRecipient.url?.absoluteString,
+            "http://localhost:8080/v1/shares/018f3c2a-1111-7c90-9d2a-000000000001/recipients/ACC-1A2B3C"
+        )
+        XCTAssertEqual(removeRecipient.httpMethod, "DELETE")
     }
 }
