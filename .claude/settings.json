@@ -9,6 +9,9 @@
       "Read(**/Secrets.swift)",
       "Read(**/firebase-service-account.json)",
       "Read(**/AuthKey_*.p8)"
+    ],
+    "ask": [
+      "Bash(git push*)"
     ]
   },
   "autoMode": {
