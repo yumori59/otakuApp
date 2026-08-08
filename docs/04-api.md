@@ -20,7 +20,7 @@
 | 認可 | Guard / **Service** で `owner_id = currentUser.id`。共有はトークン検証のみ。層構成は [02 ADR-009](./02-architecture.md#adr-009-nestjs-は-controller--usecase--service--prisma) |
 | RLS | Nestが唯一のDBクライアント。**アプリ層認可が主**、RLSはdefense-in-depth任意 |
 | 課金 | Nest Controller（RevenueCat Webhook）→ UseCase → Service |
-| 共有ボード | iOS SharedBoard → `GET/PATCH /public/shares/:token`（Bearer 不要・token のみ。独立 Web ビューは作らない） |
+| 共有ボード | **2026-08-07 アカウント招待制へ移行**。`GET/PATCH /public/shares/:token` は廃止。受け取り側は Bearer 必須の受信箱 `/v1/shares/received/*`（§3.7）。独立 Web ビューは作らない |
 | アプリ内レイヤ | **Controller → UseCase → Service → Prisma**（単純 CRUD は UseCase 省略可） |
 
 ### 1.2 方針
@@ -29,7 +29,7 @@
 
 | 規約 | 内容 |
 |------|------|
-| バージョン | `/v1` プレフィックス（公開共有のみ `/public`） |
+| バージョン | `/v1` プレフィックス（`/public/shares/:token` は 2026-08-07 廃止。公開経路は存在しない） |
 | パス | kebab-case・複数形 |
 | JSON | snake_case（DB列と一致） |
 | 日付 | `YYYY-MM-DD` / 時刻はISO8601 UTC |
@@ -50,8 +50,9 @@ api/src/
   events/        # 公演（主経路はapplicationsのfind-or-create）
   applications/  # 申込+companions、tour/eventを1TXで確保
   sync/          # pull / push
-  shares/        # トークン発行
-  public/        # GET /public/shares/:token
+  shares/        # 発行 + 招待CRUD（オーナー側）
+    board/       # ペイロード組み立て・マスキング（旧 public/ を移設）
+    received/    # 受信箱・board 読み取り・PATCH・redeem（受け取り側、全 Bearer 必須）
   billing/       # RevenueCat Webhook
   home/          # summary / stats
   health/        # /health, /readyz
@@ -81,7 +82,8 @@ iOS -> POST /v1/auth/apple -> NestがApple JWKS検証
 ```
 
 ```typescript
-// AuthGuard（APP_GUARD グローバル）。@Public は apple/refresh/public shares/webhook/health のみ
+// AuthGuard（APP_GUARD グローバル）。@Public は apple/google/refresh/webhook/health のみ
+// （2026-08-07: 公開共有経路 /public/shares/:token を廃止したため @Public から除外。共有受け取りも Bearer 必須）
 canActivate(ctx: ExecutionContext): boolean {
   if (this.reflector.getAllAndOverride<boolean>('isPublic',
     [ctx.getHandler(), ctx.getClass()])) return true;
@@ -418,41 +420,124 @@ identities〜applications は通常 CRUD も提供。オフライン LWW 同期�
 }
 ```
 
-### 3.7 Shares
+### 3.7 Shares（**2026-08-07 アカウント招待制へ移行**）
 
-**`POST /v1/shares`**
+> **契約の正**: [`docs/plans/share-account-invites/api-contract-delta.md`](./plans/share-account-invites/api-contract-delta.md)。
+> 実装済み（`apps/api/src/shares/`）。以下は実装内容をこの章に写したもの。
+> **公開経路 `GET/PATCH /public/shares/:token` は完全に削除された**（到達したら 404。§3.7.6）。
+> 受け取り側は必ず Bearer 必須のアプリ内受信箱を経由する。
+
+すべて `Authorization: Bearer <access>` 必須（オーナー側・受け取り側とも）。
+
+#### 3.7.1 `POST /v1/shares`（変更・オーナー側）
 
 ```json
 // req
 {
   "scope_type": "tour",
   "scope_id": "018f3c2a-dddd-7c90-9d2a-000000000001",
+  "permission": "read",
   "mask_member_no": true,
   "expires_at": "2026-08-31T00:00:00.000Z",
-  "shared_with_account_ids": ["ACC-3F9A21"]
+  "shared_with_account_ids": ["ACC-3F9A21", "ACC-9F8E7D"]
 }
 // 201
 {
   "id": "018f3c2a-1111-7c90-9d2a-000000000001",
   "token": "base64url-opaque-token-shown-once",
-  "url": "https://share.example.com/s/base64url-opaque-token-shown-once",
+  "url": "meigicho://share/base64url-opaque-token-shown-once",
   "scope_type": "tour",
   "scope_id": "018f3c2a-dddd-7c90-9d2a-000000000001",
   "permission": "read",
   "mask_member_no": true,
-  "shared_with_account_ids": ["ACC-3F9A21"],
+  "recipients": [
+    { "account_id": "ACC-3F9A21", "display_name": "ゆう", "invited_at": "2026-08-07T00:00:00.000Z", "last_viewed_at": null },
+    { "account_id": "ACC-9F8E7D", "display_name": null,   "invited_at": "2026-08-07T00:00:00.000Z", "last_viewed_at": null }
+  ],
   "expires_at": "2026-08-31T00:00:00.000Z",
-  "created_at": "2026-08-01T00:00:00.000Z"
+  "created_at": "2026-08-07T00:00:00.000Z"
 }
 ```
 
-`shared_with_account_ids`（0〜20件、`^ACC-[0-9A-F]{6}$`）はdocs/10 M8の記録用メタでACLではない（D6）。生tokenは一度だけ。DBは `sha256` hexのみ。`expires_at`省略で+30日・上限+365日。Freeは有効1本（`PLAN_LIMIT_SHARE` 403）。
+- `shared_with_account_ids`（1〜20件、`^ACC-[0-9A-F]{6}$`）は**必須**。0件は 400 `VALIDATION_ERROR`。これは招待の実体であり、記録用メタではない（旧 docs/10 M8 は廃止）
+- レスポンスの `recipients` が招待の正。**`shared_with_account_ids` はレスポンスに含めない**
+- `url` は `meigicho://share/<token>` のカスタムスキーム。`https://share.example.com/...` は廃止（`/public/*` の廃止で開ける先が無いため）
+- 生 token は一度だけ返る。DB は `sha256` hex のみ保存
+- `expires_at` 省略で +30 日・上限 +365 日。Free は有効 1 本（`PLAN_LIMIT_SHARE` 403）。`write` は Free 公演 3 件まで（`PLAN_LIMIT_SHARE_WRITE` 403）
 
-**`GET /v1/shares`**（D2で新設） → `{items:[{id,scope_type,scope_id,scope_name,permission,mask_member_no,shared_with_account_ids,expires_at,revoked_at,view_count,last_viewed_at,created_at,is_active}]}`。**`token`/`token_hash`は含めない**。
+判定順序（変えない）: ① DTO 検証 → ② self 判定（`SHARE_RECIPIENT_SELF` 400）→ ③ 実在確認（`SHARE_RECIPIENT_UNKNOWN` 400 + `details.unknown_account_ids`）→ ④ `PLAN_LIMIT_SHARE` → ⑤ `PLAN_LIMIT_SHARE_WRITE` → ⑥ 作成（`share_links` + `share_recipients` を 1 トランザクション）。
+重複要素は 400 にせず重複排除して処理する。
 
-**`DELETE /v1/shares/:id`**（D2で新設） → 204。`revoked_at`を立てる（失効）。既に失効済みでも204。
+#### 3.7.2 `GET /v1/shares`（変更・オーナー側一覧）
 
-**`GET /public/shares/:token`**（Public・認証不要）
+`{items:[{id,scope_type,scope_id,scope_name,permission,mask_member_no,recipients,expires_at,revoked_at,view_count,last_viewed_at,created_at,is_active}]}`。
+
+- `recipients[].display_name` は `profiles.display_name`（無ければ null）。`recipients[].hidden_at` は返さない（受け取り側の非表示をオーナーに見せない）
+- `shared_with_account_ids` は削除。**`token`/`token_hash`は含めない**
+
+#### 3.7.3 `DELETE /v1/shares/:id`（オーナー側） → 204。`revoked_at` を立てる（失効）。既に失効済みでも204。
+
+#### 3.7.4 招待の追加・削除（新規・オーナー側）
+
+**`POST /v1/shares/:id/recipients`**
+```json
+// req
+{ "account_ids": ["ACC-1A2B3C"] }
+// 200
+{ "recipients": [ { "account_id": "...", "display_name": "...", "invited_at": "...", "last_viewed_at": null } ] }
+```
+レスポンスは追加後の全件（差分ではない）。既に招待済みの ACC-ID は冪等（`invited_at` を更新しない）。バリデーションは 3.7.1 と同一（形式 / self / unknown / 合計20件上限）。他人の `:id` や失効済み / 期限切れの `:id` は 404 `NOT_FOUND`。
+
+**`DELETE /v1/shares/:id/recipients/:account_id`** → 204。存在しない ACC-ID でも204（冪等）。他人の `:id` は404。**最後の1人を削除しても204で許可**（以後そのリンクは実質失効）。
+
+#### 3.7.5 受信箱・board（新規・受け取り側。**全て Bearer 必須。`@Public()` を付けない**）
+
+**`GET /v1/shares/received`**
+```json
+{
+  "items": [
+    {
+      "share_id": "018f3c2a-1111-7c90-9d2a-000000000001",
+      "scope_type": "tour",
+      "scope_name": "STELLARIS LIVE TOUR 2026",
+      "permission": "write",
+      "owner": { "account_id": "ACC-7C1D02", "display_name": "みお" },
+      "invited_at": "2026-08-07T00:00:00.000Z",
+      "expires_at": "2026-08-31T00:00:00.000Z",
+      "unread": true
+    }
+  ]
+}
+```
+`token` / `token_hash` / `scope_id` / オーナーの内部UUID / 他の招待者のACC-ID / 会員番号 / 申込の中身は**含めない**。
+絞り込み: 失効・期限切れ・自分が非表示にした行・自分がオーナーの共有は除外。並びは招待の新しい順。招待0件でも200 `{items:[]}`。ページングなし。
+
+**`GET /v1/shares/received/:id`**
+
+レスポンス本体は旧 `GET /public/shares/:token` と完全に同形（3.7.6 のマスキング規則を継承）。追加キーは `share_id` / `permission` / `owner: {account_id, display_name}`。
+
+判定順序: ①`:id`未知 → 404 `SHARE_INVALID` ②失効/期限切れ → 404 `SHARE_INVALID` ③呼び出し元がオーナー → 通す ④招待リストに無い → **404 `SHARE_INVALID`**（403にしない。id経路は存在を確認させない）。
+
+**`PATCH /v1/shares/received/:id/items/:item_key`**
+
+リクエスト/レスポンスは旧 `PATCH /public/shares/:token/items/:item_key` と完全に同形（`{rev, status?, seat?}`）。
+
+判定順序（変えない）: ①`:id`未知/失効/期限切れ → 404 `SHARE_INVALID` ②**オーナー本人でなく、かつ招待リストに無い → 404 `SHARE_INVALID`**（招待判定は permission 判定より先） ③`permission!=="write"` → 403 `FORBIDDEN` ④`scope_type!=="tour"` → 403 `FORBIDDEN` ⑤ボディ不正 → 400 ⑥`item_key`不一致 → 404 ⑦`editable:false` → 403 ⑧`rev`不一致 → 409 `CONFLICT`+`details.current`。
+
+**`POST /v1/shares/received/redeem`**（ディープリンク `meigicho://share/<token>` の入口）
+```json
+// req
+{ "token": "base64url-opaque-token" }
+// 200
+{ "share_id": "018f3c2a-1111-7c90-9d2a-000000000001" }
+```
+未知/失効/期限切れは404 `SHARE_INVALID`（3者を区別しない）。有効トークン+招待済み/オーナー本人は200。**有効トークン+招待されていない → 403 `SHARE_NOT_INVITED`**（本契約で唯一「存在を confirm する」応答。トークンは推測不能・呼び出し元は認証済みのため許容）。
+
+**`POST /v1/shares/received/:id/hide`** → 204。`share_recipients.hidden_at=now()`。受信箱から消える。
+**`DELETE /v1/shares/received/:id/hide`** → 204。`hidden_at=null`（取り消し）。
+いずれも招待されていない`:id`・オーナー本人（招待行が無い）は404 `SHARE_INVALID`。冪等。
+
+#### 3.7.6 board ペイロード（マスキング規則・変更なし）
 
 ```json
 {
@@ -476,9 +561,9 @@ identities〜applications は通常 CRUD も提供。オフライン LWW 同期�
 }
 ```
 
-`SHARE_INVALID` 404（未知/失効/期限切れを区別しない）。`history_visible=false` は `rep_name`「非公開の名義」、`rep_color`/`seat` null。会員番号・`owner_id`・`account_id`・内部UUIDは一切含めない。同行者名はマスク対象外（`identity_id`があれば現在のdisplay_name）。レスポンスヘッダに`X-Robots-Tag: noindex, nofollow`。
+`history_visible=false` は `rep_name`「非公開の名義」、`rep_color`/`seat` null。会員番号・`owner_id`・`account_id`・内部UUIDは一切含めない。同行者名はマスク対象外（`identity_id`があれば現在のdisplay_name）。組み立てロジックは `apps/api/src/shares/board/`（旧 `public/` から移設。中身は変更なし）。`X-Robots-Tag` は認証必須ルートになったため不要（付けても害はない）。
 
-`scope_type="identity_summary"`の公開ペイロード（D10で確定）:
+`scope_type="identity_summary"` のペイロード:
 ```json
 {
   "scope_type": "identity_summary",
@@ -490,6 +575,23 @@ identities〜applications は通常 CRUD も提供。オフライン LWW 同期�
 }
 ```
 `visible:false`の名義は件数系キー自体を含めない。
+
+#### 3.7.7 削除されたエンドポイント
+
+| ルート | 状態 |
+|---|---|
+| `GET /public/shares/:token` | **削除**。到達したら404 |
+| `PATCH /public/shares/:token/items/:item_key` | **削除**。到達したら404 |
+
+`apps/api/src/public/` モジュールと `PublicModule` 登録は削除済み。`app.setup.ts` の `GLOBAL_PREFIX_EXCLUDE` から該当2行を削除済み（`health`/`readyz`/webhookは残る）。
+
+#### 3.7.8 追加エラーコード
+
+| code | HTTP | 使う場面 |
+|---|---|---|
+| `SHARE_NOT_INVITED` | 403 | `POST /v1/shares/received/redeem` で、トークンは有効だが呼び出しアカウントが招待リストに無い（他のどのルートでも使わない） |
+| `SHARE_RECIPIENT_UNKNOWN` | 400 | 招待先 `ACC-XXXXXX` が存在しない（`details.unknown_account_ids`） |
+| `SHARE_RECIPIENT_SELF` | 400 | 自分自身の `account_id` を招待した |
 
 ### 3.8 Billing / Health（billing 実装済み）
 
@@ -612,34 +714,44 @@ async push(userId: string, mutations: Mutation[]) {
 
 ---
 
-## 5. 共有シーケンス
+## 5. 共有シーケンス（**2026-08-07 アカウント招待制へ移行**）
 
 ```mermaid
 sequenceDiagram
-    participant App as iOS App（発行側）
+    participant App as iOS App（発行側 A）
     participant API as NestJS Cloud Run
     participant DB as Cloud SQL
-    participant Viewer as iOS SharedBoard（受け取り側）
+    participant Viewer as iOS App（招待先 B・Bearer必須）
 
-    App->>API: POST /v1/shares (Bearer)
-    API->>API: scope所有検証 / Free本数上限
+    App->>API: POST /v1/shares (Bearer, shared_with_account_ids必須)
+    API->>API: scope所有検証 / self・実在確認 / Free本数上限
     API->>API: token=random(32B), hash=sha256(token)
-    API->>DB: INSERT share_links(token_hash, scope_*)
-    API-->>App: 201 { token, url }（生tokenは一度だけ）
-    App-->>Viewer: URL共有（メッセージ等）
+    API->>DB: INSERT share_links + share_recipients（1TX）
+    API-->>App: 201 { token, url: meigicho://share/<token>, recipients }（生tokenは一度だけ）
 
-    Viewer->>API: GET /public/shares/:token
-    API->>DB: token_hash照合 / revoked・expires確認
-    alt 無効
+    Note over Viewer: B は受信箱 GET /v1/shares/received でも同じ共有を発見できる（トークン不要）
+    App-->>Viewer: （任意）URL共有（メッセージ等）
+    Viewer->>API: POST /v1/shares/received/redeem { token } (Bearer)
+    alt 未知/失効/期限切れ
         API-->>Viewer: 404 SHARE_INVALID
-    else 有効
+    else 招待されていない
+        API-->>Viewer: 403 SHARE_NOT_INVITED
+    else 招待済み/オーナー本人
+        API-->>Viewer: 200 { share_id }
+    end
+
+    Viewer->>API: GET /v1/shares/received/:share_id (Bearer)
+    API->>DB: share_recipients照合 / revoked・expires確認
+    alt 未招待 or 無効
+        API-->>Viewer: 404 SHARE_INVALID
+    else 有効かつ招待済み
         API->>DB: view_count++ / history_visibleマスクでJSON組立
         API-->>Viewer: 200 payload
-        Viewer-->>Viewer: SharedBoard で表示（write 時は PATCH で編集可）
+        Viewer-->>Viewer: SharedBoard で表示（write 時は PATCH /v1/shares/received/:id/items/:item_key で編集可）
     end
 ```
 
-匿名のテーブル直アクセスは行わない。閲覧クライアントは iOS ネイティブのため **ブラウザ CORS は必須ではない**（第7章。開発用に残す場合はローカルのみ）。
+公開経路・匿名アクセスは存在しない。受け取り側も認証必須の Cloud Run ルートのみを叩く（iOS ネイティブのため **ブラウザ CORS は必須ではない**。第7章）。
 
 ---
 
@@ -660,8 +772,10 @@ sequenceDiagram
 | `UNAUTHENTICATED` | 401 | refresh→1回再試行 |
 | `AUTH_APPLE_INVALID` / `AUTH_REFRESH_INVALID` | 401 | 再ログイン |
 | `FORBIDDEN` | 403 | キャンセル |
-| `PLAN_LIMIT_IDENTITY` / `PLAN_LIMIT_SHARE` | 403 | Plus/リワード導線 |
+| `PLAN_LIMIT_IDENTITY` / `PLAN_LIMIT_SHARE` / `PLAN_LIMIT_SHARE_WRITE` | 403 | Plus/リワード導線 |
+| `SHARE_NOT_INVITED` | 403 | `redeem`専用。「この共有はあなたに共有されていません」 |
 | `NOT_FOUND` / `SHARE_INVALID` | 404 | 一覧or無効ページ |
+| `SHARE_RECIPIENT_UNKNOWN` / `SHARE_RECIPIENT_SELF` | 400 | フォーム表示（招待先ID訂正） |
 | `CONFLICT` | 409 | 再同期 |
 | `SYNC_LWW_REJECT` | 200内rejected | pullで上書き |
 | `RATE_LIMITED` | 429 | Retry-After |
@@ -714,4 +828,4 @@ app.enableCors({
 });
 ```
 
-共有 write（`PATCH /public/shares/:token/items/:item_key`）は iOS SharedBoard から呼ぶ。所有者 CRUD 契約は維持する。
+共有 write（`PATCH /v1/shares/received/:id/items/:item_key`。2026-08-07 以前は `PATCH /public/shares/:token/items/:item_key`）は Bearer 必須で iOS SharedBoard から呼ぶ。所有者 CRUD 契約は維持する。

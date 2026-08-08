@@ -44,8 +44,9 @@ create table users (
 
 > モック再レビューの詳細は [10-mock-delta-2026-07-31.md](./10-mock-delta-2026-07-31.md)。
 > `identities.color` は名義識別色のみ（テーマ非連動）。
-> **共有は 2026-08-07 にアカウント招待制へ移行決定**（`share_links.shared_with_account_ids` は廃止、`share_recipients` が ACL の実体）。
-> 本ファイル §4.9 は移行前の記述。正は [`./plans/share-account-invites/api-contract-delta.md`](./plans/share-account-invites/api-contract-delta.md) §0.4。
+> **共有は 2026-08-07 にアカウント招待制へ移行済み**（`share_links.shared_with_account_ids` は廃止、`share_recipients` が ACL の実体）。
+> §4.9 は移行後の内容に更新済み。契約の正は [`./plans/share-account-invites/api-contract-delta.md`](./plans/share-account-invites/api-contract-delta.md) §0.4、実装の正は `apps/api/prisma/schema.prisma`。
+> §6.5 の匿名アクセス用 RPC（`rpc_resolve_share`）は公開経路の廃止により**前提が失われた**（§6.5 の注記を参照）。
 ---
 
 ## 1. 設計原則
@@ -91,6 +92,7 @@ erDiagram
     profiles ||--o{ events : owns
     profiles ||--o{ applications : owns
     profiles ||--o{ share_links : owns
+    share_links ||--o{ share_recipients : invites
     profiles ||--o{ device_tokens : has
     profiles ||--|| entitlements : has
 
@@ -517,32 +519,56 @@ create index app_companions_sync_idx     on application_companions(owner_id, upd
 名義の表示名を後から変えても、当時の申込記録の表示が変わらない方が自然だからです。
 表示時は `identity_id` があればそちらの現在名を優先し、なければ `display_name` を使います。
 
-### 4.9 share_links（共有リンク）
+### 4.9 share_links / share_recipients（共有リンク・**2026-08-07 アカウント招待制へ移行**）
+
+> **契約の正は Prisma**: `apps/api/prisma/schema.prisma`（`ShareLink` / `ShareRecipient`）。
+> 実装差分は [`docs/plans/share-account-invites/api-contract-delta.md`](./plans/share-account-invites/api-contract-delta.md) §0.4。
+> 以下は Prisma schema を DDL 相当に書き下したもの（列名は Prisma の `@map` に対応する snake_case）。
 
 ```sql
 create table share_links (
   id               uuid primary key,
-  owner_id         uuid not null references auth.users(id) on delete cascade,
+  owner_id         uuid not null references users(id) on delete cascade,
   scope_type       text not null check (scope_type in ('tour','identity_summary')),
   scope_id         uuid,                          -- tour の場合は tours.id
   token_hash       text not null,                 -- sha256(token) の hex。生トークンは保存しない
-  permission       text not null default 'read' check (permission in ('read')),
+  permission       text not null default 'read' check (permission in ('read','write')),
   mask_member_no   boolean not null default true,
+  -- ★ shared_with_account_ids は 2026-08-07 に削除。アクセス制御は share_recipients が正
   expires_at       timestamptz,
   revoked_at       timestamptz,
   view_count       integer not null default 0,
   last_viewed_at   timestamptz,
+  edit_count       integer not null default 0,
+  last_edited_at   timestamptz,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
 
 create unique index share_links_token_uniq on share_links(token_hash);
 create index share_links_owner_idx on share_links(owner_id) where revoked_at is null;
+
+-- ★新設（2026-08-07）: 招待の実体（ACL）
+create table share_recipients (
+  id              uuid primary key,
+  share_link_id   uuid not null references share_links(id) on delete cascade,
+  account_id      text not null,                  -- 招待時の ACC-XXXXXX（表示・照合用のスナップショット）
+  user_id         uuid not null references users(id) on delete cascade,  -- 招待時に解決した実ユーザー。NOT NULL（実在確認必須）
+  hidden_at       timestamptz,                     -- 受け取り側が非表示にした時刻。オーナーには見せない
+  last_viewed_at  timestamptz,                     -- 受け取り側が最後に board を開いた時刻（未読判定）
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  unique (share_link_id, account_id)
+);
+
+create index share_recipients_user_idx on share_recipients(user_id);
 ```
 
-- `permission` は現状 `read` のみ。Phase 2 で `edit` を足す拡張点として型を用意しています
+- `permission` は `read` / `write`（`write` は共有先による座席・状況の軽量編集を許可。Free は公演3件まで）
 - `token_hash` のみを保存し、生トークンはクライアントに一度だけ返します（[02-architecture.md](./02-architecture.md) ADR-006）
 - `mask_member_no` の既定は `true`
+- **`share_recipients` が ACL の実体**。招待は 1〜20件で必須。`share_links` 単独では誰にも見えない
+- 既存データ移行（2026-08-07 実施済み）: 全 `share_links` を `revoked_at = now()` で一括失効。`shared_with_account_ids` の内容は `share_recipients` へ backfill しない（記録用メタであり ACL ではなかったため。権限誤付与を避ける）
 
 ### 4.10 課金・通知
 
@@ -720,7 +746,13 @@ create policy artists_update on artists for update
 
 `is_master = false` の強制により、ユーザーが勝手に公式マスタを作ったり書き換えたりできません。
 
-### 6.5 共有リンク経由の匿名アクセス
+### 6.5 共有リンク経由の匿名アクセス（**2026-08-07: 前提が失われた・任意の二重防衛として参考記載のみ**）
+
+> このセクションは「anon（未認証）が `GET /public/shares/:token` 経由でボードを読める」ことを RLS 側で
+> 二重防衛する設計だった。**その公開経路自体が 2026-08-07 に廃止された**（§4.9・[04-api.md](./04-api.md) §3.7）ため、
+> 現行の認可は NestJS の Bearer 認証 + `share_recipients` 照合が正であり、anon ロールがこの関数を呼ぶ経路は存在しない。
+> 本節は「RLS を後付けするならこう書けた」という参考として残す（本章冒頭の方針どおり RLS 自体が Phase 1 必須ではない）。
+> 実装するなら `p_token` 起点ではなく `share_id` + 呼び出し元 `user_id` が `share_recipients` に含まれるかで判定する形に書き換える必要がある。
 
 anon ロールにテーブルへの直接 SELECT 権限を**与えません**。
 代わりに `SECURITY DEFINER` 関数だけを公開します。

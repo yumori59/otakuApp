@@ -439,6 +439,13 @@ R3-3 の通り、当選→落選に戻しても `seatRaw` は消しません。�
 文言を戻すトースト（モック `copyShareLink()` の `setTimeout(...,1500)`）を実装します。非公開名義は行ごと消さず
 グレーで「非公開」と出します（モック `is-hidden`）。**今どの名義を隠しているかを確認できること**がこの画面の価値だからです。
 
+> **2026-08-07 更新**: 共有はアカウント招待制に移行済み（`docs/plans/share-account-invites/`）。
+> 発行時に招待先 ACC-ID（1〜20件）の入力が**必須**になり、「URLを知っていれば誰でも見られる」旧仕様は廃止された。
+> 受け取り側は**未ログインでは開けない**（ログイン必須。招待されたアカウントのみ受信箱 `SharedInbox` に表示され、
+> ディープリンク `meigicho://share/<token>` を開いた場合も未ログイン時はサインインを挟んでから board へ遷移する）。
+> `PublicApiClient` / `OpenSharedBoardView`（URL貼り付け画面）は削除済み。閲覧・編集は `ApiClient`（Bearer）経由の
+> `SharedBoard` に一本化。詳細は [04-api.md](./04-api.md) §3.7。
+
 **S7〜S9 モーダルフォーム。** `Form` は使わず、モックの `form-card`（角丸12・1px枠・行区切り）を再現する
 `FormCard` / `FormRow` を `DesignSystem` に作ります（`Form` の既定装飾は DADS のトークンと合わない）。バリデーションは
 Store の `validationErrors: [FieldID: String]` が保存ボタンの `disabled` と行下のエラー文を駆動します。必須は S7=氏名、

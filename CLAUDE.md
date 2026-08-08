@@ -46,8 +46,9 @@ xcodebuild -project meigicho/Meigicho.xcodeproj -scheme Meigicho \
 - pre-commit / Claude Code hooks は未導入（ハーネス Phase B 外）。CI (GitHub Actions) は導入済み — `.claude/rules/05-harness.md` 参照
 - 本番コンテナ起動時の自動 `prisma db push` は `NODE_ENV=production` でスキップする（`apps/api/docker-entrypoint.sh`）。DB スキーマ変更は当面、人が明示的に `prisma db push` / 将来的な `prisma migrate deploy` を実行する運用
 - iOS XCTest は設計書上は各パッケージに置く想定だが、機械ゲートは現状ビルド成功のみ
-- NestJS ドメインモジュール（auth/me/identities/memberships/tours/events/applications/shares/public）は実装済み（`docs/plans/backend-domain-modules/`）。iOS 側（Network/DataStore）は未追従
+- NestJS ドメインモジュール（auth/me/identities/memberships/tours/events/applications/shares）は実装済み（`docs/plans/backend-domain-modules/`）。iOS 側（Network/DataStore）は `docs/plans/ios-network-integration/` で追従済み
 - 認証拡張（Google Sign-In・メール+パスワード・パスワードリセット）と共有 write 権限（軽量共同編集）も実装済み（`docs/plans/backend-auth-and-shares-extension/`）。契約は `api-contract-delta.md` が正
+- **共有はアカウント招待制**（2026-08-07・`docs/plans/share-account-invites/`）。`public` モジュール（`GET/PATCH /public/shares/:token`）は**削除済み**。受け取りは Bearer 必須の `shares/received/*`（受信箱）に一本化。契約は `docs/plans/share-account-invites/api-contract-delta.md` が正。レビュー待ち（`docs/plans/STATUS.md` §9 参照）
 - 実 DB（Docker）を使った統合テストは未整備。現状は Prisma モックによる unit test のみ（`prisma db push` はローカル Docker DB に反映済み）
 - `apps/api/.env.example` への `GOOGLE_CLIENT_IDS` / `GOOGLE_ISSUER` / `GOOGLE_JWKS_URL` / `RESEND_API_KEY` / `RESEND_FROM_EMAIL` 追記はハーネスの deny 設定でエージェントが書けないため未検証。手動確認が必要
 - 本番運用前に必須: Resend を `docs/08-compliance-risk.md` の委託先一覧に追記、パスワードリセットのメール送信基盤の法務確認
