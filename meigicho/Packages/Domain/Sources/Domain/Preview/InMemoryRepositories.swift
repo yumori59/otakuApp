@@ -203,6 +203,7 @@ public actor InMemoryShareRepository: ShareRepository {
         maskMemberNo: Bool,
         sharedWithAccountIDs: [String]
     ) async throws -> IssuedShareLink {
+        let now = Date()
         let link = ShareLink(
             id: UUID(),
             scopeType: selection.scopeType,
@@ -210,12 +211,26 @@ public actor InMemoryShareRepository: ShareRepository {
             scopeName: nil,
             permission: selection.permission ?? .read,
             maskMemberNo: maskMemberNo,
-            sharedWithAccountIDs: sharedWithAccountIDs,
-            createdAt: Date(),
+            recipients: sharedWithAccountIDs.map { ShareRecipient(accountID: $0, invitedAt: now) },
+            createdAt: now,
             isActive: true
         )
         items.append(link)
-        return IssuedShareLink(link: link, token: "preview-token", url: "https://example.invalid/s/preview-token")
+        return IssuedShareLink(link: link, token: "preview-token", url: "meigicho://share/preview-token")
+    }
+
+    public func addRecipients(shareID: UUID, accountIDs: [String]) async throws -> [ShareRecipient] {
+        guard let index = items.firstIndex(where: { $0.id == shareID }) else { throw AppError.notFound }
+        let now = Date()
+        for accountID in accountIDs where !items[index].recipients.contains(where: { $0.accountID == accountID }) {
+            items[index].recipients.append(ShareRecipient(accountID: accountID, invitedAt: now))
+        }
+        return items[index].recipients
+    }
+
+    public func removeRecipient(shareID: UUID, accountID: String) async throws {
+        guard let index = items.firstIndex(where: { $0.id == shareID }) else { throw AppError.notFound }
+        items[index].recipients.removeAll { $0.accountID == accountID }
     }
 
     public func revoke(id: UUID) async throws {
@@ -263,10 +278,10 @@ public actor InMemorySharedBoardRepository: SharedBoardRepository {
         items: []
     )
 
-    public func fetchBoard(token: String) async throws -> SharedBoard { board }
+    public func fetchBoard(shareID: UUID) async throws -> SharedBoard { board }
 
     public func updateItem(
-        token: String,
+        shareID: UUID,
         itemKey: String,
         rev: String,
         change: SharedItemChange
@@ -279,6 +294,45 @@ public actor InMemorySharedBoardRepository: SharedBoardRepository {
         if let seat = change.seat { item.seat = seat }
         board.items[index] = item
         return item
+    }
+}
+
+public actor InMemorySharedInboxRepository: SharedInboxRepository {
+    private var items: [SharedInboxItem]
+    /// `redeem` が返す share_id。既定は 1 件目（Preview で board へ遷移できるようにする）
+    private let redeemResult: UUID?
+
+    public init(
+        items: [SharedInboxItem] = InMemorySharedInboxRepository.previewItems,
+        redeemResult: UUID? = nil
+    ) {
+        self.items = items
+        self.redeemResult = redeemResult ?? items.first?.shareID
+    }
+
+    public static let previewItems: [SharedInboxItem] = [
+        SharedInboxItem(
+            shareID: UUID(uuidString: "018f3c2a-1111-7c90-9d2a-000000000001")!,
+            scopeType: .tour,
+            scopeName: SampleData.tours[0].name,
+            permission: .write,
+            owner: SharedInboxOwner(accountID: "ACC-7C1D02", displayName: "みお"),
+            invitedAt: SampleData.referenceDate,
+            expiresAt: nil,
+            unread: true
+        )
+    ]
+
+    public func list() async throws -> [SharedInboxItem] { items }
+
+    public func redeem(token: String) async throws -> UUID {
+        guard let redeemResult else { throw AppError.shareInvalid }
+        return redeemResult
+    }
+
+    public func setHidden(shareID: UUID, hidden: Bool) async throws {
+        guard hidden else { return }
+        items.removeAll { $0.shareID == shareID }
     }
 }
 

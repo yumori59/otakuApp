@@ -6,9 +6,13 @@ public enum AppRoute: Hashable {
     case application(UUID)
     case sharePreview
     case account
-    /// 共有ボード（**受け取り側**）。`token` が唯一の資格情報で、
-    /// 自分のアカウント（Bearer）とは無関係の経路（`contract-mapping.md` §5.1）
-    case sharedBoard(token: String)
+    /// 受信箱（**自分が招待された共有**の一覧）。`GET /v1/shares/received`
+    case sharedInbox
+    /// 共有ボード（**受け取り側**）。`share_id` で addressing する（`api-contract-delta.md` §4.2）。
+    ///
+    /// token 起点だった旧 `.sharedBoard(token:)` は廃止。ディープリンクの token は
+    /// `redeem`（`SharedInboxRepository.redeem(token:)`）で `share_id` に交換してからここへ来る
+    case sharedBoard(shareID: UUID)
 }
 
 public enum AppSheet: Identifiable, Hashable {

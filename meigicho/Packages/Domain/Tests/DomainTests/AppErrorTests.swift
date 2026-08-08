@@ -36,6 +36,7 @@ final class AppErrorTests: XCTestCase {
             ("FORBIDDEN", .forbidden),
             ("NOT_FOUND", .notFound),
             ("SHARE_INVALID", .shareInvalid),
+            ("SHARE_NOT_INVITED", .shareNotInvited),
             ("EMAIL_ALREADY_REGISTERED", .emailAlreadyRegistered),
             ("CONFLICT", .conflict),
             ("RATE_LIMITED", .rateLimited),
@@ -53,6 +54,30 @@ final class AppErrorTests: XCTestCase {
         {"code":"CONFLICT","message":"m","details":{"current":{"status":"won","seat":"A-1","rev":"r2"}}}
         """#)
         XCTAssertEqual(AppError.from(envelope: env), .conflict)
+    }
+
+    /// `SHARE_RECIPIENT_UNKNOWN` の `details.unknown_account_ids` は汎用マッパーが読まない。
+    /// **形を知るのは `RemoteShareRepository` だけ**（`.shareItemConflict` と同じ方針 — §6.3）。
+    func testGenericMapperDoesNotReadUnknownAccountIDs() throws {
+        let env = try envelope(#"""
+        {"code":"SHARE_RECIPIENT_UNKNOWN","message":"m","details":{"unknown_account_ids":["ACC-000000"]}}
+        """#)
+        XCTAssertEqual(AppError.from(envelope: env), .shareRecipientUnknown(accountIDs: []))
+        XCTAssertEqual(
+            AppError.from(envelope: env).userMessage,
+            "見つからないアカウント ID があります"
+        )
+    }
+
+    func testShareRecipientUnknownListsAccountIDsWhenPromoted() {
+        let error = AppError.shareRecipientUnknown(accountIDs: ["ACC-000000", "ACC-000001"])
+        XCTAssertEqual(error.userMessage, "見つからないアカウント ID があります: ACC-000000、ACC-000001")
+    }
+
+    /// `SHARE_NOT_INVITED` は `SHARE_INVALID` と別物として出す（F2: 原因を伝える）。
+    func testShareNotInvitedHasDedicatedMessage() {
+        XCTAssertEqual(AppError.shareNotInvited.userMessage, "この共有はあなたに共有されていません")
+        XCTAssertNotEqual(AppError.shareNotInvited.userMessage, AppError.shareInvalid.userMessage)
     }
 
     // AC-N-06-T: details 欠落 / 型不一致でもクラッシュしない

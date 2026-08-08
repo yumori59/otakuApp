@@ -103,7 +103,7 @@ public struct SharedBoard: Equatable, Sendable {
         return []
     }
 
-    /// 画面見出し / 保存した token の一覧に使う表示名。
+    /// 画面見出しに使う表示名。
     /// identity_summary には tour 名が無いのでスコープ名を出す。
     public var displayTitle: String? {
         switch content {
@@ -113,7 +113,7 @@ public struct SharedBoard: Equatable, Sendable {
     }
 }
 
-/// identity_summary スコープの 1 行（`api-contract.md` §8 / `public-share.presenter.ts`）。
+/// identity_summary スコープの 1 行（`api-contract.md` §8 / `shares/board/public-share.presenter.ts`）。
 ///
 /// `visible: false`（`identities.history_visible = false`）の名義は
 /// **件数キー自体がレスポンスに含まれない**。件数が無い状態を `counts == nil` で表す。
@@ -241,7 +241,7 @@ public struct SharedItemSnapshot: Equatable, Sendable {
     }
 }
 
-/// `PATCH /public/shares/:token/items/:item_key` の変更内容。
+/// `PATCH /v1/shares/received/:id/items/:item_key` の変更内容。
 /// **空ボディ（`status` も `seat` も無い）を型で作れなくする**（§4.8）。
 public enum SharedItemChange: Equatable, Sendable {
     case status(ApplicationStatus)

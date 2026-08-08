@@ -40,6 +40,13 @@ public enum AppError: Error, Equatable, Sendable {
     case planLimitShareWrite(limit: Int?, current: Int?)
     case notFound
     case shareInvalid
+    /// `POST /v1/shares/received/redeem` の 403。**この 1 経路でしか返らない**
+    /// （他のルートは招待の有無を `.shareInvalid` 404 に潰して存在を confirm しない）。
+    case shareNotInvited
+    /// 招待先の ACC-ID がサーバーに存在しない（400）。
+    /// **`accountIDs` を詰めるのは `RemoteShareRepository` だけ**（`details.unknown_account_ids` を
+    /// 読める文脈がそこにしか無い）。汎用マッパーは空配列で返す — `.shareItemConflict` と同じ方針。
+    case shareRecipientUnknown(accountIDs: [String])
     case emailAlreadyRegistered
     case conflict
     /// 共有ボードの `rev` 不一致。**格上げは `RemoteSharedBoardRepository` だけが行う**
@@ -70,6 +77,9 @@ public enum AppError: Error, Equatable, Sendable {
         case "PLAN_LIMIT_SHARE_WRITE": return .planLimitShareWrite(limit: limits.limit, current: limits.current)
         case "NOT_FOUND": return .notFound
         case "SHARE_INVALID": return .shareInvalid
+        case "SHARE_NOT_INVITED": return .shareNotInvited
+        // `details.unknown_account_ids` はここでは読まない（形を知るのは RemoteShareRepository だけ）
+        case "SHARE_RECIPIENT_UNKNOWN": return .shareRecipientUnknown(accountIDs: [])
         case "EMAIL_ALREADY_REGISTERED": return .emailAlreadyRegistered
         case "CONFLICT": return .conflict
         case "RATE_LIMITED": return .rateLimited
@@ -134,6 +144,11 @@ public enum AppError: Error, Equatable, Sendable {
             return "対象が見つかりません。一覧を更新してください"
         case .shareInvalid:
             return "この共有リンクは無効です"
+        case .shareNotInvited:
+            return "この共有はあなたに共有されていません"
+        case .shareRecipientUnknown(let accountIDs):
+            guard !accountIDs.isEmpty else { return "見つからないアカウント ID があります" }
+            return "見つからないアカウント ID があります: \(accountIDs.joined(separator: "、"))"
         case .emailAlreadyRegistered:
             return "このメールアドレスは既に登録されています。ログインしてください"
         case .conflict:
