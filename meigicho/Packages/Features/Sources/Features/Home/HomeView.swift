@@ -11,6 +11,8 @@ struct HomeTab: View {
     @Environment(ProfileStore.self) private var profile
     @Environment(SheetPresenter.self) private var sheetPresenter
     @Environment(HomeStore.self) private var homeStore
+    /// 受信箱（自分が招待された共有）の未読バッジ用（share-account-invites T11）
+    @Environment(SharedInboxStore.self) private var sharedInbox
     /// ローカルファースト同期の状態（ios-sync-engine T4）。失敗時のみ 1 行表示する（AC-SY-06）
     @Environment(SyncStatusStore.self) private var syncStatus
     @Environment(\.themeStore) private var theme
@@ -18,8 +20,6 @@ struct HomeTab: View {
     @Environment(\.syncActionBridge) private var syncAction
     @State private var path = NavigationPath()
     @State private var showActionSheet = false
-    /// 共有リンクを受け取った人の入口（URL 貼り付け）。**未ログインでも使える**（T4b / §7.7）
-    @State private var showOpenSharedBoard = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -49,12 +49,18 @@ struct HomeTab: View {
                     .frame(minWidth: 44, minHeight: 44)
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    // 共有リンクを受け取った人の入口。ログイン状態に依存しない（Bearer を使わない経路）
-                    Button { showOpenSharedBoard = true } label: {
-                        Image(systemName: "link").font(.system(size: 19))
+                    // 受信箱（自分が招待された共有）の入口。未ログインでは Bearer が無く開けない（Q5）
+                    Button { path.append(AppRoute.sharedInbox) } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "tray.and.arrow.down").font(.system(size: 19))
+                            if sharedInbox.unreadCount > 0 {
+                                Circle().fill(DS.error).frame(width: 8, height: 8).offset(x: 5, y: -3)
+                            }
+                        }
                     }
                     .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityLabel("共有リンクを開く")
+                    .disabled(auth.isGuest)
+                    .accessibilityLabel("受信した共有")
                 }
                 ToolbarItem(placement: .principal) {
                     Text("ホーム").font(DSFont.bodyBold)
@@ -75,6 +81,11 @@ struct HomeTab: View {
             }
             .appNavigationDestinations(path: $path)
             .task { await notifications.refreshPermission() }
+            .task(id: auth.state) {
+                // 未読バッジ用に先読みする。未ログインでは Bearer が無く 401 になるだけなので呼ばない
+                guard !auth.isGuest else { return }
+                await sharedInbox.load()
+            }
             .confirmationDialog("追加", isPresented: $showActionSheet, titleVisibility: .visible) {
                 Button("名義を追加") {
                     sheetPresenter.presentAddIdentity(
@@ -92,9 +103,6 @@ struct HomeTab: View {
                 SheetContentView(sheet: sheet) { id in
                     path.append(AppRoute.identity(id))
                 }
-            }
-            .sheet(isPresented: $showOpenSharedBoard) {
-                OpenSharedBoardView()
             }
         }
     }
