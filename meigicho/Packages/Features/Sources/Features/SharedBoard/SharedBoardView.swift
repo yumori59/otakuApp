@@ -3,11 +3,12 @@ import DesignSystem
 import Domain
 import Core
 
-/// 共有ボード（**受け取り側**）。`GET /public/shares/:token` の内容を表で見せ、
+/// 共有ボード（**受け取り側**）。`GET /v1/shares/received/:id` の内容を表で見せ、
 /// `permission == "write"` かつ `editable` な行だけ状況・座席を編集できる。
 ///
-/// - このツリーは **Bearer 認証を一切使わない**（`SharedBoardStore` → `SharedBoardRepository`
-///   → `PublicApiClient`）。開いたことで自分のアカウントがログアウトすることはない（AC-SB-13-M）
+/// - この経路は **Bearer 認証必須**（`SharedBoardStore` → `SharedBoardRepository`）。
+///   共有は**招待されたアカウントだけ**が開ける。受け取り側は必ず自分のアカウントでログイン済み
+///   （`api-contract-delta.md` §4.2 / §4.3。旧「受け取った人は未ログイン前提」は破棄済み）
 /// - `SharedBoardItem` は `ApplicationEntry` / `Identity` とは**別系統の型**。変換しない（P6）
 /// - **`scope_type` で中身が別物**（P7）。`tour` は公演 × 名義の表、
 ///   `identity_summary` は名義ごとの件数一覧（**常に閲覧のみ**）
@@ -15,13 +16,13 @@ public struct SharedBoardView: View {
     @Environment(SharedBoardStore.self) private var store
     @Environment(\.themeStore) private var theme
 
-    private let token: String
+    private let shareID: UUID
 
     @State private var editingSeatID: String?
     @State private var draftSeat = ""
 
-    public init(token: String) {
-        self.token = token
+    public init(shareID: UUID) {
+        self.shareID = shareID
     }
 
     public var body: some View {
@@ -36,8 +37,8 @@ public struct SharedBoardView: View {
         .background(theme.bgApp)
         .navigationTitle("共有ボード")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: token) {
-            await store.open(token: token)
+        .task(id: shareID) {
+            await store.open(shareID: shareID)
         }
     }
 
@@ -59,9 +60,13 @@ public struct SharedBoardView: View {
 
     @ViewBuilder
     private var content: some View {
-        if store.isEnded {
-            // `SHARE_INVALID` 404。保存していた token は破棄済み（AC-SB-11-M）
-            EmptyStateView("この共有は終了しました")
+        if store.isNotInvited {
+            // `SHARE_NOT_INVITED` 403。**この 1 経路だけ**「招待されていない」と言える（AC-SI-21）
+            EmptyStateView(AppError.shareNotInvited.userMessage)
+                .padding(.top, 24)
+        } else if store.isEnded {
+            // `SHARE_INVALID` 404。未知 / 失効 / 期限切れ / 招待から外された。理由は区別しない
+            EmptyStateView(AppError.shareInvalid.userMessage)
                 .padding(.top, 24)
         } else {
             // **読み込み済みの表は消さない**。エラーバーを並べて出す（E-1 / `HomeView` と同じ扱い）
@@ -346,20 +351,20 @@ public struct SharedBoardView: View {
     }
 }
 
-/// ディープリンク（`meigicho://share/<token>`）から**モーダルで**開くときの入れ物。
-/// アプリ本体のタブ・ナビゲーションとは独立している（受け取り側は未ログインの前提）。
+/// ディープリンク（`meigicho://share/<token>` を `redeem` した後の `share_id`）から
+/// **モーダルで**開くときの入れ物。アプリ本体のタブ・ナビゲーションとは独立している。
 public struct SharedBoardScreen: View {
-    private let token: String
+    private let shareID: UUID
     private let onClose: () -> Void
 
-    public init(token: String, onClose: @escaping () -> Void) {
-        self.token = token
+    public init(shareID: UUID, onClose: @escaping () -> Void) {
+        self.shareID = shareID
         self.onClose = onClose
     }
 
     public var body: some View {
         NavigationStack {
-            SharedBoardView(token: token)
+            SharedBoardView(shareID: shareID)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("閉じる", action: onClose)
@@ -371,7 +376,7 @@ public struct SharedBoardScreen: View {
 
 #Preview("共有ボード（閲覧のみ）") {
     NavigationStack {
-        SharedBoardView(token: "preview-token")
+        SharedBoardView(shareID: UUID())
     }
     .environment(SharedBoardStore())
     .environment(\.themeStore, ThemeStore())
