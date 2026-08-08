@@ -2,27 +2,28 @@ import Foundation
 import Core
 import Domain
 
-/// `SharedBoardRepository` の HTTP 実装（`contract-mapping.md` §4.8 / §5.1）。
+/// `SharedBoardRepository` の HTTP 実装（`contract-mapping.md` §4.8 / `api-contract-delta.md` §4.2 / §4.3）。
 ///
-/// **`ApiClient` / `TokenStore` を参照しない。** 使うのは `PublicApiClient` だけ。
-/// 理由: `ApiClient` は 401 で refresh を試み、失敗するとサイレントログアウトする。
-/// 共有ボードを開いただけのユーザーが**自分のアカウントからログアウトさせられる**事故になる（R7 / AC-SB-13-M）。
+/// **`ApiClient`（Bearer 必須）を使う。** 旧 `PublicApiClient` は Q1=A で廃止された
+/// （受け取り側は必ずログイン済みアカウントで開く。401 → refresh → 失敗 → ログアウトは
+/// 自分のセッションに対する想定どおりの挙動になる — `api-contract-delta.md` §6.1）。
 ///
-/// - `GET /public/shares/:token`
-/// - `PATCH /public/shares/:token/items/:item_key`
+/// - `GET /v1/shares/received/:id`
+/// - `PATCH /v1/shares/received/:id/items/:item_key`
 ///
-/// **`/v1` プレフィックスを付けない**（`GLOBAL_PREFIX_EXCLUDE`）。`Endpoint.publicPath` が型で保証する。
+/// addressing は `token` ではなく `share_id`（UUID）。`item_key` / `rev` の HMAC 鍵は
+/// サーバー内部の `token_hash` のままなので、iOS 側のロジックは変わらない。
 public struct RemoteSharedBoardRepository: SharedBoardRepository {
-    private let client: PublicApiClient
+    private let client: ApiClient
     private let logger = AppLogger(category: "shared-board")
 
-    public init(client: PublicApiClient) {
+    public init(client: ApiClient) {
         self.client = client
     }
 
-    public func fetchBoard(token: String) async throws -> SharedBoard {
+    public func fetchBoard(shareID: UUID) async throws -> SharedBoard {
         let response = try await client.send(
-            .publicPath(.get, "/public/shares/\(Self.escaped(token))"),
+            .versioned(.get, "/shares/received/\(shareID.uuidString.lowercased())"),
             as: SharedBoardResponse.self
         )
         return response.toDomain(logger: logger)
@@ -34,16 +35,16 @@ public struct RemoteSharedBoardRepository: SharedBoardRepository {
     /// - body は `rev` + (`status` か `seat` の少なくとも一方)。**3 キー以外を送らない**
     /// - **自動リトライしない**（429 はそのまま `.rateLimited` で返す）
     public func updateItem(
-        token: String,
+        shareID: UUID,
         itemKey: String,
         rev: String,
         change: SharedItemChange
     ) async throws -> SharedBoardItem {
         let body = try JSONEncoder().encode(UpdateSharedItemRequest(rev: rev, change: change))
         let response = try await client.send(
-            .publicPath(
+            .versioned(
                 .patch,
-                "/public/shares/\(Self.escaped(token))/items/\(Self.escaped(itemKey))",
+                "/shares/received/\(shareID.uuidString.lowercased())/items/\(Self.escaped(itemKey))",
                 body: body
             ),
             as: SharedBoardItemResponse.self,
@@ -92,7 +93,7 @@ public struct RemoteSharedBoardRepository: SharedBoardRepository {
     // MARK: - パス埋め込み
 
     /// base64url（`-` `_`）はそのまま通し、想定外の文字だけを percent-encode する。
-    /// **token / item_key の中身は解釈しない**。URL を組み立てられずに落ちるのを防ぐだけ。
+    /// **item_key の中身は解釈しない**。URL を組み立てられずに落ちるのを防ぐだけ。
     private static let pathAllowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
 
     private static func escaped(_ value: String) -> String {

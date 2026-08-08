@@ -2,27 +2,28 @@ import XCTest
 import Domain
 @testable import Network
 
-/// T4b の縦串: `RemoteSharedBoardRepository` → `PublicApiClient` → HTTP。
-///
-/// **最重要**: この経路が `Authorization` を送らないこと・401 で再送しないこと（R7 / AC-SB-13-M）。
-/// スタブ（`StubURLProtocol` / `StubRecorder`）は `ApiClientRefreshTests.swift` のものを共有する。
+/// 受け取り側・共有ボードの縦串: `RemoteSharedBoardRepository` → `ApiClient` → HTTP。
+/// `api-contract-delta.md` §4.2 / §4.3（addressing は `token` ではなく `share_id`。Bearer 必須）。
 final class RemoteSharedBoardRepositoryTests: XCTestCase {
     private var recorder: StubRecorder!
     private var repository: RemoteSharedBoardRepository!
 
-    private let token = "ZQw6TFTbgQZGmqQcUvFIcBC6vQ88OZHljkXNXZg-hWg"
+    private let shareID = UUID(uuidString: "018f3c2a-1111-7c90-9d2a-000000000001")!
     private let itemKey = "1Gt56wJMBPS98yl60rzPLT"
 
     override func setUp() async throws {
         try await super.setUp()
         recorder = StubRecorder()
         StubURLProtocol.recorder = recorder
-        repository = RemoteSharedBoardRepository(
-            client: PublicApiClient(
-                configuration: ApiConfiguration(baseURL: URL(string: "http://localhost:8080")!),
-                session: StubURLProtocol.makeSession()
-            )
+        let client = ApiClient(
+            configuration: ApiConfiguration(baseURL: URL(string: "http://localhost:8080")!),
+            tokenStore: InMemoryTokenStore(token: "refresh-1"),
+            session: StubURLProtocol.makeSession()
         )
+        await client.adoptSession(
+            TokenPair(accessToken: "at-1", refreshToken: "refresh-1", expiresAt: Date().addingTimeInterval(3600))
+        )
+        repository = RemoteSharedBoardRepository(client: client)
     }
 
     override func tearDown() async throws {
@@ -46,34 +47,49 @@ final class RemoteSharedBoardRepositoryTests: XCTestCase {
     }
     """.utf8)
 
-    // MARK: - AC-SB-13-M の機械化: Bearer を送らない / 401 で再送しない
+    // MARK: - addressing（`share_id` / `/v1` / Bearer）
 
-    func testFetchSendsNoAuthorizationHeaderAndUsesUnversionedPath() async throws {
+    func testFetchUsesVersionedShareIDPathWithBearer() async throws {
         recorder.respond { _ in StubResponse(status: 200, body: Self.boardBody) }
 
-        let board = try await repository.fetchBoard(token: token)
+        let board = try await repository.fetchBoard(shareID: shareID)
 
         XCTAssertEqual(board.permission, .write)
-        XCTAssertEqual(recorder.count(path: "/public/shares/\(token)"), 1)
-        // **`/v1` が付かない**
-        XCTAssertEqual(recorder.count(path: "/v1/public/shares/\(token)"), 0)
-        // **`Authorization` を組み立てない**
-        XCTAssertEqual(recorder.lastAuthorizationHeader(path: "/public/shares/\(token)"), .some(nil))
+        XCTAssertEqual(recorder.count(path: "/v1/shares/received/\(shareID.uuidString.lowercased())"), 1)
+        XCTAssertEqual(
+            recorder.lastAuthorizationHeader(path: "/v1/shares/received/\(shareID.uuidString.lowercased())"),
+            .some("Bearer at-1")
+        )
     }
 
-    /// 公開経路で 401 が返っても **refresh も再送もしない**。
-    /// ここが壊れると、ボードを開いただけのユーザーが自分のアカウントからログアウトさせられる。
-    func testUnauthorizedIsNotRetriedAndDoesNotTouchRefresh() async {
-        recorder.respond { _ in StubResponse(status: 401, body: StubResponse.envelope("UNAUTHENTICATED")) }
+    /// 招待されていない / 失効した `share_id` は 404 `SHARE_INVALID`（403 にしない）。
+    func testShareInvalidIsMappedAsIs() async {
+        recorder.respond { _ in StubResponse(status: 404, body: StubResponse.envelope("SHARE_INVALID")) }
 
         do {
-            _ = try await repository.fetchBoard(token: token)
+            _ = try await repository.fetchBoard(shareID: shareID)
+            XCTFail("404 は throw されるべき")
+        } catch {
+            XCTAssertEqual(error as? AppError, .shareInvalid)
+        }
+    }
+
+    /// 401 は通常の `ApiClient` の refresh 経路に乗る（受け取り側専用のクライアント分離は無くなった）。
+    func testUnauthorizedGoesThroughNormalRefreshPath() async {
+        recorder.respond { request in
+            if request.url?.path == "/v1/auth/refresh" {
+                return StubResponse(status: 401, body: StubResponse.envelope("AUTH_REFRESH_INVALID"))
+            }
+            return StubResponse(status: 401, body: StubResponse.envelope("UNAUTHENTICATED"))
+        }
+
+        do {
+            _ = try await repository.fetchBoard(shareID: shareID)
             XCTFail("401 は throw されるべき")
         } catch {
-            XCTAssertEqual(error as? AppError, .unauthenticated)
+            XCTAssertEqual(error as? AppError, .sessionExpired)
         }
-        XCTAssertEqual(recorder.total, 1, "再送しない")
-        XCTAssertEqual(recorder.count(path: "/v1/auth/refresh"), 0, "refresh を叩かない")
+        XCTAssertEqual(recorder.count(path: "/v1/auth/refresh"), 1)
     }
 
     // MARK: - 更新
@@ -89,7 +105,7 @@ final class RemoteSharedBoardRepositoryTests: XCTestCase {
         }
 
         let item = try await repository.updateItem(
-            token: token,
+            shareID: shareID,
             itemKey: itemKey,
             rev: "ez4oUpCAvBRUCH1X",
             change: .statusAndSeat(.won, "1F A列 12番")
@@ -98,11 +114,9 @@ final class RemoteSharedBoardRepositoryTests: XCTestCase {
         XCTAssertEqual(item.status, .won)
         XCTAssertEqual(item.seat, "1F A列 12番")
         XCTAssertEqual(item.handle?.rev, "NEWREV")
-        XCTAssertEqual(recorder.count(path: "/public/shares/\(token)/items/\(itemKey)"), 1)
-        XCTAssertEqual(
-            recorder.lastAuthorizationHeader(path: "/public/shares/\(token)/items/\(itemKey)"),
-            .some(nil)
-        )
+        let path = "/v1/shares/received/\(shareID.uuidString.lowercased())/items/\(itemKey)"
+        XCTAssertEqual(recorder.count(path: path), 1)
+        XCTAssertEqual(recorder.lastAuthorizationHeader(path: path), .some("Bearer at-1"))
     }
 
     // MARK: - AC-SB-05-T: 409 が `.shareItemConflict` として呼び出し側まで届く
@@ -117,7 +131,7 @@ final class RemoteSharedBoardRepositoryTests: XCTestCase {
         }
 
         do {
-            _ = try await repository.updateItem(token: token, itemKey: itemKey, rev: "OLD", change: .status(.won))
+            _ = try await repository.updateItem(shareID: shareID, itemKey: itemKey, rev: "OLD", change: .status(.won))
             XCTFail("409 は throw されるべき")
         } catch {
             XCTAssertEqual(
@@ -133,23 +147,22 @@ final class RemoteSharedBoardRepositoryTests: XCTestCase {
         recorder.respond { _ in StubResponse(status: 409, body: StubResponse.envelope("CONFLICT")) }
 
         do {
-            _ = try await repository.updateItem(token: token, itemKey: itemKey, rev: "OLD", change: .status(.won))
+            _ = try await repository.updateItem(shareID: shareID, itemKey: itemKey, rev: "OLD", change: .status(.won))
             XCTFail("409 は throw されるべき")
         } catch {
             XCTAssertEqual(error as? AppError, .conflict)
         }
     }
 
-    func testShareInvalidAndForbiddenAndRateLimitedAreMappedAsIs() async {
+    func testForbiddenAndRateLimitedAreMappedAsIs() async {
         let cases: [(String, Int, AppError)] = [
-            ("SHARE_INVALID", 404, .shareInvalid),
             ("FORBIDDEN", 403, .forbidden),
             ("RATE_LIMITED", 429, .rateLimited),
         ]
         for (code, status, expected) in cases {
             recorder.respond { _ in StubResponse(status: status, body: StubResponse.envelope(code)) }
             do {
-                _ = try await repository.updateItem(token: token, itemKey: itemKey, rev: "R", change: .status(.won))
+                _ = try await repository.updateItem(shareID: shareID, itemKey: itemKey, rev: "R", change: .status(.won))
                 XCTFail("\(code) は throw されるべき")
             } catch {
                 XCTAssertEqual(error as? AppError, expected)

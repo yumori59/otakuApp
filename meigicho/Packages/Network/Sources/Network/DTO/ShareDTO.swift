@@ -15,6 +15,32 @@ struct ShareListResponse: Decodable, Sendable {
     let items: [ShareResponse]
 }
 
+/// 招待先 1 件（`recipients[]`）。`api-contract-delta.md` §1 / §2 / §3。
+///
+/// **`hidden_at` は含まれない**（Q3: 受け取り側の非表示はオーナーに見せない）。
+struct ShareRecipientResponse: Decodable, Sendable {
+    let accountID: String
+    let displayName: String?
+    let invitedAt: String
+    let lastViewedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accountID = "account_id"
+        case displayName = "display_name"
+        case invitedAt = "invited_at"
+        case lastViewedAt = "last_viewed_at"
+    }
+
+    func toDomain() -> ShareRecipient {
+        ShareRecipient(
+            accountID: accountID,
+            displayName: displayName,
+            invitedAt: APIDateFormat.dateTime(from: invitedAt) ?? Date(),
+            lastViewedAt: lastViewedAt.flatMap { APIDateFormat.dateTime(from: $0) }
+        )
+    }
+}
+
 /// `GET /v1/shares` の items 要素。
 ///
 /// `permission` / `scope_type` は enum で受ける。**未知値は黙って `read` / `tour` に落とさず
@@ -26,7 +52,8 @@ struct ShareResponse: Decodable, Sendable {
     let scopeName: String?
     let permission: SharePermission
     let maskMemberNo: Bool
-    let sharedWithAccountIDs: [String]
+    /// 旧 `shared_with_account_ids`（文字列配列）の置き換え。招待は状態（`invited_at` / `last_viewed_at`）を持つ
+    let recipients: [ShareRecipientResponse]
     let expiresAt: String?
     let revokedAt: String?
     let viewCount: Int
@@ -44,7 +71,7 @@ struct ShareResponse: Decodable, Sendable {
         case scopeName = "scope_name"
         case permission
         case maskMemberNo = "mask_member_no"
-        case sharedWithAccountIDs = "shared_with_account_ids"
+        case recipients
         case expiresAt = "expires_at"
         case revokedAt = "revoked_at"
         case viewCount = "view_count"
@@ -66,7 +93,7 @@ struct CreateShareResponse: Decodable, Sendable {
     let scopeID: UUID?
     let permission: SharePermission
     let maskMemberNo: Bool
-    let sharedWithAccountIDs: [String]
+    let recipients: [ShareRecipientResponse]
     let expiresAt: String?
     let createdAt: String
 
@@ -78,7 +105,7 @@ struct CreateShareResponse: Decodable, Sendable {
         case scopeID = "scope_id"
         case permission
         case maskMemberNo = "mask_member_no"
-        case sharedWithAccountIDs = "shared_with_account_ids"
+        case recipients
         case expiresAt = "expires_at"
         case createdAt = "created_at"
     }
@@ -132,7 +159,7 @@ extension ShareResponse {
             scopeName: scopeName,
             permission: permission,
             maskMemberNo: maskMemberNo,
-            sharedWithAccountIDs: sharedWithAccountIDs,
+            recipients: recipients.map { $0.toDomain() },
             expiresAt: expiresAt.flatMap { APIDateFormat.dateTime(from: $0) },
             revokedAt: revokedAt.flatMap { APIDateFormat.dateTime(from: $0) },
             viewCount: viewCount,
@@ -159,7 +186,7 @@ extension CreateShareResponse {
             scopeName: nil,
             permission: permission,
             maskMemberNo: maskMemberNo,
-            sharedWithAccountIDs: sharedWithAccountIDs,
+            recipients: recipients.map { $0.toDomain() },
             expiresAt: expiresAt.flatMap { APIDateFormat.dateTime(from: $0) },
             revokedAt: nil,
             viewCount: 0,
@@ -171,4 +198,20 @@ extension CreateShareResponse {
         )
         return IssuedShareLink(link: link, token: token, url: url)
     }
+}
+
+// MARK: - 招待の追加・削除（`api-contract-delta.md` §3）
+
+/// `POST /v1/shares/:id/recipients` の request。
+struct AddRecipientsRequest: Encodable, Sendable {
+    let accountIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case accountIDs = "account_ids"
+    }
+}
+
+/// `POST /v1/shares/:id/recipients` の 200。**追加後の全件**（差分ではない）。
+struct RecipientsResponse: Decodable, Sendable {
+    let recipients: [ShareRecipientResponse]
 }

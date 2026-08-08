@@ -48,19 +48,10 @@ final class ResponseValidatorTests: XCTestCase {
 }
 
 /// AC-N-13 の一部（実装 grep とレビューで担保する残りは報告に記載）
+///
+/// 旧 `PublicApiClient` は `api-contract-delta.md` Q1=A で廃止された
+/// （`/public/shares/:token` 系が無くなり、`ApiClient` 1 種類に統一された）。
 final class ClientSeparationTests: XCTestCase {
-    func testPublicClientRejectsVersionedEndpoints() async {
-        let client = PublicApiClient(configuration: ApiConfiguration(baseURL: URL(string: "http://localhost:8080")!))
-        do {
-            _ = try await client.sendVoid(Endpoint.versioned(.get, "/me"))
-            XCTFail("versioned endpoint must not be sent by PublicApiClient")
-        } catch let error as AppError {
-            guard case .decoding = error else { return XCTFail("unexpected \(error)") }
-        } catch {
-            XCTFail("unexpected \(error)")
-        }
-    }
-
     func testAuthenticatedClientRejectsPublicEndpoints() async {
         let client = ApiClient(configuration: ApiConfiguration(baseURL: URL(string: "http://localhost:8080")!))
         do {

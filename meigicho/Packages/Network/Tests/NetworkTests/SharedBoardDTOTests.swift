@@ -375,13 +375,21 @@ final class SharedBoardDTOTests: XCTestCase {
         }
     }
 
-    // MARK: - エンドポイント（`/v1` を付けない）
+    // MARK: - エンドポイント（`api-contract-delta.md` §4.2 / §4.3。`share_id` addressing・`/v1` 付き）
 
-    func testSharedBoardEndpointsAreNotVersioned() throws {
-        let get = Endpoint.publicPath(.get, "/public/shares/TOKEN")
+    func testSharedBoardEndpointsAreVersionedAndAddressedByShareID() throws {
+        let shareID = "018f3c2a-1111-7c90-9d2a-000000000001"
+        let get = Endpoint.versioned(.get, "/shares/received/\(shareID)")
         let request = try get.urlRequest(baseURL: URL(string: "http://localhost:8080")!, extraHeaders: [:])
-        XCTAssertEqual(request.url?.absoluteString, "http://localhost:8080/public/shares/TOKEN")
-        // **Bearer を付けない**
+        XCTAssertEqual(request.url?.absoluteString, "http://localhost:8080/v1/shares/received/\(shareID)")
+        // `Authorization` は `Endpoint` ではなく `ApiClient` が付ける
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+        let patch = Endpoint.versioned(.patch, "/shares/received/\(shareID)/items/TOKEN")
+        let patchRequest = try patch.urlRequest(baseURL: URL(string: "http://localhost:8080")!, extraHeaders: [:])
+        XCTAssertEqual(
+            patchRequest.url?.absoluteString,
+            "http://localhost:8080/v1/shares/received/\(shareID)/items/TOKEN"
+        )
     }
 }
