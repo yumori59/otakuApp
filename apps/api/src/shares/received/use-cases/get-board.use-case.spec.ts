@@ -158,6 +158,31 @@ describe('GetBoardUseCase', () => {
     });
   });
 
+  it('last_viewed_at は ResolveShareUseCase（view_count 加算 = share_links.updated_at の更新）より後の時刻で打つ', async () => {
+    // ResolveShareUseCase が recordView で share_links を更新すると @updatedAt が進む。
+    // 閲覧開始時刻で last_viewed_at を打つと `unread = last_viewed_at < updated_at` が
+    // 常に true のままになり、受信箱の未読が二度と消えない。
+    const AFTER_RESOLVE = new Date(NOW.getTime() + 1_000);
+    resolveShare.execute.mockImplementation(() => {
+      jest.setSystemTime(AFTER_RESOLVE);
+      return Promise.resolve({
+        scope_type: 'tour',
+        permission: 'read',
+        tour: { name: 'STELLARIS LIVE TOUR 2026', artist_name: 'STELLARIS' },
+        generated_at: NOW.toISOString(),
+        items: [],
+      });
+    });
+
+    await useCase.execute(RECIPIENT_ID, SHARE_ID);
+
+    expect(access.markViewed).toHaveBeenCalledWith(
+      SHARE_ID,
+      RECIPIENT_ID,
+      AFTER_RESOLVE,
+    );
+  });
+
   it('マスキングは ResolveShareUseCase に委譲する（NFR-7・再実装しない）', async () => {
     await useCase.execute(RECIPIENT_ID, SHARE_ID);
     expect(resolveShare.execute).toHaveBeenCalledTimes(1);

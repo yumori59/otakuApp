@@ -20,7 +20,8 @@ struct SharedInboxListResponse: Decodable, Sendable {
 struct SharedInboxItemResponse: Decodable, Sendable {
     let shareID: UUID
     let scopeType: ShareScope
-    let scopeName: String
+    /// **null を許す**（サーバーが tour 名を解決できない場合）。1 件の欠損で一覧全体を落とさない
+    let scopeName: String?
     let permission: SharePermission
     let owner: SharedInboxOwnerResponse
     let invitedAt: String
@@ -53,7 +54,8 @@ struct SharedInboxItemResponse: Decodable, Sendable {
 }
 
 struct SharedInboxOwnerResponse: Decodable, Sendable {
-    let accountID: String
+    /// **null を許す**（プロフィール未解決。`received-share.presenter.ts` の型は `string | null`）
+    let accountID: String?
     let displayName: String?
 
     enum CodingKeys: String, CodingKey {

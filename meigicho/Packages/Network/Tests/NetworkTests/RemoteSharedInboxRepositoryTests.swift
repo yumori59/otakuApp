@@ -58,6 +58,31 @@ final class RemoteSharedInboxRepositoryTests: XCTestCase {
         XCTAssertEqual(recorder.count(path: "/v1/shares/received"), 1)
     }
 
+    /// `scope_name` / `owner.account_id` はサーバー側の型が `string | null`
+    /// （`received-share.presenter.ts`）。1 件でも null があると一覧全体のデコードが
+    /// 落ちるのを防ぐ（IOS-2）。
+    func testListAcceptsNullScopeNameAndNullOwnerAccountID() async throws {
+        recorder.respond { _ in
+            StubResponse(status: 200, body: Data("""
+            { "items": [
+              { "share_id": "018f3c2a-1111-7c90-9d2a-000000000001",
+                "scope_type": "tour", "scope_name": null,
+                "permission": "read",
+                "owner": { "account_id": null, "display_name": null },
+                "invited_at": "2026-08-07T00:00:00.000Z",
+                "expires_at": null, "unread": false }
+            ] }
+            """.utf8))
+        }
+
+        let items = try await repository.list()
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertNil(items[0].scopeName)
+        XCTAssertEqual(items[0].displayTitle, "共有された表")
+        XCTAssertEqual(items[0].owner.displayLabel, "共有した人")
+    }
+
     func testListEmptyIsNotAnError() async throws {
         recorder.respond { _ in StubResponse(status: 200, body: Data(#"{"items":[]}"#.utf8)) }
         let items = try await repository.list()

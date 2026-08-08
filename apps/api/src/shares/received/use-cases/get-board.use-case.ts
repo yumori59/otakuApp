@@ -45,8 +45,12 @@ export class GetBoardUseCase {
     const payload = await this.resolveShare.execute(link);
 
     // オーナー閲覧では share_recipients.last_viewed_at を更新しない（招待経由だけ計上）。
+    // **時刻は resolveShare の後に取り直す**。resolveShare は view_count を加算して
+    // `share_links.updated_at` を進めるので、閲覧開始時刻で打つと
+    // `unread = last_viewed_at < share_links.updated_at`（§4.1）が常に true のままになり、
+    // 受信箱の未読が二度と消えない。
     if (!isOwner) {
-      await this.access.markViewed(shareId, userId, now);
+      await this.access.markViewed(shareId, userId, new Date());
     }
 
     const ownerProfile = await this.access.findOwnerProfile(link.ownerId);

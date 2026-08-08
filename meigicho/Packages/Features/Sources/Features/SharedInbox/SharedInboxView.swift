@@ -87,7 +87,7 @@ struct SharedInboxView: View {
         ListRow(
             avatarInitial: item.owner.displayLabel,
             avatarColor: "#9C9CA8",
-            title: item.scopeName,
+            title: item.displayTitle,
             subtitle: "\(item.owner.displayLabel) ・ \(item.permission.label)",
             meta: metaText(for: item),
             trailing: item.unread ? AnyView(unreadDot) : nil

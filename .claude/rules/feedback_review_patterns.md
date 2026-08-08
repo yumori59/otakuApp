@@ -19,6 +19,7 @@
 | BE-4 | **Guard / ownerId スコープ漏れ** | 認証必須エンドポイントに Guard 漏れ、他ユーザーの id 直指定で読み書きできる経路は重大。共有公開 API は意図的に公開しマスキングを確認 |
 | BE-5 | **prisma 実行ディレクトリ間違い** | 正は `apps/api/prisma/schema.prisma`。コマンドは `apps/api/` で実行 |
 | BE-6 | **Prisma 例外の envelope 漏れ** | P2002(既存idへのPOST)/P2025(対象行なし)が AllExceptionsFilter で INTERNAL 500 になっていないか。契約上の CONFLICT 409/NOT_FOUND 404 に写すか、Service 側で事前検出する |
+| BE-7 | **`@updatedAt` を「相手が見たか」の比較基準に使う** | 閲覧カウンタ更新（`view_count` など）自体が `updated_at` を進める。閲覧開始時刻で `last_viewed_at` を打つと `last_viewed_at < updated_at` が常に成立し、未読が二度と消えない。副作用の**後に**時刻を取り直すか、比較基準を内容変更に寄せる |
 
 ## iOS (SwiftUI: meigicho)
 

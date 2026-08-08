@@ -83,20 +83,33 @@ struct SharedBoardDeepLink: ViewModifier {
     // MARK: - token の受け取り
 
     /// ログイン済みならすぐ交換、未ログインなら保留してサインインを促す（FR-4-3）。
+    ///
+    /// **`.unknown`（セッション復帰中）ではサインインを促さない。** コールドスタートの
+    /// ディープリンクは復帰完了前に届くので、ここで促すとログイン済みのユーザーにも
+    /// サインインシートが出てしまう。保留だけして `handleAuthStateChange` の結果を待つ。
     private func receive(token: String) {
-        guard authState == .signedIn else {
+        switch authState {
+        case .signedIn:
+            pendingToken = nil
+            Task { await redeemAndPresent(token: token) }
+        case .unknown:
             pendingToken = token
-            sheetPresenter.activeSheet = .signIn(reason: "共有された表を開くにはログインが必要です。")
-            return
+        case .signedOut:
+            pendingToken = token
+            promptSignIn()
         }
-        pendingToken = nil
-        Task { await redeemAndPresent(token: token) }
+    }
+
+    private func promptSignIn() {
+        sheetPresenter.activeSheet = .signIn(reason: "共有された表を開くにはログインが必要です。")
     }
 
     /// `AuthState` の遷移に対する反応。
     ///
     /// - `.signedIn` — 保留していた token を**一度だけ**再試行する（保留を先に落として二重実行を防ぐ）
+    /// - `.unknown` — 何もしない（復帰待ち）。保留 token はそのまま
     /// - `.signedOut` — 前のユーザーの受信箱とボードをメモリから捨てる。
+    ///   保留 token があればここでサインインを促す。
     ///   **どちらもサーバーが正でローカル永続化していない**ので、オフライン復帰失敗の `.signedOut`
     ///   （IOS-6）で消しても失われる未送信データは無い。**保留 token は消さない**（サインインの続きで使う）
     private func handleAuthStateChange() async {
@@ -109,6 +122,8 @@ struct SharedBoardDeepLink: ViewModifier {
             presentedShareID = nil
             boardStore.close()
             inboxStore.clear()
+            // 復帰中（`.unknown`）に受けた token は保留したままなので、ここで初めて促す
+            if pendingToken != nil { promptSignIn() }
         case .unknown:
             break
         }
