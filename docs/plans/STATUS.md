@@ -14,7 +14,7 @@
 |---|---|---|
 | 2026-08-05 | **アプリ不要の独立共有 Web（Next.js / Cloudflare Pages）は作らない** | 閲覧・編集の正は iOS `SharedBoard` + `GET/PATCH /public/shares/:token`。`docs/00`〜`09`・本 STATUS を更新。roadmap 1-7 は廃止（工数 0）。Universal Links は任意の後続 |
 | 2026-08-07 | **共有はアカウント招待制に完全移行する。公開トークン経路は廃止** | `GET/PATCH /public/shares/:token` を削除し、受け取りは Bearer 必須の受信箱（`/v1/shares/received/*`）に一本化。`share_recipients` が ACL の実体。`docs/10` §3 の「Phase 2 で再決定」に対する決定。計画は `docs/plans/share-account-invites/`。**副作用: `docs/09` の KPI「共有リンク経由の新規インストール比率 ≥ 10%」は達成不能になるため要再設定（未起票）** |
-| 2026-08-08 | 共有アカウント招待制化（BE/iOS）実装完了。`docs/03`・`docs/04`・`docs/05`・`docs/09`・`CLAUDE.md`・本 STATUS を実装内容に追従。**未実施: `code-reviewer` レビュー** | BE検証ゲート緑（883テスト）。§9 参照 |
+| 2026-08-08 | 共有アカウント招待制化（BE/iOS）完了。レビューで重大1件（受信箱の未読が消えないバグ）検出→修正→重大ゼロ。main マージ済み | BE 884テスト・iOS Domain 207/Network 165全緑。§9 参照 |
 
 ---
 
@@ -25,7 +25,7 @@ BE: ドメイン + 認証拡張 + home/stats/sync/billing（2026-08-05 完了）
 iOS: ネットワーク接続・home/summary・ペイウォール・stats/identities 接続（2026-08-05）
 次: 同期エンジン（`docs/plans/ios-sync-engine/`）→ AdMob（Phase 1-11）
 共有: 独立 Web ビューは対象外。アプリ内 SharedBoard が正
-共有の認可: **アカウント招待制へ完全移行済み（実装完了・レビュー待ち — `docs/plans/share-account-invites/`）**
+共有の認可: **アカウント招待制へ完全移行済み（レビュー重大ゼロ・main マージ済み — `docs/plans/share-account-invites/`）**
             公開経路 `/public/shares/:token` は削除済み。受け取りはアプリ内受信箱（Bearer必須）に一本化
 ```
 
@@ -216,7 +216,7 @@ T0(Spike)→T5(Domain: AdPlacement/AdGatekeeper/AdsStore)→T9(App: SDK初期化
 - `.claude/rules/feedback_review_patterns.md` に INFRA-1〜5 追記
 - 初回セットアップ手順: `infra/terraform/README.md`
 
-## 9. 共有のアカウント招待制化 — `docs/plans/share-account-invites/`（✅ **実装完了・レビュー待ち**）
+## 9. 共有のアカウント招待制化 — `docs/plans/share-account-invites/`（✅ **完了・main マージ済み**）
 
 共有を「トークンURLを知っていれば誰でも閲覧・編集できる」から「**招待されたアカウントだけ**」に変えた。
 ユーザー要望（2026-08-07）。`docs/10-mock-delta-2026-07-31.md` §3 が「Phase 2 で再決定」としていた項目の**再決定そのもの**（`docs/10` §3・§4 は決定内容に更新済み）。
@@ -244,17 +244,24 @@ Q14 は **14-a**（`SharedBoardLink` / ディープリンク `meigicho://share/<
 | 変更 | `SharedBoardStore` / `RemoteSharedBoardRepository` を token 起点 → `shareID` 起点へ、`AppRoute.sharedBoard(token:)` → `.sharedBoard(shareID:)`、`AppEnvironment`（`publicApiClient` 等を削除・`sharedInboxRepository` 注入）、`DeepLinkRouter`（未ログイン時は保留トークンを保持しサインイン後に再試行）、`ShareRecipientsView`（招待必須化・追加削除UI） |
 | 保持 | `SharedBoardLink`（token 抽出の純粋パーサ）と `meigicho://share/<token>` ディープリンク受け口（Q14=14-a） |
 
-### 検証結果（2026-08-08・本ドキュメント更新セッションで再実行）
+### レビュー（2026-08-08・別セッション）
 
-- BE: `cd apps/api && npx tsc --noEmit`（クリーン）/ `npm test`（**87 suites / 883 tests 全緑**）/ `npm run build`（成功）
-- iOS: 実装コミット（`1618b70` まで）時点でフルビルド・全テスト緑（本セッションはdocsのみのため再ビルドは未実施。挙動変更なし）
+初回で**重大1件**検出→修正→再レビューで**重大ゼロ**（`docs/plans/share-account-invites/review.md`）。
+重大: `GET /v1/shares/received/:id` が受信箱の未読判定に使う`share_links.updated_at`を、同一リクエスト内の`recordView()`が先に更新してしまい、**未読が恒久的に消えない**バグ（受信箱の中心機能が機能しない状態）。時刻取得の順序を修正し回帰テストを追加。
+中2件も同時修正: iOS受信箱DTOの`scope_name`/`owner.account_id`がnull1件で一覧全体デコード失敗する問題（Optional化）、`DeepLinkRouter`がコールドスタート時`AuthState.unknown`を未ログイン扱いしていた問題。
+`.claude/rules/feedback_review_patterns.md` に `BE-7`（`@updatedAt`を既読判定の基準に使う罠）を追記。
+main へマージ済み（コミット `5c2e4f6`）。worktree/ブランチは削除済み。
+
+### 検証結果（レビュー後・最終）
+
+- BE: `npx tsc --noEmit`（クリーン）/ `npm test`（**87 suites / 884 tests 全緑**）/ `npm run build`（成功）
+- iOS: `xcodebuild` BUILD SUCCEEDED、Domain 207 / Network 165 テスト全緑
 
 ### トレードオフ・残課題
 
 - **KPI 再設定が未着手**: 公開経路の廃止により `docs/09` の KPI「共有リンク経由の新規インストール比率 ≥ 10%」（Phase 1・Phase 2 とも）は達成不能。`docs/09-roadmap.md` に取消線 + 脚注で明記済み。**削除するか置き換えるかの意思決定は未着手**（本計画のスコープ外）
-- `docs/plans/share-account-invites/questions-requirements.md` の Q14 は本文中の `[Answer]` 欄では 14-a 確定と書かれているが、末尾の「回答状況」表・結語では「未回答」のままになっており**自己矛盾がある**（今回の docs 追従作業では対象外。実装は 14-a で確定済みのため実害はないが、要修正）
-- 手動確認手順（`plan.md` §9・11項目）が実機/シミュレータで実施されたかは本セッションでは未確認。次回レビュー時に確認すること
-- `code-reviewer`（別セッション・T13）が未実施。レビュー後の重大ゼロ確認が完了条件
+- 手動確認手順（`plan.md` §9・11項目）は実機/シミュレータで未実施（実DB・複数アカウントが必要なため）
+- レビューで見つかった中3件・軽微4件のうち未修正分（レート制限実装の3方式分裂、tour名解決のdeletedAt未考慮、他招待者閲覧で全員未読化、`TokenThrottlerGuard`デッドコード等）は`review.md`に申し送り事項として記録済み。実害小さく緊急対応不要
 
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
