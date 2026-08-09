@@ -190,7 +190,12 @@ public actor ApiClient {
                 logger.event("auth_refresh_discarded_stale_session")
                 throw AppError.sessionExpired
             }
-            await store(pair)
+            guard await store(pair, epoch: epoch) else {
+                // `store` 内の `await tokenStore.write` が中断している間にログアウト / 別セッション採用が
+                // 割り込んだ（中-2 残余）。書き込みは打ち消し済みなのでこの結果は採用しない
+                logger.event("auth_refresh_discarded_stale_session")
+                throw AppError.sessionExpired
+            }
             return pair.accessToken
         } catch let error as AppError {
             // `AUTH_REFRESH_INVALID` / `UNAUTHENTICATED` は復帰不能。**サイレントログアウト**（E-6 / AC-AUTH-09-M）
@@ -203,10 +208,25 @@ public actor ApiClient {
         }
     }
 
-    private func store(_ tokens: TokenPair) async {
+    /// トークンを採用する。`epoch` は呼び出し時点のセッション世代。
+    ///
+    /// `await tokenStore.write` はそれ自体が中断点であり、この最中に `clearSession` /
+    /// `adoptSession` が割り込んで世代を進める余地がある（中-2 残余。`sessionEpoch` の一致だけを
+    /// `store` 呼び出し前に見ても閉じない窓）。書き込み**後**にもう一度世代を確認し、
+    /// ズレていれば直前の書き込みを打ち消して Keychain を空に戻す。
+    /// 戻り値は「採用できたか」。呼び出し側は `false` ならこのトークンを使わない。
+    @discardableResult
+    private func store(_ tokens: TokenPair, epoch: Int) async -> Bool {
         accessToken = tokens.accessToken
         accessTokenExpiresAt = tokens.expiresAt
         await tokenStore.write(tokens.refreshToken)
+        guard epoch == sessionEpoch else {
+            accessToken = nil
+            accessTokenExpiresAt = nil
+            await tokenStore.clear()
+            return false
+        }
+        return true
     }
 
     private func endSession() async {
@@ -226,7 +246,7 @@ extension ApiClient: AuthSessionController {
     public func adoptSession(_ tokens: TokenPair) async {
         // 進行中の refresh（前のセッションのもの）に上書きされないよう世代を進める
         beginNewSessionEpoch()
-        await store(tokens)
+        await store(tokens, epoch: sessionEpoch)
     }
 
     public func clearSession() async {
