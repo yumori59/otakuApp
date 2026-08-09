@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// AC-N-12-T: `/v1` あり / なしを取り違えない
 final class EndpointTests: XCTestCase {

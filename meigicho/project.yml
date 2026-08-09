@@ -19,12 +19,13 @@ packages:
     path: Packages/Domain
   DataStore:
     path: Packages/DataStore
-  Network:
-    path: Packages/Network
+  Networking:
+    path: Packages/Networking
   Features:
     path: Packages/Features
-  # RevenueCat: 一時無効化中（自作 Network パッケージと Apple の Network.framework が
-  # 衝突しクリーンビルドが失敗するため）。再有効化する場合は下のブロックのコメントを外す。
+  # RevenueCat: 一時無効化中。
+  # 旧原因（自作 `Network` パッケージと Apple の Network.framework のモジュール名衝突）は
+  # パッケージを `Networking` に改名して解消済み。再有効化を試す場合は下のブロックのコメントを外す。
   # RevenueCat:
   #   url: https://github.com/RevenueCat/purchases-ios
   #   from: 5.14.0
@@ -84,14 +85,17 @@ targets:
     dependencies:
       - package: Features
         product: Features
+      # Composition Root が編集後デバウンス（Core.Debouncer）を組む
+      - package: Core
+        product: Core
       - package: DesignSystem
         product: DesignSystem
       - package: Domain
         product: Domain
       - package: DataStore
         product: DataStore
-      - package: Network
-        product: Network
+      - package: Networking
+        product: Networking
       # RevenueCat: 上の packages ブロックと合わせて一時無効化中
       # - package: RevenueCat
       #   product: RevenueCat
@@ -102,6 +106,13 @@ targets:
       properties:
         CFBundleDisplayName: 参戦名義帳
         UILaunchScreen: {}
+        # バックグラウンド同期（BGAppRefreshTask / docs/05 §5）。
+        # `BGTaskSchedulerPermittedIdentifiers` に載っていない識別子は register/submit が失敗する。
+        # 値は `App/BackgroundSyncScheduler.taskIdentifier` と一致させること
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - jp.meigicho.app.sync-refresh
         API_BASE_URL: $(API_BASE_URL)
         GOOGLE_IOS_CLIENT_ID: $(GOOGLE_IOS_CLIENT_ID)
         REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)

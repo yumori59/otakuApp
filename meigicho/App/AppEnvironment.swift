@@ -1,8 +1,9 @@
 import Foundation
 import SwiftUI
 import UIKit
+import Core
 import Domain
-import Network
+import Networking
 import DataStore
 import DesignSystem
 import Features
@@ -19,6 +20,8 @@ import SwiftData
 final class AppEnvironment {
     /// `SyncEngine` の pull カーソル（T3 が導入した既定値をそのまま踏襲する）
     private static let syncCursorDefaultsKey = "meigicho.sync.cursor.v1"
+    /// 編集後デバウンス（`docs/05` §5 のトリガ表: 3 秒）
+    private static let editSyncDebounceSeconds: Double = 3
 
     let configuration: ApiConfiguration
     /// 認証あり（`/v1/*`）。T1 が `TokenStore` と 401 refresh を足す。
@@ -47,6 +50,8 @@ final class AppEnvironment {
     /// push→pull のサイクルを担う actor。UI テストでは nil（ネットワーク/ディスクに触らせない）
     let syncEngine: SyncEngine?
     let reachability: Reachability?
+    /// 編集後 3 秒デバウンスの待機（ログアウト時に取り消す）。UI テストでは nil
+    private let editSyncDebouncer: Debouncer?
     /// ホームの同期バナーが購読する状態（`Features` からは `Domain.SyncStatusStore` として見える）
     let syncStatusStore: SyncStatusStore
 
@@ -84,25 +89,46 @@ final class AppEnvironment {
             modelContainer = nil
             syncEngine = nil
             reachability = nil
+            editSyncDebouncer = nil
         } else {
             // ローカル SSoT（SwiftData）+ バックグラウンド同期（`docs/05` §5 / ios-sync-engine T4）。
             // ディスク永続化に失敗しても起動は止めない（インメモリへフォールバック）
             let container = (try? ModelContainerFactory.makePersistent()) ?? Self.fallbackInMemoryContainer()
             modelContainer = container
-            identityRepository = SwiftDataIdentityRepository(container: container)
-            membershipRepository = SwiftDataMembershipRepository(container: container)
-            catalogRepository = SwiftDataCatalogRepository(container: container)
-            applicationRepository = SwiftDataApplicationRepository(container: container)
 
+            // Repository より先に engine を組む（Repository の書き込みフックが engine を捕まえるため）
             let reach = Reachability()
             reachability = reach
-            syncEngine = SyncEngine(
+            let engine = SyncEngine(
                 container: container,
                 remote: RemoteSyncRepository(client: apiClient),
                 reachability: reach,
                 statusSink: .binding(statusStore),
                 cursorDefaultsKey: Self.syncCursorDefaultsKey
             )
+            syncEngine = engine
+
+            // 編集後 3 秒デバウンス（`docs/05` §5 のトリガ表）。
+            // Repository は `SyncEngine` を知らない（IOS-5）。ここで「書いた」通知を
+            // デバウンス済みの `requestSync(reason: .edit)` に変換する。
+            // 読み取り（`list` など）では発火しないので、起動直後の初期ロードでは走らない
+            let debouncer = Debouncer(seconds: Self.editSyncDebounceSeconds)
+            let onWrite = LocalWriteObserver {
+                Task {
+                    await debouncer.call {
+                        // 未ログイン中の編集で毎回「同期できていません」を出さない。
+                        // トークンがあれば（オフライン復帰待ちでも）通常どおり試す
+                        guard await apiClient.currentRefreshToken() != nil else { return }
+                        await engine.requestSync(reason: .edit)
+                    }
+                }
+            }
+            editSyncDebouncer = debouncer
+
+            identityRepository = SwiftDataIdentityRepository(container: container, onWrite: onWrite)
+            membershipRepository = SwiftDataMembershipRepository(container: container, onWrite: onWrite)
+            catalogRepository = SwiftDataCatalogRepository(container: container, onWrite: onWrite)
+            applicationRepository = SwiftDataApplicationRepository(container: container, onWrite: onWrite)
         }
 
         shareRepository = useInMemoryStores ? InMemoryShareRepository() : RemoteShareRepository(client: apiClient)
@@ -202,6 +228,9 @@ final class AppEnvironment {
     /// `ownerID` を使ったユーザースコープ絞り込みは未実装のため、
     /// クリアしないと他アカウントのデータが混入する（T3 申し送り事項1）。
     func resetLocalStore() async {
+        // 消す直前まで打鍵していた場合、待機中の `.edit` 同期が消去後に走ると
+        // 空のローカルを push しかねない。先に取り消す
+        await editSyncDebouncer?.cancel()
         UserDefaults.standard.removeObject(forKey: Self.syncCursorDefaultsKey)
         syncStatusStore.apply(.idle)
         syncStatusStore.setPendingCount(0)

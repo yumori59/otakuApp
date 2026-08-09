@@ -1,5 +1,5 @@
 import XCTest
-@testable import Network
+@testable import Networking
 
 final class HomeSummaryDTOTests: XCTestCase {
     func testDecodesSummaryResponse() throws {

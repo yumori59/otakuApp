@@ -1,7 +1,7 @@
 import XCTest
 import Core
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `contract-mapping.md` §4.7 / `api-contract-delta.md` §1〜§3 の DTO 契約。
 final class ShareDTOTests: XCTestCase {

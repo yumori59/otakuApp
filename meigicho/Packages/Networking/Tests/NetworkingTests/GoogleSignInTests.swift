@@ -1,7 +1,7 @@
 import XCTest
 import Core
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `plan.md` §7.2.1 の純関数部分（AC-GG-01-T / AC-GG-02-T）。
 final class GoogleSignInTests: XCTestCase {

@@ -64,7 +64,8 @@ meigicho/                 iOS (XcodeGen: project.yml)
   App/                    @main・Composition Root
   Packages/
     Core/ DesignSystem/ Domain/ Features/
-    (DataStore / Network は設計上予定 — 未作成なら docs/05 を正とする)
+    DataStore / Networking
+    ※ HTTP 層は `Networking`。Apple の Network.framework と衝突するため `Network` に戻さない (IOS-12)
 docs/                     仕様・設計の正 (00〜10)
 docs/plans/               機能単位の計画産物 (planner 出力先)
 infra/                    インフラ (GCP 等)

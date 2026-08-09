@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// 受け取り側・共有ボードの縦串: `RemoteSharedBoardRepository` → `ApiClient` → HTTP。
 /// `api-contract-delta.md` §4.2 / §4.3（addressing は `token` ではなく `share_id`。Bearer 必須）。

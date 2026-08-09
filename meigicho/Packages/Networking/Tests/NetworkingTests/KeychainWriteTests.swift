@@ -1,6 +1,6 @@
 import XCTest
 import Security
-@testable import Network
+@testable import Networking
 
 /// Keychain 書き込み失敗を握りつぶさない（中-3）。
 ///

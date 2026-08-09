@@ -1,5 +1,5 @@
 import XCTest
-@testable import Network
+@testable import Networking
 
 final class IdentityStatsDTOTests: XCTestCase {
     func testDecodesStatsResponse() throws {

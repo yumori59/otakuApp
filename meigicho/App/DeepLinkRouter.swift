@@ -1,7 +1,7 @@
 import SwiftUI
 import Features
 import Domain
-import Network
+import Networking
 
 /// 共有リンクのディープリンク受け口（`api-contract-delta.md` §4.4 / FR-4）。
 ///

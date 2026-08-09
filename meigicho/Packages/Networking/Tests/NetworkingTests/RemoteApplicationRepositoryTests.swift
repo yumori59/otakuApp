@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `Remote{Application,Catalog}Repository` のパス・クエリ・メソッドの配線確認。
 /// **`POST /v1/tours` / `POST /v1/events` を呼ばない**ことも含む（C3）。

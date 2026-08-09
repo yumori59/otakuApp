@@ -35,6 +35,8 @@
 | IOS-8 | **`project.yml` を直して `xcodegen generate` を忘れる** | ビルド設定と Info.plist の変数展開は `Meigicho.xcodeproj/project.pbxproj` に焼き込まれている。再生成しないと変更が効かず「直したのに直らない」になる |
 | IOS-9 | **`GeometryReader` で高さを固定して子を包む** | `GeometryReader` は子をクリップせず理想サイズも尊重しない。固定高で包むと中身が後続コンテンツに重なる。高さは `.frame(minHeight:)` で下限として確保し、`GeometryReader` は `background` に置いて幅の計測だけに使う |
 | IOS-10 | **`UIViewRepresentable` の中身を非同期で差し替えても SwiftUI は測り直さない** | SwiftUI が `sizeThatFits` を呼ぶのは中身が空のロード前だけ。あとから `UIHostingController.view` を貼っても枠は伸びず、はみ出して後続コンテンツに重なる（IOS-9 と同じ症状・原因は別）。UIKit 側で実寸を測って `@State` へ返し、`.frame(height:)` を確定させる |
+| IOS-11 | **`MainActor.assumeIsolated` を「たぶんメインで呼ばれる」コールバックで使う** | `BGTaskScheduler.register(forTaskWithIdentifier:using:)` の `using: nil` は**デフォルトのバックグラウンドキュー**（メインキューではない）。そこで `assumeIsolated` すると実行時トラップで即クラッシュする。バックグラウンド起動でしか再現せずビルドもシミュレータも素通りする。キューを取るAPIは `DispatchQueue.main` を明示するか、`Task { @MainActor in }` に逃がす |
+| IOS-12 | **Apple のフレームワークと同名のローカル SPM パッケージを作る** | 自作 HTTP 層を `Network` と名付けると Apple の `Network.framework` を隠す。Xcode 統合 SPM はパッケージのモジュール検索パスを全ターゲットで共有するので、**依存していないターゲットでも**ビルド順しだいで解決先が入れ替わる（クリーンビルドは通るのに 2 回目で `cannot find type 'NWPathMonitor'`）。`warning: 'X' is missing a dependency on 'Network'` が出たら赤信号。検証はクリーンビルド 1 回では足りず、**該当ファイルを touch した増分ビルド**まで見る。2026-08-09 に `Networking` へ改名して解消 |
 
 ## インフラ (Terraform / GitHub Actions: infra/terraform, .github/workflows)
 

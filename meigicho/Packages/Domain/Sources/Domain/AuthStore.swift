@@ -18,7 +18,7 @@ public enum SessionRestoreResult: Equatable, Sendable {
     case unavailable(AppError)
 }
 
-/// トークンの保持・回転・破棄を担う実体（実装は `Network.ApiClient`）。
+/// トークンの保持・回転・破棄を担う実体（実装は `Networking.ApiClient`）。
 /// **Domain は `Network` を知らない**ので protocol 越しに注入する（IOS-5）。
 public protocol AuthSessionController: Sendable {
     /// ログイン成功時のトークンを採用する（access はメモリ / refresh は Keychain）。
@@ -43,7 +43,7 @@ public struct GoogleIdentity: Equatable, Sendable {
     }
 }
 
-/// Google サインインの実行（実装は `Network.GoogleSignInService`）。
+/// Google サインインの実行（実装は `Networking.GoogleSignInService`）。
 public protocol GoogleSignInProviding: Sendable {
     /// **ユーザーキャンセルは `nil`**。エラーとして扱わない（E-14）
     func signIn() async throws -> GoogleIdentity?

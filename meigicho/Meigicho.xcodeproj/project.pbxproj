@@ -12,23 +12,26 @@
 		174F8F927838A16ABE26C67B /* DisabledPurchasesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89AC02614213E8D880DCCC16 /* DisabledPurchasesService.swift */; };
 		1A4F13DF9639E87C049518B3 /* GoogleMobileAdsRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559F9B6243FA9F367775ABD4 /* GoogleMobileAdsRenderer.swift */; };
 		201398D1F79ADF01E1C1833B /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA2A1668140EF85E5E7A9F1 /* DeepLinkRouter.swift */; };
+		228F44E32A9837C4766A4F8E /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 42007FBBFAB893D4F14BAED4 /* GoogleMobileAds */; };
 		2FFF60494360426137A009B6 /* RevenueCatPurchasesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6056819C81C6654AE50E1027 /* RevenueCatPurchasesService.swift */; };
+		4D2936EB62D6935D572D1BCE /* BackgroundSyncScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92EC29D32CBE59B60D9A0D65 /* BackgroundSyncScheduler.swift */; };
 		5D5FC4749FA2704C362C75A8 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B6800809AEE21E3827BD0C /* NotificationDelegate.swift */; };
 		62A52FDD8B4150725A1703A1 /* PurchasesServiceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3EE5176701CC96C024E546 /* PurchasesServiceFactory.swift */; };
-		6E4F858011051076176B4E9A /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 8DC9D4487520D96A1A32CAA0 /* DesignSystem */; };
+		6E4F858011051076176B4E9A /* Core in Frameworks */ = {isa = PBXBuildFile; productRef = A659DA7ED12641005081D1A1 /* Core */; };
 		87226EAEE19555B99FE46A86 /* MeigichoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F350DE2831395F638385BFE /* MeigichoApp.swift */; };
 		96AEFF98EE160182D1A963AB /* NotificationPermissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1810F73F17E6BC8EED2312E2 /* NotificationPermissionStore.swift */; };
-		97EDF97FB3981BF817BE0AF2 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 42007FBBFAB893D4F14BAED4 /* GoogleMobileAds */; };
+		97EDF97FB3981BF817BE0AF2 /* Networking in Frameworks */ = {isa = PBXBuildFile; productRef = 51B364EAD3E0A08DD886904A /* Networking */; };
 		9DCDB309ED6AB120C967E761 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 288FC8BAE02F849E8A4A3419 /* AppEnvironment.swift */; };
 		AA0779F01DBD7CAA6F83BE00 /* AdsInitializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B2F51B06D93A6B4FEA1D28 /* AdsInitializer.swift */; };
 		CB8956797FEFB21170DBB91E /* Features in Frameworks */ = {isa = PBXBuildFile; productRef = 284B650254D1D7925C7EBBD9 /* Features */; };
-		CF74F980C4963F977AC0EBAD /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 795E74327B348E52EC471C5B /* Domain */; };
+		CF74F980C4963F977AC0EBAD /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 8DC9D4487520D96A1A32CAA0 /* DesignSystem */; };
 		D16DB5F5DAD031FF154EF25A /* DisabledAdRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7193440DF8FF1849BD64DAAA /* DisabledAdRenderer.swift */; };
-		EAEC792A79B78E3D07583951 /* Network in Frameworks */ = {isa = PBXBuildFile; productRef = DCE7B5E69163E21783FFA57E /* Network */; };
-		F96D3E010C675884BE8E95C3 /* DataStore in Frameworks */ = {isa = PBXBuildFile; productRef = A954DD7CF6CC8D8602DA6DD1 /* DataStore */; };
+		EAEC792A79B78E3D07583951 /* DataStore in Frameworks */ = {isa = PBXBuildFile; productRef = A954DD7CF6CC8D8602DA6DD1 /* DataStore */; };
+		F96D3E010C675884BE8E95C3 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 795E74327B348E52EC471C5B /* Domain */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		013F5EAFC50BB3F7111E9354 /* Networking */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Networking; path = Packages/Networking; sourceTree = SOURCE_ROOT; };
 		01B6800809AEE21E3827BD0C /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
 		0CA2A1668140EF85E5E7A9F1 /* DeepLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkRouter.swift; sourceTree = "<group>"; };
 		0D1313C5C74AB5A46420A697 /* Features */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Features; path = Packages/Features; sourceTree = SOURCE_ROOT; };
@@ -46,8 +49,8 @@
 		7193440DF8FF1849BD64DAAA /* DisabledAdRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledAdRenderer.swift; sourceTree = "<group>"; };
 		84AF5ADA9F1C3E618A41BEBD /* Core */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Core; path = Packages/Core; sourceTree = SOURCE_ROOT; };
 		89AC02614213E8D880DCCC16 /* DisabledPurchasesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledPurchasesService.swift; sourceTree = "<group>"; };
+		92EC29D32CBE59B60D9A0D65 /* BackgroundSyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncScheduler.swift; sourceTree = "<group>"; };
 		ADEECAFC5B7D9D09A95F7C5A /* DesignSystem */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignSystem; path = Packages/DesignSystem; sourceTree = SOURCE_ROOT; };
-		C56BCE674E2B023C82717F39 /* Network */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Network; path = Packages/Network; sourceTree = SOURCE_ROOT; };
 		ED039E4F8E7B0A56C453A65A /* Meigicho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Meigicho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB42BB444579A2AA4E104444 /* DataStore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DataStore; path = Packages/DataStore; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -58,11 +61,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				CB8956797FEFB21170DBB91E /* Features in Frameworks */,
-				6E4F858011051076176B4E9A /* DesignSystem in Frameworks */,
-				CF74F980C4963F977AC0EBAD /* Domain in Frameworks */,
-				F96D3E010C675884BE8E95C3 /* DataStore in Frameworks */,
-				EAEC792A79B78E3D07583951 /* Network in Frameworks */,
-				97EDF97FB3981BF817BE0AF2 /* GoogleMobileAds in Frameworks */,
+				6E4F858011051076176B4E9A /* Core in Frameworks */,
+				CF74F980C4963F977AC0EBAD /* DesignSystem in Frameworks */,
+				F96D3E010C675884BE8E95C3 /* Domain in Frameworks */,
+				EAEC792A79B78E3D07583951 /* DataStore in Frameworks */,
+				97EDF97FB3981BF817BE0AF2 /* Networking in Frameworks */,
+				228F44E32A9837C4766A4F8E /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,7 +102,7 @@
 				ADEECAFC5B7D9D09A95F7C5A /* DesignSystem */,
 				0F17D588817C8A322E9782A8 /* Domain */,
 				0D1313C5C74AB5A46420A697 /* Features */,
-				C56BCE674E2B023C82717F39 /* Network */,
+				013F5EAFC50BB3F7111E9354 /* Networking */,
 			);
 			path = Packages;
 			sourceTree = "<group>";
@@ -115,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				288FC8BAE02F849E8A4A3419 /* AppEnvironment.swift */,
+				92EC29D32CBE59B60D9A0D65 /* BackgroundSyncScheduler.swift */,
 				0CA2A1668140EF85E5E7A9F1 /* DeepLinkRouter.swift */,
 				564A8F8FBEC05DBBA6BA5D45 /* Info.plist */,
 				6F350DE2831395F638385BFE /* MeigichoApp.swift */,
@@ -153,10 +158,11 @@
 			name = Meigicho;
 			packageProductDependencies = (
 				284B650254D1D7925C7EBBD9 /* Features */,
+				A659DA7ED12641005081D1A1 /* Core */,
 				8DC9D4487520D96A1A32CAA0 /* DesignSystem */,
 				795E74327B348E52EC471C5B /* Domain */,
 				A954DD7CF6CC8D8602DA6DD1 /* DataStore */,
-				DCE7B5E69163E21783FFA57E /* Network */,
+				51B364EAD3E0A08DD886904A /* Networking */,
 				42007FBBFAB893D4F14BAED4 /* GoogleMobileAds */,
 			);
 			productName = Meigicho;
@@ -193,7 +199,7 @@
 				D6169CFC0CC5AF9AEF9F6398 /* XCLocalSwiftPackageReference "Packages/DesignSystem" */,
 				ECB849951801C611A16AE5B4 /* XCLocalSwiftPackageReference "Packages/Domain" */,
 				FA18C1EF15AEABE7EF4757B0 /* XCLocalSwiftPackageReference "Packages/Features" */,
-				2618D1EA4BE08F63F9947CD3 /* XCLocalSwiftPackageReference "Packages/Network" */,
+				89E395DFCECDE75CFDB35B7E /* XCLocalSwiftPackageReference "Packages/Networking" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8AA727F6092062428561EA02 /* Products */;
@@ -213,6 +219,7 @@
 				122F0650620E5F1934C67539 /* AdRendererFactory.swift in Sources */,
 				AA0779F01DBD7CAA6F83BE00 /* AdsInitializer.swift in Sources */,
 				9DCDB309ED6AB120C967E761 /* AppEnvironment.swift in Sources */,
+				4D2936EB62D6935D572D1BCE /* BackgroundSyncScheduler.swift in Sources */,
 				201398D1F79ADF01E1C1833B /* DeepLinkRouter.swift in Sources */,
 				D16DB5F5DAD031FF154EF25A /* DisabledAdRenderer.swift in Sources */,
 				174F8F927838A16ABE26C67B /* DisabledPurchasesService.swift in Sources */,
@@ -434,13 +441,13 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		2618D1EA4BE08F63F9947CD3 /* XCLocalSwiftPackageReference "Packages/Network" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/Network;
-		};
 		2D6D57DB1468FCB8271CB71B /* XCLocalSwiftPackageReference "Packages/Core" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/Core;
+		};
+		89E395DFCECDE75CFDB35B7E /* XCLocalSwiftPackageReference "Packages/Networking" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Networking;
 		};
 		9D965421F1DB51C866194E9F /* XCLocalSwiftPackageReference "Packages/DataStore" */ = {
 			isa = XCLocalSwiftPackageReference;
@@ -481,6 +488,10 @@
 			package = 4B328AAB15DCF323D6AE48DF /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
 		};
+		51B364EAD3E0A08DD886904A /* Networking */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Networking;
+		};
 		795E74327B348E52EC471C5B /* Domain */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Domain;
@@ -489,13 +500,13 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = DesignSystem;
 		};
+		A659DA7ED12641005081D1A1 /* Core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Core;
+		};
 		A954DD7CF6CC8D8602DA6DD1 /* DataStore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DataStore;
-		};
-		DCE7B5E69163E21783FFA57E /* Network */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Network;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

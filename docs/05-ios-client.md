@@ -34,24 +34,28 @@ NestJS の HTTP 実装詳細を知っている」といった事故をレビュ�
 graph TD
     App[App target] --> Features
     App --> DataStore
-    App --> Network
+    App --> Networking
     Features[Features / 画面・Store] --> Domain
     Features --> DesignSystem
     Features --> Core
     Domain[Domain / Repository protocol] --> Core
     DataStore[DataStore / SwiftData] --> Domain
-    Network[Network / NestJS ApiClient・SyncEngine] --> Domain
+    Networking[Networking / NestJS ApiClient] --> Domain
     DesignSystem[DesignSystem / トークン・カラー計算] --> Core
     DataStore --> Core
-    Network --> Core
+    Networking --> Core
     Core[Core / UUIDv7・日付・ログ]
 ```
 
-**`Features` は `DataStore` / `Network` を参照しません。** Repository の protocol は `Domain` に、実装は
-`DataStore` / `Network` にあり、具象の注入は App の Composition Root で行います。**`Domain` は SwiftData を
+**`Features` は `DataStore` / `Networking` を参照しません。** Repository の protocol は `Domain` に、実装は
+`DataStore` / `Networking` にあり、具象の注入は App の Composition Root で行います。**`Domain` は SwiftData を
 import しません**（`@Model` を Domain 型にすると Repository のモックが SwiftData 抜きで作れない）。ただし境界で
 全部を値型に詰め替えると記述量が爆発するため、詰め替えるのは「集計結果」と「Store が保持する派生状態」に限り、
 単純な一覧表示は `@Model` を直接 View に渡します（9.4）。`Core` は他のどこにも依存しません。
+
+> **HTTP 層のパッケージ名は `Networking`**（`Network` ではない）。Apple の `Network.framework` と
+> モジュール名が衝突し、Xcode 統合 SPM では依存していないターゲットでもビルド順しだいで解決先が
+> 入れ替わるため（2026-08-09 に改名 / `feedback_review_patterns.md` IOS-12）。
 
 ```
 meigicho/
@@ -65,7 +69,7 @@ meigicho/
 │   ├── Domain/        Models/（値型DTO・enum） Repositories/（protocol） UseCases/
 │   ├── DataStore/     Schema/{SchemaV1,MigrationPlan}.swift  Models/（@Model群）
 │   │                  Local/SwiftData*Repository.swift  ModelContainer+Factory.swift
-│   ├── Network/       NestApiClient.swift  AuthTokenStore.swift  Remote/*Store.swift
+│   ├── Networking/    NestApiClient.swift  AuthTokenStore.swift  Remote/*Store.swift
 │   │                  Sync/{SyncEngine,OutboxStore,Reachability}.swift
 │   └── Features/      Home/(S1) Identities/(S2 S3 S7 S8) Applications/(S4 S5 S9)
 │                      Share/(S6) Paywall/ Navigation/AppRoute.swift

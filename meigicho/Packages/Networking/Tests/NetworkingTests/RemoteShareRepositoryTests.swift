@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `RemoteShareRepository` の縦串: 招待の追加・削除・`SHARE_RECIPIENT_UNKNOWN` の格上げ。
 /// `api-contract-delta.md` §1 / §3 / §6.3。
