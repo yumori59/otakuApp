@@ -96,8 +96,17 @@ struct AccountDeleteView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }
-                        .disabled(isWorking)
+                    // `isWorking`（= `auth.isBusy || isReauthorizing`）ではなく `auth.isBusy` のみで無効化する。
+                    // Apple 再認可（システムシート）が応答を返さない事態が起きても（review.md 中-R1）、
+                    // `AppleReauthorizationCoordinator` 側にタイムアウトを入れたとはいえ、
+                    // 「ユーザーが必ずシートを閉じられる」ことをこのボタン単体でも保証する。
+                    // **閉じるときは進行中の再認可を必ず取りやめる** — そうしないと画面を閉じた後に
+                    // 再認可が遅れて完了し、`submit()` の続きが走って**アカウントが削除されてしまう**
+                    Button("閉じる") {
+                        appleReauthorization?.cancel()
+                        dismiss()
+                    }
+                    .disabled(auth.isBusy)
                 }
             }
             .task {

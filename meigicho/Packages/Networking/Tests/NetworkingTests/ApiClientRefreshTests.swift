@@ -253,6 +253,74 @@ final class ApiClientRefreshTests: XCTestCase {
         XCTAssertEqual(stored, "refresh-new", "古い refresh の結果で新しいセッションを上書きしない")
     }
 
+    /// 中-2 残余: `store` 内の `await tokenStore.write` が中断している最中にログアウトが割り込んでも、
+    /// 書き込み完了後に世代を再確認して打ち消すので、最終的に Keychain には何も残らない。
+    /// （`tokenStore.write` 自体に遅延を入れて、ネットワーク往復ではなく Keychain 書き込みの中断点を再現する）
+    func testWriteRaceWithLogoutEndsWithClearedToken() async throws {
+        let delayedStore = DelayedWriteTokenStore(token: "refresh-1")
+        let racingClient = ApiClient(
+            configuration: ApiConfiguration(baseURL: URL(string: "http://localhost:8080")!),
+            tokenStore: delayedStore,
+            session: StubURLProtocol.makeSession()
+        )
+        await racingClient.adoptSession(TokenPair(accessToken: "at-1", refreshToken: "refresh-1", expiresAt: Date()))
+        await delayedStore.setWriteDelay(nanoseconds: 150_000_000)
+
+        recorder.respond { request in
+            request.url?.path == "/v1/auth/refresh"
+                ? StubResponse(status: 200, body: ApiClientRefreshTests.tokenPairBody(access: "at-2", refresh: "refresh-2"))
+                : StubResponse(status: 401, body: StubResponse.envelope("UNAUTHENTICATED"))
+        }
+
+        struct Payload: Decodable, Sendable { let ok: Bool }
+        let inFlight = Task { [racingClient] in
+            try await racingClient.send(.versioned(.get, "/identities"), as: Payload.self)
+        }
+        // refresh のネットワーク応答は即時。`store` が `tokenStore.write` で中断している間にログアウトする
+        try await Task.sleep(nanoseconds: 60_000_000)
+        await racingClient.clearSession()
+
+        _ = try? await inFlight.value
+        let stored = await delayedStore.read()
+        XCTAssertNil(stored, "書き込み中のログアウトを打ち消して Keychain を空に戻すべき")
+    }
+
+
+    /// 中-2 残余（レビュー指摘）: 書き込み中断中に**サインイン**が割り込んだ場合、
+    /// 古い refresh の書き込みが後着しても、新しく採用したセッションの refresh token を潰してはいけない。
+    /// （打ち消しの `clear` を後付けする実装だと、ここで新しい token まで消えてサイレントログアウトになる）
+    func testWriteRaceWithAdoptKeepsNewSession() async throws {
+        let delayedStore = DelayedWriteTokenStore(token: "refresh-1")
+        let racingClient = ApiClient(
+            configuration: ApiConfiguration(baseURL: URL(string: "http://localhost:8080")!),
+            tokenStore: delayedStore,
+            session: StubURLProtocol.makeSession()
+        )
+        await racingClient.adoptSession(TokenPair(accessToken: "at-1", refreshToken: "refresh-1", expiresAt: Date()))
+        await delayedStore.setWriteDelay(nanoseconds: 150_000_000)
+
+        recorder.respond { request in
+            request.url?.path == "/v1/auth/refresh"
+                ? StubResponse(status: 200, body: ApiClientRefreshTests.tokenPairBody(access: "at-2", refresh: "refresh-2"))
+                : StubResponse(status: 401, body: StubResponse.envelope("UNAUTHENTICATED"))
+        }
+
+        struct Payload: Decodable, Sendable { let ok: Bool }
+        let inFlight = Task { [racingClient] in
+            try await racingClient.send(.versioned(.get, "/identities"), as: Payload.self)
+        }
+        // 古い refresh の書き込みが中断している最中に、別経路でサインインする
+        try await Task.sleep(nanoseconds: 60_000_000)
+        await delayedStore.setWriteDelay(nanoseconds: 0)
+        await racingClient.adoptSession(
+            TokenPair(accessToken: "at-new", refreshToken: "refresh-new", expiresAt: Date().addingTimeInterval(3600))
+        )
+
+        _ = try? await inFlight.value
+        let stored = await delayedStore.read()
+        XCTAssertEqual(stored, "refresh-new", "新しく採用したセッションの refresh token を古い書き込みで消してはいけない")
+    }
+
     // MARK: - restoreSession
 
     func testRestoreWithoutStoredTokenIsSignedOutWithoutNetwork() async {
@@ -348,6 +416,35 @@ final class StubRecorder: @unchecked Sendable {
 actor SignalBox {
     private(set) var value = false
     func signal() { value = true }
+}
+
+/// `write(_:)` に任意の遅延を挟める `RefreshTokenStoring`。
+/// `ApiClient.store(_:epoch:)` 内の `await tokenStore.write` という中断点を、
+/// ネットワーク遅延に頼らず狙って再現するためのテスト専用モック。
+actor DelayedWriteTokenStore: RefreshTokenStoring {
+    private var token: String?
+    private var writeDelayNanoseconds: UInt64 = 0
+
+    init(token: String? = nil) {
+        self.token = token
+    }
+
+    func setWriteDelay(nanoseconds: UInt64) {
+        writeDelayNanoseconds = nanoseconds
+    }
+
+    func read() async -> String? { token }
+
+    func write(_ newToken: String) async {
+        if writeDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: writeDelayNanoseconds)
+        }
+        token = newToken
+    }
+
+    func clear() async {
+        token = nil
+    }
 }
 
 final class StubURLProtocol: URLProtocol {

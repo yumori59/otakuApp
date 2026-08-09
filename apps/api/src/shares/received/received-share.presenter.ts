@@ -41,10 +41,25 @@ export function toReceivedInboxItem(
     },
     invited_at: row.createdAt.toISOString(),
     expires_at: link.expiresAt ? link.expiresAt.toISOString() : null,
-    // last_viewed_at is null || last_viewed_at < share_links.updated_at（api-contract-delta.md §4.1）
-    unread:
-      row.lastViewedAt === null || row.lastViewedAt.getTime() < link.updatedAt.getTime(),
+    // unread は「見ていない」または「見た後に編集された」。
+    // `share_links.updated_at` は閲覧（view_count 加算）でも進むため比較基準に使わない（BE-7）。
+    // 招待者 A の閲覧で updated_at が進んでも、招待者 B の last_viewed_at は変わらないので、
+    // B の unread が意図せず true に戻らないよう `last_edited_at`（編集時のみ更新）を基準にする。
+    unread: computeUnread(row.lastViewedAt, link.lastEditedAt),
   };
+}
+
+/**
+ * unread 判定（api-contract-delta.md §4.1・BE-7 対応）:
+ * - 一度も見ていない（`last_viewed_at === null`）→ true
+ * - 見た後、一度も編集されていない（`last_edited_at === null`）→ false
+ * - 見た後に編集された（`last_viewed_at < last_edited_at`）→ true
+ * - それ以外（見た後に編集が無い）→ false
+ */
+function computeUnread(lastViewedAt: Date | null, lastEditedAt: Date | null): boolean {
+  if (lastViewedAt === null) return true;
+  if (lastEditedAt === null) return false;
+  return lastViewedAt.getTime() < lastEditedAt.getTime();
 }
 
 function resolveScopeName(
