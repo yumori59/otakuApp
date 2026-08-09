@@ -321,3 +321,14 @@ T4 までは `isConstrained` が常に `false` だったので死んでいたが
    （デバッグは `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"jp.meigicho.app.sync-refresh"]`）。
    **修正 2 の前はこの時点でクラッシュしていたはず**なので、実機で必ず 1 回確認すること
 5. 機内モードで起動 → 起動同期がオフライン表示になり、解除後の前面復帰で追いつく（修正 3 の確認）
+
+## 申し送り（改名について）
+
+- 改名先は `Networking`。`docs/plans/admob-integration/plan.md:130` の T0b は同じ改名を `MeigichoAPI` で
+  想定していたが、`Package.swift` の慣習（`Sources/<Module>`）と `import Networking` の読みやすさを優先した。
+  名前を変えたい場合は今のうちに（`Packages/Networking/` と `import` 21 ファイルの機械置換で済む）。
+- 追随済みドキュメント: `docs/05-ios-client.md`（構成図・ツリー・注記）/ `docs/plans/STATUS.md` の検証コマンド /
+  `CLAUDE.md` のディレクトリ構成。過去計画（`admob-integration` / `account-deletion` / `share-account-invites`）の
+  記述は当時の記録なのでそのままにしてある。
+- 副産物として `project.yml` の RevenueCat 無効化理由（モジュール名衝突）が解消されたので、
+  RevenueCat 再有効化を別タスクで試せる状態になった。
