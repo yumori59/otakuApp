@@ -133,7 +133,7 @@ xcodebuild -project meigicho/Meigicho.xcodeproj -scheme Meigicho \
   -derivedDataPath /tmp/meigicho-build CODE_SIGNING_ALLOWED=NO build
 cd meigicho/Packages/Core && swift test
 cd meigicho/Packages/Domain && swift test
-cd meigicho/Packages/Network && swift test
+cd meigicho/Packages/Networking && swift test
 ```
 
 ---
