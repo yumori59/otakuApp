@@ -23,7 +23,7 @@
 ```
 BE: ドメイン + 認証拡張 + home/stats/sync/billing（2026-08-05 完了）
 iOS: ネットワーク接続・home/summary・ペイウォール・stats/identities 接続（2026-08-05）
-次: 同期エンジン（`docs/plans/ios-sync-engine/`）→ AdMob（Phase 1-11）
+同期エンジン（`docs/plans/ios-sync-engine/`）・AdMob（Phase 1-11 Stage1）ともT0-T5/T13完了
 共有: 独立 Web ビューは対象外。アプリ内 SharedBoard が正
 共有の認可: **アカウント招待制へ完全移行済み（レビュー重大ゼロ・main マージ済み — `docs/plans/share-account-invites/`）**
             公開経路 `/public/shares/:token` は削除済み。受け取りはアプリ内受信箱（Bearer必須）に一本化
@@ -194,7 +194,7 @@ T0(Spike)→T5(Domain: AdPlacement/AdGatekeeper/AdsStore)→T9(App: SDK初期化
 |---|---|---|
 | `GET /v1/stats/identities` iOS 接続（Store + 名義一覧/詳細の当選数） | ✅ | `docs/04` §3.5 |
 | 統計画面（タブ・グラフ・Plus ソフトウォール） | ❌ | `docs/09` 1-5 / `docs/07` §6.2-C |
-| 同期エンジン（DataStore + SyncEngine） | ✅ T0–T4 完了（レビュー: 初回重大2→修正→再レビューで重大ゼロ）。T5（デバウンス・低データモード骨格）は未着手 | `docs/plans/ios-sync-engine/` |
+| 同期エンジン（DataStore + SyncEngine） | ✅ **T0–T5 全完了**（NWPathMonitorで低データモード実値化・編集後3秒デバウンス・BGAppRefreshTask骨格）。レビューで重大2件（`Network`パッケージ名衝突による増分ビルド破壊／BGTaskの`assumeIsolated`誤ったキューでのクラッシュ）検出→修正→重大ゼロ。**ローカル`Network`パッケージは`Networking`にリネーム済み**（RevenueCat無効化の原因だった衝突も解消） | `docs/plans/ios-sync-engine/` |
 
 ---
 
