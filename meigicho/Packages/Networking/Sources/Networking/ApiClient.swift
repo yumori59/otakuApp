@@ -36,6 +36,8 @@ public actor ApiClient {
     /// AC-AUTH-08-M の確認用（ログにだけ出す。値は出さない）
     private var refreshCount = 0
     private var sessionEndedHandler: (@Sendable () async -> Void)?
+    /// Keychain 変更の直列化キュー（`applyToken` 参照）。末尾の Task だけを持つ
+    private var keychainQueue: Task<Void, Never>?
 
     public init(
         configuration: ApiConfiguration,
@@ -210,30 +212,49 @@ public actor ApiClient {
 
     /// トークンを採用する。`epoch` は呼び出し時点のセッション世代。
     ///
-    /// `await tokenStore.write` はそれ自体が中断点であり、この最中に `clearSession` /
+    /// `await applyToken` はそれ自体が中断点であり、この最中に `clearSession` /
     /// `adoptSession` が割り込んで世代を進める余地がある（中-2 残余。`sessionEpoch` の一致だけを
-    /// `store` 呼び出し前に見ても閉じない窓）。書き込み**後**にもう一度世代を確認し、
-    /// ズレていれば直前の書き込みを打ち消して Keychain を空に戻す。
-    /// 戻り値は「採用できたか」。呼び出し側は `false` ならこのトークンを使わない。
+    /// `store` 呼び出し前に見ても閉じない窓）。Keychain 側は `applyToken` が**決定順に直列化**するので
+    /// 古い書き込みが後着して勝つことはない。ここでは書き込み**後**にもう一度世代を確認し、
+    /// 「このトークンを採用できたか」だけを返す。
+    /// 呼び出し側は `false` ならこのトークンを使わない。
     @discardableResult
     private func store(_ tokens: TokenPair, epoch: Int) async -> Bool {
+        guard epoch == sessionEpoch else { return false }
         accessToken = tokens.accessToken
         accessTokenExpiresAt = tokens.expiresAt
-        await tokenStore.write(tokens.refreshToken)
-        guard epoch == sessionEpoch else {
-            accessToken = nil
-            accessTokenExpiresAt = nil
-            await tokenStore.clear()
-            return false
+        await applyToken(tokens.refreshToken)
+        return epoch == sessionEpoch
+    }
+
+    /// Keychain への書き込み / クリアを **actor 上で決めた順序どおりに直列化**する（中-2 残余）。
+    ///
+    /// `tokenStore.write` / `clear` は中断点なので、素朴に呼ぶと
+    /// 「古い refresh の write が中断している間にログアウトの clear が先に完了し、
+    /// 遅れて完了した write が最後に残る」順序逆転が起きる。
+    /// 逆に「打ち消しの clear」を後付けすると、その間に採用された**新しいセッションの
+    /// refresh token まで消してしまう**（サインイン直後のサイレントログアウト）。
+    /// どちらも「最後に決めた操作が最後に反映される」ことを保証すれば起きない。
+    private func applyToken(_ token: String?) async {
+        let previous = keychainQueue
+        let store = tokenStore
+        let task = Task<Void, Never> {
+            await previous?.value
+            if let token {
+                await store.write(token)
+            } else {
+                await store.clear()
+            }
         }
-        return true
+        keychainQueue = task
+        await task.value
     }
 
     private func endSession() async {
         beginNewSessionEpoch()
         accessToken = nil
         accessTokenExpiresAt = nil
-        await tokenStore.clear()
+        await applyToken(nil)
         await sessionEndedHandler?()
     }
 }
@@ -254,7 +275,7 @@ extension ApiClient: AuthSessionController {
         beginNewSessionEpoch()
         accessToken = nil
         accessTokenExpiresAt = nil
-        await tokenStore.clear()
+        await applyToken(nil)
     }
 
     public func currentRefreshToken() async -> String? {

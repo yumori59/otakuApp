@@ -295,7 +295,11 @@ update share_links set revoked_at = now() where revoked_at is null;
 - 絞り込み: `revoked_at IS NULL` かつ（`expires_at IS NULL` または `expires_at > now`）かつ `hidden_at IS NULL` かつ `share_links.owner_id <> me`
 - 並び: `share_recipients.created_at DESC`
 - `scope_name`: `scope_type="tour"` ならツアー名、`identity_summary` なら固定文言 `"名義の申込サマリー"`
-- `unread` = `share_recipients.last_viewed_at IS NULL OR last_viewed_at < share_links.updated_at`
+- `unread` = `share_recipients.last_viewed_at IS NULL OR (share_links.last_edited_at IS NOT NULL AND last_viewed_at < share_links.last_edited_at)`
+  - 2026-08-10 修正: 当初は `share_links.updated_at` 基準だったが、`updated_at` は**他の招待者の閲覧**（`view_count` 加算）でも進むため、
+    自分は何も見逃していないのに `unread` が true に戻っていた（BE-7）。**編集時にだけ進む `last_edited_at`** を基準にする
+  - 「見ていない」= true、「見た後に共有ボードが編集された」= true、それ以外 = false。オーナー側のデータ更新（申込の追加など）は
+    `share_links` を触らないので、以前から `unread` の対象外（既知の制約）
 - 招待 0 件でも 200 `{ "items": [] }`（AC-SI-46）
 - ページングは持たない（1 リンク 20 人・個人利用の規模で不要）
 

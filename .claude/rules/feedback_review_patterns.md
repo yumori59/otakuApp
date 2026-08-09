@@ -37,6 +37,7 @@
 | IOS-10 | **`UIViewRepresentable` の中身を非同期で差し替えても SwiftUI は測り直さない** | SwiftUI が `sizeThatFits` を呼ぶのは中身が空のロード前だけ。あとから `UIHostingController.view` を貼っても枠は伸びず、はみ出して後続コンテンツに重なる（IOS-9 と同じ症状・原因は別）。UIKit 側で実寸を測って `@State` へ返し、`.frame(height:)` を確定させる |
 | IOS-11 | **`MainActor.assumeIsolated` を「たぶんメインで呼ばれる」コールバックで使う** | `BGTaskScheduler.register(forTaskWithIdentifier:using:)` の `using: nil` は**デフォルトのバックグラウンドキュー**（メインキューではない）。そこで `assumeIsolated` すると実行時トラップで即クラッシュする。バックグラウンド起動でしか再現せずビルドもシミュレータも素通りする。キューを取るAPIは `DispatchQueue.main` を明示するか、`Task { @MainActor in }` に逃がす |
 | IOS-12 | **Apple のフレームワークと同名のローカル SPM パッケージを作る** | 自作 HTTP 層を `Network` と名付けると Apple の `Network.framework` を隠す。Xcode 統合 SPM はパッケージのモジュール検索パスを全ターゲットで共有するので、**依存していないターゲットでも**ビルド順しだいで解決先が入れ替わる（クリーンビルドは通るのに 2 回目で `cannot find type 'NWPathMonitor'`）。`warning: 'X' is missing a dependency on 'Network'` が出たら赤信号。検証はクリーンビルド 1 回では足りず、**該当ファイルを touch した増分ビルド**まで見る。2026-08-09 に `Networking` へ改名して解消 |
+| IOS-13 | **`await` の後で「自分の書き込みを打ち消す」後始末を書く** | 中断中に別経路が**より新しい**状態を書いていると、打ち消しがその新しい状態まで消す（ログアウト競合を直したら、サインイン直後にサイレントログアウトする経路が生まれる）。共有ストア（Keychain 等）への変更は**決定順に直列化**して「最後に決めた操作が最後に反映される」ようにする。後付けの undo で辻褄を合わせない |
 
 ## インフラ (Terraform / GitHub Actions: infra/terraform, .github/workflows)
 

@@ -63,6 +63,14 @@ final class AppleReauthorizationCoordinator: NSObject {
         }
     }
 
+    /// 呼び出し側から中断する（削除シートを閉じたなど）。
+    /// **待っている `requestAuthorizationCode` は `.cancelled` で返る**ので、
+    /// 呼び出し側は「ユーザーが取りやめた」として後続処理（アカウント削除）を止められる。
+    /// resume 経路は `resume(_:)` 1 箇所なので、後から delegate が呼ばれても二重 resume にはならない。
+    func cancel() {
+        resume(.cancelled)
+    }
+
     private func resume(_ outcome: Outcome) {
         guard let continuation else { return }
         self.continuation = nil
