@@ -19,12 +19,13 @@ packages:
     path: Packages/Domain
   DataStore:
     path: Packages/DataStore
-  Network:
-    path: Packages/Network
+  Networking:
+    path: Packages/Networking
   Features:
     path: Packages/Features
-  # RevenueCat: 一時無効化中（自作 Network パッケージと Apple の Network.framework が
-  # 衝突しクリーンビルドが失敗するため）。再有効化する場合は下のブロックのコメントを外す。
+  # RevenueCat: 一時無効化中。
+  # 旧原因（自作 `Network` パッケージと Apple の Network.framework のモジュール名衝突）は
+  # パッケージを `Networking` に改名して解消済み。再有効化を試す場合は下のブロックのコメントを外す。
   # RevenueCat:
   #   url: https://github.com/RevenueCat/purchases-ios
   #   from: 5.14.0
@@ -93,8 +94,8 @@ targets:
         product: Domain
       - package: DataStore
         product: DataStore
-      - package: Network
-        product: Network
+      - package: Networking
+        product: Networking
       # RevenueCat: 上の packages ブロックと合わせて一時無効化中
       # - package: RevenueCat
       #   product: RevenueCat

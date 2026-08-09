@@ -1,7 +1,7 @@
 import XCTest
 import Core
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `GET/PATCH /v1/me` の DTO 契約（`contract-mapping.md` §4.2 / AC-ME-03・AC-ME-04）。
 final class MeDTOTests: XCTestCase {

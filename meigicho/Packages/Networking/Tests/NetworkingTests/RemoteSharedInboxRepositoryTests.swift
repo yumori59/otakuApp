@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `RemoteSharedInboxRepository` の縦串。`api-contract-delta.md` §4.1 / §4.4 / §4.5。
 final class RemoteSharedInboxRepositoryTests: XCTestCase {

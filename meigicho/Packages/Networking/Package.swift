@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "Network",
+    name: "Networking",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
-        .library(name: "Network", targets: ["Network"]),
+        .library(name: "Networking", targets: ["Networking"]),
     ],
     dependencies: [
         .package(path: "../Core"),
@@ -13,12 +13,12 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "Network",
+            name: "Networking",
             dependencies: ["Core", "Domain"]
         ),
         .testTarget(
-            name: "NetworkTests",
-            dependencies: ["Network"]
+            name: "NetworkingTests",
+            dependencies: ["Networking"]
         ),
     ]
 )

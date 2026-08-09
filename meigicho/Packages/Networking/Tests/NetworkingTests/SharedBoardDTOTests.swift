@@ -1,7 +1,7 @@
 import XCTest
 import Core
 import Domain
-@testable import Network
+@testable import Networking
 
 /// T4b（共有ボード・受け取り側）の DTO 契約。`contract-mapping.md` §4.8 / `api-contract-delta.md` §4。
 ///

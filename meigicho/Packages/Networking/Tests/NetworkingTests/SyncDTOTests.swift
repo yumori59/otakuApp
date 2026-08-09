@@ -1,5 +1,5 @@
 import XCTest
-@testable import Network
+@testable import Networking
 import Domain
 
 final class SyncDTOTests: XCTestCase {

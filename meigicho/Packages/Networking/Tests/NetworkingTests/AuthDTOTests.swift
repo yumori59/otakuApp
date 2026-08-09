@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `contract-mapping.md` §4.1 の DTO 契約。
 final class AuthDTOTests: XCTestCase {

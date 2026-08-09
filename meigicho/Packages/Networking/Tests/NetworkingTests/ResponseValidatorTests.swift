@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// envelope → `AppError` の変換が `Domain.AppError.from(envelope:)` に集約されていること。
 final class ResponseValidatorTests: XCTestCase {

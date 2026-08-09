@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import Core
 import Domain
-import Network
+import Networking
 import DataStore
 import DesignSystem
 import Features

@@ -39,7 +39,10 @@ final class BackgroundSyncScheduler {
         isRegistered = true
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.taskIdentifier,
-            using: nil // メインキュー
+            // **`nil` は「デフォルトのバックグラウンドキュー」**（BGTaskScheduler.h の doc comment）。
+            // ここでメインキューを明示しないと、下の `MainActor.assumeIsolated` が
+            // 実行時に「Incorrect actor executor assumption」でクラッシュする
+            using: DispatchQueue.main
         ) { task in
             guard let refreshTask = task as? BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)

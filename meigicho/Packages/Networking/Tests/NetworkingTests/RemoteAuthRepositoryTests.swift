@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `RemoteAuthRepository.deleteAccount` の配線確認（`account-deletion/api-contract-delta.md` §1・§3.2）。
 /// AC-AD-04-M・05-M。

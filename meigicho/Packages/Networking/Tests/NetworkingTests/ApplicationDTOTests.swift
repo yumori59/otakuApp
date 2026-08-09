@@ -1,7 +1,7 @@
 import XCTest
 import Core
 import Domain
-@testable import Network
+@testable import Networking
 
 /// `contract-mapping.md` §4.5 / §4.6 の DTO 契約。
 /// **BE がキーを改名したらここで落ちる**（IOS-2 の防波堤）。

@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// 401 → refresh → 1 回だけ再送（FR-N-6 / E-5 / E-6）。
 /// AC-AUTH-07-M / AC-AUTH-08-M / AC-AUTH-09-M の機械化版。

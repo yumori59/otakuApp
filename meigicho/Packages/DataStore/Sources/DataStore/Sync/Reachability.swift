@@ -8,9 +8,10 @@ import SystemConfiguration
 /// `isConstrained`（低データモード）を更新する。**低データモードでは自動同期を止め手動のみ**にする判断は
 /// `SyncEngine.runCycle` 側（`constrained && reason != .manual` で早期 return）。
 ///
-/// - Note: `import Network` は Apple の Network.framework を指す。ローカル SPM の `Network` パッケージと
-///   同名だが、`DataStore` ターゲットはそれに依存していない（`Packages/DataStore/Package.swift`）ため
-///   衝突しない。**`DataStore` に `Network` パッケージ依存を足すとここが壊れる**。
+/// - Note: `import Network` は Apple の Network.framework を指す。**同名のローカル SPM パッケージを作らないこと**
+///   （自作 HTTP 層は `Packages/Networking` に改名済み）。Xcode 統合 SPM ではパッケージのモジュール検索パスが
+///   全ターゲットで共有されるため、`Network` という名前のローカルモジュールがあると
+///   ビルド順しだいでそちらが優先され `cannot find type 'NWPathMonitor'` になる（IOS-12）。
 /// - Note: `pathUpdateHandler` は actor 外のキューから呼ばれるので `Task { await ... }` で actor に畳む。
 public actor Reachability {
     public private(set) var isOnline: Bool = true
@@ -35,8 +36,17 @@ public actor Reachability {
             Task { await self?.apply(isOnline: online, isConstrained: constrained) }
         }
         monitor.start(queue: queue)
-        // `pathUpdateHandler` の初回コールバックが来るまでの空白を埋める
-        apply(path: monitor.currentPath)
+        // `pathUpdateHandler` の初回コールバックが来るまでの空白を埋める。
+        // `start(queue:)` は非同期で、直後の `currentPath` はまだ既定値（`.unsatisfied`）のことがある。
+        // ここで `isOnline = false` に倒すと**起動同期が `.offline` で空振りし、
+        // 前面復帰まで同期されない**。満たされていないときだけ `SCNetworkReachability` の
+        // ワンショットで裏を取る（本当にオフラインなら false のまま）
+        let initialPath = monitor.currentPath
+        if initialPath.status == .satisfied {
+            apply(path: initialPath)
+        } else {
+            apply(isOnline: Self.checkOnline(), isConstrained: initialPath.isConstrained)
+        }
     }
 
     public func stop() {

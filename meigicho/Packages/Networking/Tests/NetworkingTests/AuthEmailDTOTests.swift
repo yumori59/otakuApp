@@ -1,6 +1,6 @@
 import XCTest
 import Domain
-@testable import Network
+@testable import Networking
 
 /// メール + パスワード 5 経路の DTO 契約（`contract-mapping.md` §4.1 / AC-EM-01）。
 final class AuthEmailDTOTests: XCTestCase {
