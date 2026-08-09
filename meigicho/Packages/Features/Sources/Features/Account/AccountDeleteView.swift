@@ -96,8 +96,12 @@ struct AccountDeleteView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
+                    // `isWorking`（= `auth.isBusy || isReauthorizing`）ではなく `auth.isBusy` のみで無効化する。
+                    // Apple 再認可（システムシート）が応答を返さない事態が起きても（review.md 中-R1）、
+                    // `AppleReauthorizationCoordinator` 側にタイムアウトを入れたとはいえ、
+                    // 「ユーザーが必ずシートを閉じられる」ことをこのボタン単体でも保証する
                     Button("閉じる") { dismiss() }
-                        .disabled(isWorking)
+                        .disabled(auth.isBusy)
                 }
             }
             .task {

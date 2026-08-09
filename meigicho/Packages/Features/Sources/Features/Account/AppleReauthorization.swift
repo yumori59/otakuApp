@@ -21,12 +21,18 @@ final class AppleReauthorizationCoordinator: NSObject {
         case failed
     }
 
+    /// `ASAuthorizationController` の delegate が一度も呼ばれない場合（review.md 中-R1）に備えたタイムアウト。
+    /// これが無いと `continuation` が永久に再開されず、呼び出し側の `isReauthorizing` が固定されたままになる。
+    private static let timeoutNanoseconds: UInt64 = 60_000_000_000
+
     private var continuation: CheckedContinuation<Outcome, Never>?
     /// `ASAuthorizationController.delegate` / `presentationContextProvider` は **weak**。
     /// `performRequests()` 後に controller と self が ARC で解放されると delegate が呼ばれず
     /// `continuation` が永久に再開されない。**resume するまで両方を強参照で保持する**。
     private var controller: ASAuthorizationController?
     private var selfRetain: AppleReauthorizationCoordinator?
+    /// タイムアウト監視タスク。`resume(_:)` で必ずキャンセルする（二重 resume を避けるため resume 経路は 1 箇所に集約）。
+    private var timeoutTask: Task<Void, Never>?
 
     /// 現在の Apple ID の再認可を要求する。**サインインさせるのではなく `authorizationCode` を得るためだけ**。
     ///
@@ -46,6 +52,14 @@ final class AppleReauthorizationCoordinator: NSObject {
             controller.delegate = self
             controller.presentationContextProvider = self
             controller.performRequests()
+
+            // delegate が一度も呼ばれないまま応答が来ない事態に備える（review.md 中-R1）。
+            // resume は `resume(_:)` に集約しているので、delegate コールバックと競合しても二重 resume にはならない。
+            timeoutTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: Self.timeoutNanoseconds)
+                guard !Task.isCancelled else { return }
+                self?.resume(.failed)
+            }
         }
     }
 
@@ -53,6 +67,8 @@ final class AppleReauthorizationCoordinator: NSObject {
         guard let continuation else { return }
         self.continuation = nil
         self.controller = nil
+        timeoutTask?.cancel()
+        timeoutTask = nil
         // 自己参照を外す前にローカルへ退避する（ここで最後の強参照が消えると self が解放される）
         let retained = selfRetain
         selfRetain = nil
