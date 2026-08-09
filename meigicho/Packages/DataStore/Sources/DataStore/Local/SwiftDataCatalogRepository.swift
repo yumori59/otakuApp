@@ -7,9 +7,12 @@ import Domain
 /// find-or-create 経由でのみ生まれる（C3 / `create-application.use-case.ts`）。
 public actor SwiftDataCatalogRepository: CatalogRepository {
     private let container: ModelContainer
+    /// 書き込み後の同期トリガ（`docs/05` §5「編集後3秒デバウンス」）。既定は無効。
+    private let onWrite: LocalWriteObserver
 
-    public init(container: ModelContainer) {
+    public init(container: ModelContainer, onWrite: LocalWriteObserver = .noop) {
         self.container = container
+        self.onWrite = onWrite
     }
 
     public func listTours() async throws -> [Tour] {
@@ -46,6 +49,7 @@ public actor SwiftDataCatalogRepository: CatalogRepository {
         record.apply(patch: patch)
         OutboxQueue.enqueue(collection: .tours, targetID: id, in: context)
         try context.save()
+        onWrite.didWrite()
         return record.toDomain()
     }
 
@@ -57,6 +61,7 @@ public actor SwiftDataCatalogRepository: CatalogRepository {
         record.apply(patch: patch)
         OutboxQueue.enqueue(collection: .events, targetID: id, in: context)
         try context.save()
+        onWrite.didWrite()
         return record.toDomain()
     }
 }

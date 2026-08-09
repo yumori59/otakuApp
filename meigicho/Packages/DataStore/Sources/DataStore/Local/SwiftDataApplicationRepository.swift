@@ -10,9 +10,12 @@ import Core
 /// companions は最大 `ApplicationCompanionRecord.maxPerApplication` 件・`identity_id` 重複不可（E-7）。
 public actor SwiftDataApplicationRepository: ApplicationRepository {
     private let container: ModelContainer
+    /// 書き込み後の同期トリガ（`docs/05` §5「編集後3秒デバウンス」）。既定は無効。
+    private let onWrite: LocalWriteObserver
 
-    public init(container: ModelContainer) {
+    public init(container: ModelContainer, onWrite: LocalWriteObserver = .noop) {
         self.container = container
+        self.onWrite = onWrite
     }
 
     // MARK: - Read
@@ -85,6 +88,7 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
         }
 
         try context.save()
+        onWrite.didWrite()
         guard let entry = try toDomain(record, in: context) else { throw AppError.notFound }
         return entry
     }
@@ -129,6 +133,7 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
 
         OutboxQueue.enqueue(collection: .applications, targetID: record.id, in: context, now: now)
         try context.save()
+        onWrite.didWrite()
         guard let entry = try toDomain(record, in: context) else { throw AppError.notFound }
         return entry
     }
@@ -148,6 +153,7 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
             OutboxQueue.enqueue(collection: .applicationCompanions, targetID: companion.id, in: context, now: now)
         }
         try context.save()
+        onWrite.didWrite()
     }
 
     public func pendingCount() async throws -> Int {

@@ -6,9 +6,12 @@ import Domain
 /// `SwiftDataIdentityRepository` と同じ形: 呼び出しごとに `ModelContext` を作り、actor 隔離下で扱う。
 public actor SwiftDataMembershipRepository: MembershipRepository {
     private let container: ModelContainer
+    /// 書き込み後の同期トリガ（`docs/05` §5「編集後3秒デバウンス」）。既定は無効。
+    private let onWrite: LocalWriteObserver
 
-    public init(container: ModelContainer) {
+    public init(container: ModelContainer, onWrite: LocalWriteObserver = .noop) {
         self.container = container
+        self.onWrite = onWrite
     }
 
     public func list() async throws -> [Membership] {
@@ -35,6 +38,7 @@ public actor SwiftDataMembershipRepository: MembershipRepository {
         context.insert(record)
         OutboxQueue.enqueue(collection: .memberships, targetID: record.id, in: context)
         try context.save()
+        onWrite.didWrite()
         return record.toDomain()
     }
 
@@ -53,6 +57,7 @@ public actor SwiftDataMembershipRepository: MembershipRepository {
         record.apply(patch: patch)
         OutboxQueue.enqueue(collection: .memberships, targetID: id, in: context)
         try context.save()
+        onWrite.didWrite()
         return record.toDomain()
     }
 
@@ -64,6 +69,7 @@ public actor SwiftDataMembershipRepository: MembershipRepository {
         record.softDelete()
         OutboxQueue.enqueue(collection: .memberships, targetID: id, in: context)
         try context.save()
+        onWrite.didWrite()
     }
 
     /// SyncEngine / デバッグ用: pending 件数。

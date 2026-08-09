@@ -23,6 +23,8 @@ struct MeigichoApp: App {
     @State private var notificationPermission = NotificationPermissionStore()
 
     private let notificationScheduler = NotificationScheduler()
+    /// `BGAppRefreshTask`（`docs/05` §5）。登録は `init`（起動完了前）で行う必要がある
+    private let backgroundSync: BackgroundSyncScheduler
     @State private var notificationDelegateInstalled = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -47,6 +49,12 @@ struct MeigichoApp: App {
         _homeStore = State(initialValue: HomeStore(repository: environment.homeRepository))
         _statsStore = State(initialValue: StatsStore(repository: environment.statsRepository))
         _purchasesStore = State(initialValue: PurchasesStore(service: PurchasesServiceFactory.make()))
+
+        // `BGTaskScheduler.register` は **didFinishLaunching が返る前**に済ませる必要がある。
+        // 予約（`schedule()`）はバックグラウンド移行時に行う
+        let backgroundSync = BackgroundSyncScheduler(syncEngine: environment.syncEngine)
+        backgroundSync.register()
+        self.backgroundSync = backgroundSync
     }
 
     var body: some Scene {
@@ -154,10 +162,20 @@ struct MeigichoApp: App {
                     await syncAndRefresh(reason: .launch)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    guard newPhase == .active, authStore.state == .signedIn else { return }
-                    Task {
-                        await environment.reachability?.refresh()
-                        await syncAndRefresh(reason: .foreground)
+                    switch newPhase {
+                    case .active:
+                        guard authStore.state == .signedIn else { return }
+                        Task {
+                            await environment.reachability?.refresh()
+                            await syncAndRefresh(reason: .foreground)
+                        }
+                    case .background:
+                        // 起動前に同期を済ませておく（実行機会は OS 任せ）。
+                        // 未ログインなら叩くものが無いので予約しない
+                        guard authStore.state == .signedIn else { return }
+                        backgroundSync.schedule()
+                    default:
+                        break
                     }
                 }
         }
