@@ -145,11 +145,14 @@ describe('ListInboxUseCase', () => {
     expect(items[0].unread).toBe(true);
   });
 
-  it('AC-SI-46 last_viewed_at が share_links.updated_at 以上なら unread:false', async () => {
+  it('AC-SI-46 last_viewed_at が非null かつ last_edited_at が null（未編集）なら unread:false', async () => {
     access.listInboxRows.mockResolvedValue([
       inboxRow({
         recipient: { lastViewedAt: new Date('2026-07-02T00:00:00.000Z') },
-        link: { updatedAt: new Date('2026-07-01T00:00:00.000Z') },
+        link: {
+          updatedAt: new Date('2026-08-02T09:00:00.000Z'),
+          lastEditedAt: null,
+        },
       }),
     ]);
 
@@ -157,11 +160,56 @@ describe('ListInboxUseCase', () => {
     expect(items[0].unread).toBe(false);
   });
 
-  it('AC-SI-46 last_viewed_at が share_links.updated_at より前なら unread:true', async () => {
+  it('AC-SI-46 last_viewed_at が last_edited_at より前なら unread:true（見た後に編集された）', async () => {
     access.listInboxRows.mockResolvedValue([
       inboxRow({
         recipient: { lastViewedAt: new Date('2026-07-01T00:00:00.000Z') },
-        link: { updatedAt: new Date('2026-07-02T00:00:00.000Z') },
+        link: { lastEditedAt: new Date('2026-07-02T00:00:00.000Z') },
+      }),
+    ]);
+
+    const items = await useCase.execute(USER_ID);
+    expect(items[0].unread).toBe(true);
+  });
+
+  it('AC-SI-46 last_viewed_at が last_edited_at 以上なら unread:false', async () => {
+    access.listInboxRows.mockResolvedValue([
+      inboxRow({
+        recipient: { lastViewedAt: new Date('2026-07-02T00:00:00.000Z') },
+        link: { lastEditedAt: new Date('2026-07-01T00:00:00.000Z') },
+      }),
+    ]);
+
+    const items = await useCase.execute(USER_ID);
+    expect(items[0].unread).toBe(false);
+  });
+
+  it('AC-SI-46-repro 他の招待者の閲覧で updated_at が進んでも、自分の last_viewed_at 済みなら unread は false のまま（再発防止）', async () => {
+    // 招待者 A が共有を開いた結果（resolve-share.use-case の recordView）:
+    // view_count が加算され share_links.updated_at が進むが、lastEditedAt は変わらない。
+    access.listInboxRows.mockResolvedValue([
+      inboxRow({
+        recipient: { lastViewedAt: new Date('2026-08-01T12:00:00.000Z') },
+        link: {
+          viewCount: 5,
+          updatedAt: new Date('2026-08-02T09:59:00.000Z'), // A の閲覧直後（自分の閲覧より後）
+          lastEditedAt: null,
+        },
+      }),
+    ]);
+
+    const items = await useCase.execute(USER_ID);
+    expect(items[0].unread).toBe(false);
+  });
+
+  it('AC-SI-46-repro オーナーが実際に編集した後は、既に見ていた招待者の unread が true に戻る', async () => {
+    access.listInboxRows.mockResolvedValue([
+      inboxRow({
+        recipient: { lastViewedAt: new Date('2026-08-01T12:00:00.000Z') },
+        link: {
+          editCount: 1,
+          lastEditedAt: new Date('2026-08-02T08:00:00.000Z'), // 自分の閲覧より後に編集された
+        },
       }),
     ]);
 
