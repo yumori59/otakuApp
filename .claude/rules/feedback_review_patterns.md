@@ -20,6 +20,7 @@
 | BE-5 | **prisma 実行ディレクトリ間違い** | 正は `apps/api/prisma/schema.prisma`。コマンドは `apps/api/` で実行 |
 | BE-6 | **Prisma 例外の envelope 漏れ** | P2002(既存idへのPOST)/P2025(対象行なし)が AllExceptionsFilter で INTERNAL 500 になっていないか。契約上の CONFLICT 409/NOT_FOUND 404 に写すか、Service 側で事前検出する |
 | BE-7 | **`@updatedAt` を「相手が見たか」の比較基準に使う** | 閲覧カウンタ更新（`view_count` など）自体が `updated_at` を進める。閲覧開始時刻で `last_viewed_at` を打つと `last_viewed_at < updated_at` が常に成立し、未読が二度と消えない。副作用の**後に**時刻を取り直すか、比較基準を内容変更に寄せる |
+| BE-8 | **DTO プロパティにデコレータが 1 つも無い** | グローバル `ValidationPipe` は `whitelist: true, forbidNonWhitelisted: true`（`app.setup.ts`）。検証デコレータの無いプロパティは「未知の余計なプロパティ」として毎回 400 (`property X should not exist`) になる。形の検証を Service に委ねる場合でも `@IsObject()` 等を最低 1 つ付ける。DTO spec は素の `validate(dto)` だと再現しないので、whitelist 付きで検証する |
 
 ## iOS (SwiftUI: meigicho)
 

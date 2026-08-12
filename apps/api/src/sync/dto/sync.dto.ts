@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsISO8601, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
+import { IsArray, IsIn, IsISO8601, IsObject, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SYNC_COLLECTIONS } from '../sync-collections';
 
@@ -27,6 +27,7 @@ export class SyncMutationDto {
   updated_at!: string;
 
   /** snake_case フィールド。コレクションごとに whitelist は Service 側。 */
+  @IsObject()
   payload!: Record<string, unknown>;
 }
 
