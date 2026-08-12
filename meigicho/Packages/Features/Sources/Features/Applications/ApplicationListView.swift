@@ -14,6 +14,10 @@ struct ApplicationsTab: View {
     @State private var filter: ApplicationFilter = .all
     @State private var searchText = ""
     @State private var viewMode: ApplicationViewMode = .list
+    /// 名義追加シートを閉じた直後に続けて会員情報登録シートを開くための一時保持（AddIdentityView 保存直後）。
+    /// `sheet(item:)` の同ティック内での差し替えはグリッチしうるため、`onDismiss` 完了を待ってから次を開く。
+    /// このタブには `.addIdentity` を提示する導線が無いため現状は常に nil のまま（他タブと構造を揃えるための整合性コード）。
+    @State private var pendingMembershipIdentityID: UUID?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -56,8 +60,14 @@ struct ApplicationsTab: View {
                     path.append(route)
                 }
             }
-            .sheet(item: sheetBinding) { sheet in
-                SheetContentView(sheet: sheet) { _ in }
+            .sheet(item: sheetBinding, onDismiss: {
+                guard let id = pendingMembershipIdentityID else { return }
+                pendingMembershipIdentityID = nil
+                sheetPresenter.activeSheet = .addMembership(identityID: id)
+            }) { sheet in
+                SheetContentView(sheet: sheet) { id in
+                    pendingMembershipIdentityID = id
+                }
             }
             // 共有リンクの状態は `GET /v1/shares` だけが正（ローカルに持たない）。
             // ツアー表を開いたときにだけ取りに行く（未ログインでは Bearer が無いので呼ばない）

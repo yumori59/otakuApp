@@ -14,6 +14,9 @@ struct IdentitiesTab: View {
     @Environment(\.themeStore) private var theme
     @State private var path = NavigationPath()
     @State private var sortOrder: IdentitySortOrder = .renewalSoon
+    /// 名義追加シートを閉じた直後に続けて会員情報登録シートを開くための一時保持（AddIdentityView 保存直後）。
+    /// `sheet(item:)` の同ティック内での差し替えはグリッチしうるため、`onDismiss` 完了を待ってから次を開く。
+    @State private var pendingMembershipIdentityID: UUID?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -63,8 +66,13 @@ struct IdentitiesTab: View {
                     path.append(route)
                 }
             }
-            .sheet(item: sheetBinding) { sheet in
+            .sheet(item: sheetBinding, onDismiss: {
+                guard let id = pendingMembershipIdentityID else { return }
+                pendingMembershipIdentityID = nil
+                sheetPresenter.activeSheet = .addMembership(identityID: id)
+            }) { sheet in
                 SheetContentView(sheet: sheet) { id in
+                    pendingMembershipIdentityID = id
                     path.append(AppRoute.identity(id))
                 }
             }
