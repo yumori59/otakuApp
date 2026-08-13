@@ -293,8 +293,9 @@ update share_links set revoked_at = now() where revoked_at is null;
 - **含めるもの**: 上記キーのみ
 - **含めてはいけないもの**（BE-4 / NFR-1 / AC-SI-45）: `token` / `token_hash` / `scope_id` / オーナーの内部 UUID / 他の招待者の ACC-ID / 会員番号 / 申込の中身
 - 絞り込み: `revoked_at IS NULL` かつ（`expires_at IS NULL` または `expires_at > now`）かつ `hidden_at IS NULL` かつ `share_links.owner_id <> me`
+  - 2026-08-14 追記: `scope_type="tour"` の場合はさらに参照先 tour が `deleted_at IS NULL` であること。オーナーがツアーを削除すると、その行は一覧から除外される（削除前は残っていたが、開くと `SHARE_INVALID` 404 になる不親切な状態だった）
 - 並び: `share_recipients.created_at DESC`
-- `scope_name`: `scope_type="tour"` ならツアー名、`identity_summary` なら固定文言 `"名義の申込サマリー"`
+- `scope_name`: `scope_type="tour"` ならツアー名（tour は必ず解決できる。未解決＝削除済みの行は一覧に含めないため、tour スコープの行で `scope_name` が null になることはない）、`identity_summary` なら固定文言 `"名義の申込サマリー"`
 - `unread` = `share_recipients.last_viewed_at IS NULL OR (share_links.last_edited_at IS NOT NULL AND last_viewed_at < share_links.last_edited_at)`
   - 2026-08-10 修正: 当初は `share_links.updated_at` 基準だったが、`updated_at` は**他の招待者の閲覧**（`view_count` 加算）でも進むため、
     自分は何も見逃していないのに `unread` が true に戻っていた（BE-7）。**編集時にだけ進む `last_edited_at`** を基準にする
