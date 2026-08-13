@@ -57,6 +57,79 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertTrue(listed.contains(where: { $0.id == remoteID && $0.displayName == "リモート" }))
     }
 
+    func testPermanentRejectionMarksSyncStatusFailed() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        let repository = SwiftDataIdentityRepository(container: container)
+        let remote = FakeSyncRepository()
+        let reachability = Reachability()
+        await reachability.set(isOnline: true)
+
+        let statusStore = SyncStatusStore()
+        let engine = SyncEngine(
+            container: container,
+            remote: remote,
+            reachability: reachability,
+            statusSink: .binding(statusStore),
+            cursorDefaultsKey: "meigicho.sync.test.\(UUID().uuidString)"
+        )
+
+        let local = Identity(displayName: "ローカル", relation: .self, colorHex: "#0017C1")
+        _ = try await repository.create(local)
+
+        await remote.setRejectAll(code: "SYNC_APPLY_FAILED", message: "適用に失敗しました")
+        await engine.runCycleNow(reason: .manual)
+
+        if case .failed(let message) = statusStore.status {
+            XCTAssertTrue(message.contains("1件"), "expected message to mention 1件, got \(message)")
+        } else {
+            XCTFail("expected failed, got \(statusStore.status)")
+        }
+    }
+
+    func testLWWRejectionOnlyStillReportsUpToDate() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        let repository = SwiftDataIdentityRepository(container: container)
+        let remote = FakeSyncRepository()
+        let reachability = Reachability()
+        await reachability.set(isOnline: true)
+
+        let statusStore = SyncStatusStore()
+        let engine = SyncEngine(
+            container: container,
+            remote: remote,
+            reachability: reachability,
+            statusSink: .binding(statusStore),
+            cursorDefaultsKey: "meigicho.sync.test.\(UUID().uuidString)"
+        )
+
+        let local = Identity(displayName: "ローカル", relation: .self, colorHex: "#0017C1")
+        _ = try await repository.create(local)
+
+        await remote.setRejectAll(code: "SYNC_LWW_REJECT", message: "サーバー側が新しい")
+        await engine.runCycleNow(reason: .manual)
+
+        if case .upToDate = statusStore.status {
+            // ok
+        } else {
+            XCTFail("expected upToDate, got \(statusStore.status)")
+        }
+    }
+
+    func testFailureMessageBoundaries() {
+        XCTAssertNil(SyncEngine.failureMessage(for: []))
+
+        let single = SyncEngine.failureMessage(for: [
+            SyncPushRejection(id: UUID(), code: "PLAN_LIMIT_IDENTITY", message: "limit reached"),
+        ])
+        XCTAssertEqual(single, "1件の変更を同期できませんでした（無料プランの上限に達しました）")
+
+        let multiple = SyncEngine.failureMessage(for: [
+            SyncPushRejection(id: UUID(), code: "SYNC_APPLY_FAILED", message: "a"),
+            SyncPushRejection(id: UUID(), code: "SYNC_APPLY_FAILED", message: "b"),
+        ])
+        XCTAssertEqual(multiple, "2件の変更を同期できませんでした")
+    }
+
     func testOfflineDoesNotCallRemote() async throws {
         let container = try ModelContainerFactory.makeInMemory()
         let remote = FakeSyncRepository()
@@ -81,9 +154,16 @@ private actor FakeSyncRepository: SyncRepository {
     private var pushedIDs: [UUID] = []
     private var pushCallCount = 0
     private var pullRows: [[String: JSONValue]] = []
+    private var rejectionCode: String?
+    private var rejectionMessage: String = ""
 
     func setPullRows(_ rows: [[String: JSONValue]]) {
         pullRows = rows
+    }
+
+    func setRejectAll(code: String, message: String) {
+        rejectionCode = code
+        rejectionMessage = message
     }
 
     func snapshotPushedIDs() -> [UUID] { pushedIDs }
@@ -102,6 +182,13 @@ private actor FakeSyncRepository: SyncRepository {
     func push(mutations: [SyncMutation]) async throws -> SyncPushResult {
         pushCallCount += 1
         pushedIDs = mutations.map(\.id)
+        if let rejectionCode {
+            return SyncPushResult(
+                accepted: [],
+                rejected: mutations.map { SyncPushRejection(id: $0.id, code: rejectionCode, message: rejectionMessage) },
+                serverTime: Date()
+            )
+        }
         return SyncPushResult(
             accepted: mutations.map(\.id),
             rejected: [],

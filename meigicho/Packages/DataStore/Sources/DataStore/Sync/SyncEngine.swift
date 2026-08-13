@@ -44,6 +44,7 @@ public actor SyncEngine {
 
     /// `docs/04` §4.2 の reject コード。
     static let lwwRejectCode = "SYNC_LWW_REJECT"
+    private static let logger = AppLogger(category: "sync")
 
     private let container: ModelContainer
     private let remote: any SyncRepository
@@ -115,22 +116,42 @@ public actor SyncEngine {
 
         await statusSink.apply(.syncing)
         do {
-            try await drainOutbox()
+            let permanentRejections = try await drainOutbox()
             try await pullAll()
             let pending = try countPending()
             await statusSink.setPendingCount(pending)
-            await statusSink.apply(.upToDate(at: Date()))
+            if let message = Self.failureMessage(for: permanentRejections) {
+                for rejection in permanentRejections {
+                    Self.logger.error(code: rejection.code, requestID: nil)
+                }
+                await statusSink.apply(.failed(message: message))
+            } else {
+                await statusSink.apply(.upToDate(at: Date()))
+            }
         } catch {
             let message = (error as? AppError)?.userMessage ?? "同期に失敗しました"
             await statusSink.apply(.failed(message: message))
         }
     }
 
+    /// LWW 競合以外（恒久的に成功しない）reject があれば、件数に応じた文言を返す。
+    /// サーバーの生 `message` は個人情報が混ざりうるため画面に出さない（NFR-4）。
+    /// `code` → 日本語 `userMessage` の対応表は `AppError.from(envelope:)` に一本化されている。
+    static func failureMessage(for rejections: [SyncPushRejection]) -> String? {
+        guard !rejections.isEmpty else { return nil }
+        if rejections.count == 1, let only = rejections.first {
+            let mapped = AppError.from(envelope: APIErrorEnvelope(code: only.code))
+            return "1件の変更を同期できませんでした（\(mapped.userMessage)）"
+        }
+        return "\(rejections.count)件の変更を同期できませんでした"
+    }
+
     /// Outbox のドレイン → 1 回の push。依存順（identities → … → companions）で並べる。
-    private func drainOutbox() async throws {
+    /// 戻り値: LWW 競合以外の reject（恒久的に成功しない変更）。呼び出し元でサイクル結果に反映する。
+    private func drainOutbox() async throws -> [SyncPushRejection] {
         let context = ModelContext(container)
         let pending = try Self.pendingRecords(in: context)
-        guard !pending.isEmpty else { return }
+        guard !pending.isEmpty else { return [] }
 
         let mutations = pending.map { record in
             SyncMutation(
@@ -149,6 +170,7 @@ public actor SyncEngine {
         )
 
         var rewindPoints: [Date?] = []
+        var permanentRejections: [SyncPushRejection] = []
         for record in pending {
             if accepted.contains(record.recordID) {
                 record.markSynced()
@@ -165,6 +187,8 @@ public actor SyncEngine {
                 // サーバー側が新しい。次の pull で必ずサーバー値に上書きされるようにする（AC-SY-03）。
                 record.markConflicted()
                 rewindPoints.append(record.remoteUpdatedAt)
+            } else {
+                permanentRejections.append(rejection)
             }
         }
         try context.save()
@@ -172,6 +196,8 @@ public actor SyncEngine {
         if !rewindPoints.isEmpty {
             rewindCursor(before: rewindPoints)
         }
+
+        return permanentRejections
     }
 
     private func pullAll() async throws {
