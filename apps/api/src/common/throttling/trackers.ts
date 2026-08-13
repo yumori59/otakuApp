@@ -11,10 +11,6 @@ interface RequestWithUser {
   user?: { id?: unknown };
 }
 
-interface RequestWithParams {
-  params?: { token?: unknown };
-}
-
 interface RequestWithUserAndShareId {
   user?: { id?: unknown };
   params?: { id?: unknown };
@@ -30,12 +26,6 @@ export function emailTracker(req: RequestWithBody): string {
 export function userTracker(req: RequestWithUser): string {
   const id = req?.user?.id;
   return typeof id === 'string' ? id : '';
-}
-
-/** req.params.token を返す。無ければ空文字。 */
-export function tokenTracker(req: RequestWithParams): string {
-  const token = req?.params?.token;
-  return typeof token === 'string' ? token : '';
 }
 
 /**

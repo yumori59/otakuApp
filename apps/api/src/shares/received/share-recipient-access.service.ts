@@ -68,12 +68,16 @@ export class ShareRecipientAccessService {
     }) as unknown as Promise<InboxRow[]>;
   }
 
-  /** tour 名のバッチ解決（scope_name 用）。tour id はグローバルに一意。 */
+  /**
+   * tour 名のバッチ解決（scope_name 用）。tour id はグローバルに一意。
+   * 論理削除済み（`deletedAt` 非null）のツアーは除外する。呼び出し元
+   * （ListInboxUseCase）は解決できなかった tour スコープの行を一覧から除外する。
+   */
   async resolveTourNames(tourIds: string[]): Promise<Map<string, string>> {
     const uniqueIds = [...new Set(tourIds)];
     if (uniqueIds.length === 0) return new Map();
     const tours = await this.prisma.tour.findMany({
-      where: { id: { in: uniqueIds } },
+      where: { id: { in: uniqueIds }, deletedAt: null },
       select: { id: true, name: true },
     });
     return new Map(tours.map((tour) => [tour.id, tour.name]));

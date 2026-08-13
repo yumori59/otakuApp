@@ -198,6 +198,7 @@ BE の AC は `*.spec.ts` に翻訳する（Red 先行）。iOS のみの AC は
 | AC-SI-45 | `token` / `token_hash` / `scope_id` / 内部 UUID / 他の招待者の ACC-ID / 会員番号を**含まない**（BE-4） |
 | AC-SI-46 | 招待 0 件のとき `{ items: [] }`（404 にしない） |
 | AC-SI-47 | `GET /v1/shares/received/:id` に成功したら `share_recipients.last_viewed_at` が更新され、次回の `unread` が false になる |
+| AC-SI-48 | `scope_type="tour"` の行は、参照先ツアーが論理削除済み（`deleted_at` が非null）なら一覧から除外する。`identity_summary` の行はこの条件と無関係に含まれる（2026-08-14追記・review.md項目5対応） |
 
 ### 5.4 移行（Q9=9-3）
 

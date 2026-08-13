@@ -22,6 +22,14 @@ export class ListInboxUseCase {
       .map((row) => row.shareLink.scopeId as string);
     const tourNames = await this.access.resolveTourNames(tourIds);
 
-    return rows.map((row) => toReceivedInboxItem(row, tourNames));
+    // tour スコープなのに tourNames に解決できない行（＝オーナーが論理削除した
+    // ツアーを指している）は、開いても SHARE_INVALID 404 になるため一覧から除外する。
+    const visibleRows = rows.filter((row) => {
+      if (row.shareLink.scopeType !== 'tour') return true;
+      const scopeId = row.shareLink.scopeId;
+      return scopeId != null && tourNames.has(scopeId);
+    });
+
+    return visibleRows.map((row) => toReceivedInboxItem(row, tourNames));
   }
 }

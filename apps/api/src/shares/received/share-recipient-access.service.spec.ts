@@ -93,10 +93,22 @@ describe('ShareRecipientAccessService', () => {
     const result = await service.resolveTourNames(['t1', 't1']);
 
     expect(prisma.tour.findMany).toHaveBeenCalledWith({
-      where: { id: { in: ['t1'] } },
+      where: { id: { in: ['t1'] }, deletedAt: null },
       select: { id: true, name: true },
     });
     expect(result.get('t1')).toBe('Tour 1');
+  });
+
+  it('resolveTourNames は論理削除済みツアーを除外して検索する（deletedAt: null）', async () => {
+    // Prisma 側で deletedAt: null により除外される想定なので、モックは空を返す。
+    prisma.tour.findMany.mockResolvedValue([]);
+    const result = await service.resolveTourNames(['deleted-tour']);
+
+    expect(prisma.tour.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['deleted-tour'] }, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    expect(result.get('deleted-tour')).toBeUndefined();
   });
 
   it('markViewed は shareLinkId + userId で lastViewedAt を更新する', async () => {

@@ -67,7 +67,10 @@ describe('ListInboxUseCase', () => {
     jest.useFakeTimers().setSystemTime(NOW);
     access = {
       listInboxRows: jest.fn().mockResolvedValue([]),
-      resolveTourNames: jest.fn().mockResolvedValue(new Map()),
+      // 既定は tour スコープの解決に成功する状態（削除済みツアーの挙動は個別テストで上書きする）。
+      resolveTourNames: jest
+        .fn()
+        .mockResolvedValue(new Map([[TOUR_ID, 'STELLARIS LIVE TOUR 2026']])),
     };
     useCase = new ListInboxUseCase(
       access as unknown as ShareRecipientAccessService,
@@ -215,6 +218,27 @@ describe('ListInboxUseCase', () => {
 
     const items = await useCase.execute(USER_ID);
     expect(items[0].unread).toBe(true);
+  });
+
+  it('AC-SI-48 tour スコープで tourNames に解決できなかった行（論理削除済みツアー）は一覧から除外される', async () => {
+    access.listInboxRows.mockResolvedValue([inboxRow()]);
+    access.resolveTourNames.mockResolvedValue(new Map()); // 削除済みツアーのため解決できない
+
+    const items = await useCase.execute(USER_ID);
+
+    expect(items).toEqual([]);
+  });
+
+  it('AC-SI-48 identity_summary スコープの行は tourNames と無関係に除外されない', async () => {
+    access.listInboxRows.mockResolvedValue([
+      inboxRow({ link: { scopeType: 'identity_summary', scopeId: null } }),
+    ]);
+    access.resolveTourNames.mockResolvedValue(new Map());
+
+    const items = await useCase.execute(USER_ID);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].scope_name).toBe('名義の申込サマリー');
   });
 
   it('絞り込み・並びは ShareRecipientAccessService に委譲する（AC-SI-42〜44/47）', async () => {

@@ -73,6 +73,10 @@
 
 ### 5. 受信箱の tour 名解決が論理削除を見ていない
 
+✅ **2026-08-14 修正済み**: `resolveTourNames` に `deletedAt: null` を追加し、`ListInboxUseCase` で
+tour スコープかつ名前解決できなかった行（＝削除済みツアー）を一覧から除外するようにした。
+契約は `api-contract-delta.md` §4.1 に追記済み。
+
 `share-recipient-access.service.ts:72-80` の `resolveTourNames` は `deletedAt` を見ないため、
 オーナーがツアーを削除しても受信箱には名前付きで並ぶ。開くと `ResolveShareUseCase` →
 `TourMatrixService`（削除済みを除外）→ `SHARE_INVALID` 404 になり、
@@ -89,8 +93,8 @@
 
 ## 軽微 / 提案
 
-7. `TokenThrottlerGuard` / `tokenTracker`（`common/throttling/token-throttler.guard.ts`）は
-   `/public/*` 廃止で**利用者ゼロのデッドコード**。spec ごと削除候補。
+7. ✅ **2026-08-14 修正済み**: `TokenThrottlerGuard` / `tokenTracker`（`common/throttling/token-throttler.guard.ts`）は
+   `/public/*` 廃止で**利用者ゼロのデッドコード**だったため、spec ごと削除した。
 8. `ShareRecipientAccessService` 冒頭コメント（`share-recipient-access.service.ts:8-9`）の
    「`shares.service.ts`（T3 所有）を編集できない都合上」は並列開発の都合の記述。
    マージ後の読者に誤った制約を伝えるので整理したい（4 と同種）。
