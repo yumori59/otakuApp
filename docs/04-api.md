@@ -660,6 +660,8 @@ async pull(userId: string, cursor: Date | null, collections: string[]) {
 
 ### 4.2 Push
 
+payload 内の外部キー（`memberships.identity_id` / `events.tour_id` / `applications.event_id`・`rep_identity_id`・`rep_membership_id` / `application_companions.application_id`・`identity_id`）は、参照先の行が呼び出し元 (`userId`) の所有物であることをトランザクション内で検証する。所有者不一致・存在しない場合は `SYNC_APPLY_FAILED` で reject する（FK が null の場合はスキップ）。
+
 ```typescript
 async push(userId: string, mutations: Mutation[]) {
   const accepted: string[] = [];
