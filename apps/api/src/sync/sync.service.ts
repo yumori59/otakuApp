@@ -149,6 +149,22 @@ export class SyncService {
           }
 
           const data = payloadToPrismaData(collection, mutation.payload);
+
+          const fkError = await this.validateForeignKeys(
+            tx,
+            collection,
+            userId,
+            data,
+          );
+          if (fkError) {
+            rejected.push({
+              id: mutation.id,
+              code: 'SYNC_APPLY_FAILED',
+              message: fkError,
+            });
+            continue;
+          }
+
           await this.upsertRecord(tx, collection, mutation.id, userId, data);
 
           accepted.push(mutation.id);
@@ -210,6 +226,96 @@ export class SyncService {
       case 'application_companions':
         return client.applicationCompanion.findUnique({ where: { id } });
     }
+  }
+
+  /**
+   * payload 内の外部キーが呼び出し元 (userId) の所有物かを検証する。
+   * FK が null/undefined ならスキップ (application_companions.identityId のテキスト直接入力を許容)。
+   * deletedAt は条件に含めない — 削除済み親を参照する tombstone を正当に通すため。
+   */
+  private async validateForeignKeys(
+    client: SyncClient,
+    collection: SyncCollection,
+    userId: string,
+    data: Record<string, unknown>,
+  ): Promise<string | null> {
+    type FkCheck = {
+      field: string;
+      label: string;
+      find: (id: string) => Promise<{ ownerId: string } | null>;
+    };
+
+    let checks: FkCheck[];
+    switch (collection) {
+      case 'memberships':
+        checks = [
+          {
+            field: 'identityId',
+            label: 'referenced identity',
+            find: (id) => client.identity.findUnique({ where: { id } }),
+          },
+        ];
+        break;
+      case 'events':
+        checks = [
+          {
+            field: 'tourId',
+            label: 'referenced tour',
+            find: (id) => client.tour.findUnique({ where: { id } }),
+          },
+        ];
+        break;
+      case 'applications':
+        checks = [
+          {
+            field: 'eventId',
+            label: 'referenced event',
+            find: (id) => client.event.findUnique({ where: { id } }),
+          },
+          {
+            field: 'repIdentityId',
+            label: 'referenced identity',
+            find: (id) => client.identity.findUnique({ where: { id } }),
+          },
+          {
+            field: 'repMembershipId',
+            label: 'referenced membership',
+            find: (id) => client.membership.findUnique({ where: { id } }),
+          },
+        ];
+        break;
+      case 'application_companions':
+        checks = [
+          {
+            field: 'applicationId',
+            label: 'referenced application',
+            find: (id) => client.application.findUnique({ where: { id } }),
+          },
+          {
+            field: 'identityId',
+            label: 'referenced identity',
+            find: (id) => client.identity.findUnique({ where: { id } }),
+          },
+        ];
+        break;
+      case 'identities':
+      case 'tours':
+        checks = [];
+        break;
+    }
+
+    for (const check of checks) {
+      const value = data[check.field];
+      if (value === null || value === undefined) continue;
+      if (typeof value !== 'string') continue;
+
+      const row = await check.find(value);
+      if (!row || row.ownerId !== userId) {
+        return `${check.label} not owned by user`;
+      }
+    }
+
+    return null;
   }
 
   private async upsertRecord(

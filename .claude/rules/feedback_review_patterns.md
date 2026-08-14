@@ -21,6 +21,8 @@
 | BE-6 | **Prisma 例外の envelope 漏れ** | P2002(既存idへのPOST)/P2025(対象行なし)が AllExceptionsFilter で INTERNAL 500 になっていないか。契約上の CONFLICT 409/NOT_FOUND 404 に写すか、Service 側で事前検出する |
 | BE-7 | **`@updatedAt` を「相手が見たか」の比較基準に使う** | 閲覧カウンタ更新（`view_count` など）自体が `updated_at` を進める。閲覧開始時刻で `last_viewed_at` を打つと `last_viewed_at < updated_at` が常に成立し、未読が二度と消えない。副作用の**後に**時刻を取り直すか、比較基準を内容変更に寄せる |
 | BE-8 | **DTO プロパティにデコレータが 1 つも無い** | グローバル `ValidationPipe` は `whitelist: true, forbidNonWhitelisted: true`（`app.setup.ts`）。検証デコレータの無いプロパティは「未知の余計なプロパティ」として毎回 400 (`property X should not exist`) になる。形の検証を Service に委ねる場合でも `@IsObject()` 等を最低 1 つ付ける。DTO spec は素の `validate(dto)` だと再現しないので、whitelist 付きで検証する |
+| BE-9 | **同じデータに書き込み経路が 2 本あるのに、検証が片方にしか無い** | REST (`POST /v1/applications`) は `assertOwned` で FK 所有者を検証していたのに、同期 (`POST /v1/sync/push`) は payload 内の FK を無検証で受けていた。他人の `event_id` を指定した申込が accepted され、被害者のツアー表に混入することを実測で確認（2026-08-14）。**書き込み経路を増やしたら、既存経路の検証を全て移植したか突き合わせる**。さらに FK 検証を足すときは **mapper / DTO 側から FK を全列挙して照合する** — 今回 `applications.rep_membership_id`（nullable・iOS も送信）だけ漏れ、同じ穴が 1 本残ったのをレビューで検出した |
+| BE-10 | **トランザクション内の検証に `this.prisma` を使う** | 同一バッチで先に作った親（tours→events→applications の依存順 push）が見えず、正常系が全滅する。検証クエリは必ず引数で渡された `tx` を使う。**spec の `$transaction` モックが `tx` に `prisma` 自身を渡していると、この改悪をテストが検出できない**（別インスタンスを渡し、ルートの `prisma.*` が呼ばれていないことをアサートする） |
 
 ## iOS (SwiftUI: meigicho)
 

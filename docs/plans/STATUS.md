@@ -290,6 +290,41 @@ main へマージ済み（コミット `5c2e4f6`）。worktree/ブランチは�
 （2026-08-13 削除・訂正: 「共有ペイロードで同行者名がマスクされない」はバグではなく`docs/04-api.md:564`に明記された意図的な契約と判明したため削除。「同期の恒久失敗（`SYNC_APPLY_FAILED`）がUIに表示されない」は修正済み — `SyncEngine.swift`のLWW競合以外のrejectを`SyncStatus.failed`に反映するよう変更。バックオフ未実装は引き続き既知課題として上記に残す。）
 （2026-08-14 削除: 「削除済みツアーが受信箱に名前付きで残る」は修正済み。`resolveTourNames`に`deletedAt: null`を追加し、`ListInboxUseCase`で名前解決できなかった行を一覧から除外するよう変更。詳細は§9参照。）
 
+## 11. 全機能の動作監査 — 2026-08-14
+
+「全機能が動く状態か」の確認依頼を受けて実施。**静的解析だけでなく、ローカル Docker の実 DB に対して実際に HTTP リクエストを送って検証**した。
+
+### 実測で動作確認できたもの
+
+認証（メール登録・JWT）／同期 push・pull（全6コレクション・依存順一括）／REST 読み戻し／`home/summary`・`stats/identities`／ツアー表 matrix／共有招待フロー（発行→受信箱→ボード閲覧、write の `item_key`/`rev` 付き）／共有のアクセス制御（非招待者は 404・受信箱も空）。
+
+機械ゲート: BE 896 テスト全緑・tsc・build 成功／iOS BUILD SUCCEEDED・Core 20/Domain 207/Networking 167/DataStore 25/DesignSystem 1／未接続 View ゼロ／デコレータ欠落 DTO ゼロ。
+
+### 発見・修正した脆弱性（実証付き）
+
+**同期 push が payload 内の外部キーの所有者を検証していなかった**（BE-4）。REST 経路は `assertOwned` で検証していたのに同期経路だけ抜けていた。実際に攻撃を再現して確認:
+
+| 攻撃 | 修正前 | 修正後 |
+|---|---|---|
+| 他人の `event_id` を指定した申込を push | accepted され、**被害者のツアー表に攻撃者の名義が混入** | `referenced event not owned by user` で reject・混入なし |
+| 他人の `rep_membership_id` を指定 | accepted（レビューで検出した2本目の穴） | `referenced membership not owned by user` で reject |
+
+逆方向（攻撃者が被害者データを読む）は修正前から 404 でブロックされていた。悪用には被害者の内部 UUID が必要で、これは API のどこにも露出していない（共有ペイロードも内部 UUID を除外）ため即時の実害は限定的だが、認可の穴として修正した。
+
+設計判断: ①検証は所有者のみ（`deletedAt` は見ない = tombstone 同期を壊さない）②検証は必ず `tx` で行う（同一バッチの親が見える）③既存 `SYNC_APPLY_FAILED` を流用（契約変更なし）④null FK はスキップ。**②③④と tombstone・存在しない UUID の挙動は全て実 DB で検証済み**。
+
+`feedback_review_patterns.md` に BE-9（書き込み経路が2本あるとき検証を片方に入れ忘れる／FK は mapper から全列挙して照合する）と BE-10（tx 内検証に `this.prisma` を使う／spec のモックがそれを検出できない）を追記。
+
+### スコープ外とした残課題
+
+- **FR-AP-4 不変条件が同期経路に無い**: REST は `rep_membership.identity_id === rep_identity_id` を強制するが、同期は所有者チェックのみ。**自分のデータ内での不整合**であり越境ではないため今回は対象外（部分更新・tombstone での `repIdentityId` undefined の扱いを決めてから着手すべき）
+- 非 UUID 文字列の FK は DTO で弾かれず、Postgres のトランザクション中断で後続 mutation を巻き添えにしうる（既存の性質。`payload` は `@IsObject()` のみ）
+- `SyncPushDto.mutations` に件数上限が無い
+
+### 未検証（環境依存・実機必要）
+
+Apple / Google サインイン（証明書・クライアント ID 未設定）、課金、広告、iOS UI の実操作、通知スケジューリング、Features パッケージ（UI 層）はテストが 1 件も無い。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。
