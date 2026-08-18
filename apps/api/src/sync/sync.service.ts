@@ -165,11 +165,37 @@ export class SyncService {
             continue;
           }
 
+          const uniqueError = await this.validateUniqueConstraints(
+            tx,
+            collection,
+            userId,
+            mutation.id,
+            data,
+          );
+          if (uniqueError) {
+            rejected.push({
+              id: mutation.id,
+              code: 'SYNC_APPLY_FAILED',
+              message: uniqueError,
+            });
+            continue;
+          }
+
           await this.upsertRecord(tx, collection, mutation.id, userId, data);
 
           accepted.push(mutation.id);
         } catch (error) {
-          rejected.push(rejectFromError(mutation.id, error));
+          if (error instanceof AppError) {
+            rejected.push(rejectFromAppError(mutation.id, error));
+            continue;
+          }
+          // Prisma／DB由来の想定外エラーはここで rejected に積まない。
+          // Postgres はトランザクション内で1クエリでもエラーになるとabort状態になり、
+          // 以後 COMMIT しても暗黙 ROLLBACK される（=このバッチの他の accepted も消える）。
+          // ここで握り潰すと「accepted」が嘘になる（2026-08-18 実測）。
+          // rethrow して $transaction 自体を失敗させ、push() 全体をエラー応答にする。
+          // outbox 側は何もmarkSyncedされないため、次サイクルで安全に再送される。
+          throw error;
         }
       }
     });
@@ -318,6 +344,41 @@ export class SyncService {
     return null;
   }
 
+  /**
+   * upsert が Postgres の unique 制約違反を起こす前に事前検出する。
+   * Postgres のインタラクティブトランザクションは 1 クエリでもエラーになると
+   * トランザクション全体が abort し、以後の全クエリ (同一バッチの他の正当な
+   * mutation を含む) が巻き添えで失敗する。SAVEPOINT でのリカバリではなく、
+   * そもそも例外を発生させない方針を取る。
+   *
+   * 対象は tours の (owner_id, name) 一意制約 (schema.prisma `tours_owner_name_uniq`)
+   * のみ。この制約に deleted_at の除外条件は無い (プレーンな unique index) ため、
+   * 論理削除済みの同名ツアーとも衝突する — 事前チェックも deletedAt で絞らない。
+   * 他の sync 対象コレクション (identities/memberships/events/applications/
+   * application_companions) には owner スコープの unique 制約が無いため対応不要。
+   */
+  private async validateUniqueConstraints(
+    client: SyncClient,
+    collection: SyncCollection,
+    userId: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<string | null> {
+    if (collection !== 'tours') return null;
+
+    const name = data.name;
+    if (typeof name !== 'string') return null;
+
+    const conflict = await client.tour.findFirst({
+      where: { ownerId: userId, name, id: { not: id } },
+    });
+    if (conflict) {
+      return 'tour name already exists';
+    }
+
+    return null;
+  }
+
   private async upsertRecord(
     client: SyncClient,
     collection: SyncCollection,
@@ -374,21 +435,14 @@ export class SyncService {
   }
 }
 
-function rejectFromError(id: string, error: unknown): SyncPushRejectedItem {
-  if (error instanceof AppError) {
-    const body = error.getResponse();
-    const message =
-      typeof body === 'object' &&
-      body !== null &&
-      'message' in body &&
-      typeof (body as { message: unknown }).message === 'string'
-        ? (body as { message: string }).message
-        : error.code;
-    return { id, code: error.code, message };
-  }
-  return {
-    id,
-    code: 'SYNC_APPLY_FAILED',
-    message: 'failed to apply mutation',
-  };
+function rejectFromAppError(id: string, error: AppError): SyncPushRejectedItem {
+  const body = error.getResponse();
+  const message =
+    typeof body === 'object' &&
+    body !== null &&
+    'message' in body &&
+    typeof (body as { message: unknown }).message === 'string'
+      ? (body as { message: string }).message
+      : error.code;
+  return { id, code: error.code, message };
 }

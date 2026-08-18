@@ -325,6 +325,20 @@ main へマージ済み（コミット `5c2e4f6`）。worktree/ブランチは�
 
 Apple / Google サインイン（証明書・クライアント ID 未設定）、課金、広告、iOS UI の実操作、通知スケジューリング、Features パッケージ（UI 層）はテストが 1 件も無い。
 
+## 12. 同期push トランザクション巻き添え（データ消失）修正 — 2026-08-18
+
+`docs/plans/application-edit/` T7（調査タスク）で「懸念は現実に起きる」とモックで確認された後、**実DBに対する実測でさらに深刻な形（虚偽accepted応答によるサイレントデータ消失）を確認**したため、申込編集機能の実装より先に修正した。
+
+**実測した現象**: 同一push呼び出しで「正当な名義作成」→「既存と同名・別UUIDのツアー作成（unique制約違反）」を送ると、レスポンスは`accepted: [名義ID], rejected: [ツアーID]`と返るのに、**実際にDBを確認すると名義は保存されていなかった**。Postgresはトランザクション内で1クエリでもエラーになるとabort状態になり、以後COMMITしても暗黙ROLLBACKされるため、先に成功していたはずの変更も消える。iOS側`SyncEngine`はacceptedを信じて`markSynced()`しoutboxから削除するため、サーバー・ローカル両方からデータが消えるバグだった。
+
+**修正**（`apps/api/src/sync/sync.service.ts`）:
+1. ツアー名の事前重複チェック（`tx.tour.findFirst`）を追加し、unique制約違反というPostgres例外自体を起こさせないようにした（sync対象6コレクションでownerスコープのunique制約は`tours_owner_name_uniq`のみと`schema.prisma`で確認済み）
+2. それでも起きうる予期しないDB例外（`AppError`以外）は、個別rejectで握り潰さず**rethrowしてpush全体を失敗させる**方針に変更。ビジネスロジック起因の`AppError`（LWW競合・プラン上限・所有者チェック等）のみ引き続き個別rejectする
+
+別セッションでレビュー実施（重大ゼロ）。レビュー指摘で②（rethrow方針）を追加実装。実DBで独立再検証済み（修正前: 名義0件保存／修正後: 名義1件保存）。正常系・前回のFK所有者検証・tombstone同期・存在しないUUID参照、いずれも回帰なし。
+
+`feedback_review_patterns.md`にBE-11を追記。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。

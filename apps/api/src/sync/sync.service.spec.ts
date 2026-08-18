@@ -12,6 +12,7 @@ function makeDelegate(rows: unknown[] = []) {
   return {
     findMany: jest.fn().mockResolvedValue(rows),
     findUnique: jest.fn(),
+    findFirst: jest.fn().mockResolvedValue(null),
     upsert: jest.fn().mockResolvedValue({}),
   };
 }
@@ -186,30 +187,31 @@ describe('SyncService', () => {
     expect(result.rejected[0].code).toBe(ErrorCode.PLAN_LIMIT_IDENTITY);
   });
 
-  it('push — 非 AppError は内部詳細を返さない', async () => {
-    tx.identity.findUnique.mockResolvedValue(null);
-    identities.ensureWithinLimit.mockRejectedValue(
-      new Error('prisma P2002 unique constraint exploded at line 42'),
-    );
+  it(
+    'push — 非 AppError (DB由来の想定外エラー) は rejected に積まず rethrow する ' +
+      '(2026-08-18: 握り潰すと同一トランザクション内の他の accepted が実は未コミットのまま' +
+      '「成功」と返ってしまう。outbox は何もmarkSyncedされないので安全に再送できる)',
+    async () => {
+      tx.identity.findUnique.mockResolvedValue(null);
+      identities.ensureWithinLimit.mockRejectedValue(
+        new Error('prisma P2002 unique constraint exploded at line 42'),
+      );
 
-    const result = await service.push(USER_ID, {
-      mutations: [
-        {
-          collection: 'identities',
-          op: 'upsert',
-          id: IDENTITY_ID,
-          updated_at: '2026-07-31T10:00:00.000Z',
-          payload: { display_name: '新規' },
-        },
-      ],
-    });
-
-    expect(result.rejected[0]).toEqual({
-      id: IDENTITY_ID,
-      code: 'SYNC_APPLY_FAILED',
-      message: 'failed to apply mutation',
-    });
-  });
+      await expect(
+        service.push(USER_ID, {
+          mutations: [
+            {
+              collection: 'identities',
+              op: 'upsert',
+              id: IDENTITY_ID,
+              updated_at: '2026-07-31T10:00:00.000Z',
+              payload: { display_name: '新規' },
+            },
+          ],
+        }),
+      ).rejects.toThrow('prisma P2002 unique constraint exploded at line 42');
+    },
+  );
 
   const EVENT_ID = '018f3c2a-bbbb-7c90-9d2a-000000000002';
   const TOUR_ID = '018f3c2a-cccc-7c90-9d2a-000000000003';
@@ -383,6 +385,108 @@ describe('SyncService', () => {
       code: 'SYNC_APPLY_FAILED',
     });
     expect(result.rejected[0].message).toMatch(/membership/);
+  });
+
+  it(
+    'AC-8 push — tours: 事前の名前重複チェックにより Postgres の unique 制約違反' +
+      '(P2002) を起こさせず、同一バッチ内の後続の正常な mutation も transaction' +
+      ' abort に巻き込まれない (旧: 巻き添えを実測していたテストを、今回の修正で' +
+      '巻き添えが起きなくなることの回帰ガードへ更新)',
+    async () => {
+      const FAILING_TOUR_ID = TOUR_ID;
+      const OK_TOUR_ID = '018f3c2a-cccc-7c90-9d2a-000000000098';
+
+      tx.tour.findUnique.mockResolvedValue(null); // どちらも新規 tour 扱い
+      // 事前チェック (findFirst): FAILING_TOUR_ID と同じ名前を持つ別 id の
+      // ツアーが既に存在する。OK_TOUR_ID は重複なし。
+      tx.tour.findFirst.mockImplementation(
+        async (args: { where: { name: string } }) => {
+          if (args.where.name === '既存ツアーと同名 (unique 違反)') {
+            return { id: 'other-existing-tour-id' };
+          }
+          return null;
+        },
+      );
+
+      const result = await service.push(USER_ID, {
+        mutations: [
+          {
+            collection: 'tours',
+            op: 'upsert',
+            id: FAILING_TOUR_ID,
+            updated_at: '2026-07-31T10:00:00.000Z',
+            payload: { name: '既存ツアーと同名 (unique 違反)' },
+          },
+          {
+            collection: 'tours',
+            op: 'upsert',
+            id: OK_TOUR_ID,
+            updated_at: '2026-07-31T10:00:01.000Z',
+            payload: { name: '本来は正常に作成できるはずのツアー' },
+          },
+        ],
+      });
+
+      // 事前チェックで検出されるため upsert 自体が呼ばれず、Postgres エラーも
+      // transaction abort も発生しない。OK_TOUR_ID は正常に accepted される。
+      expect(result.accepted).toEqual([OK_TOUR_ID]);
+      expect(result.rejected).toEqual([
+        {
+          id: FAILING_TOUR_ID,
+          code: 'SYNC_APPLY_FAILED',
+          message: 'tour name already exists',
+        },
+      ]);
+      expect(tx.tour.upsert).toHaveBeenCalledTimes(1);
+      expect(tx.tour.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: OK_TOUR_ID } }),
+      );
+    },
+  );
+
+  it('AC-9 push — tours: 同一バッチで同名・別 id のツアー作成が reject されても、' +
+    '無関係な名義の新規作成は accepted される (巻き添え防止の回帰ガード)', async () => {
+    tx.tour.findUnique.mockResolvedValue(null);
+    tx.tour.findFirst.mockResolvedValue({ id: 'existing-tour-id' }); // 常に重複あり
+    tx.identity.findUnique.mockResolvedValue(null);
+
+    const DUP_TOUR_ID = '018f3c2a-cccc-7c90-9d2a-000000000097';
+    const NEW_IDENTITY_ID = '018f3c2a-aaaa-7c90-9d2a-000000000099';
+
+    const result = await service.push(USER_ID, {
+      mutations: [
+        {
+          collection: 'identities',
+          op: 'upsert',
+          id: NEW_IDENTITY_ID,
+          updated_at: '2026-07-31T10:00:00.000Z',
+          payload: {
+            display_name: '無関係な名義',
+            relation: 'other',
+            color: '#0017C1',
+            history_visible: true,
+            sort_order: 0,
+          },
+        },
+        {
+          collection: 'tours',
+          op: 'upsert',
+          id: DUP_TOUR_ID,
+          updated_at: '2026-07-31T10:00:01.000Z',
+          payload: { name: '重複ツアー' },
+        },
+      ],
+    });
+
+    expect(result.accepted).toEqual([NEW_IDENTITY_ID]);
+    expect(result.rejected).toEqual([
+      {
+        id: DUP_TOUR_ID,
+        code: 'SYNC_APPLY_FAILED',
+        message: 'tour name already exists',
+      },
+    ]);
+    expect(tx.tour.upsert).not.toHaveBeenCalled();
   });
 
   it('AC-7 push — applications: rep_membership_id が null なら accepted される', async () => {
