@@ -14,6 +14,7 @@ final class AdSlotForbiddenScreensTests: XCTestCase {
         "Forms/AddIdentityView.swift",
         "Forms/AddMembershipView.swift",
         "Forms/AddApplicationView.swift",
+        "Forms/ApplicationFormView.swift",
         "Forms/SheetContentView.swift",
         "Share/SharePreviewView.swift",
         "SharedBoard/SharedBoardView.swift",

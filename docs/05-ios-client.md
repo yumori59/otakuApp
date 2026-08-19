@@ -330,6 +330,8 @@ public enum MeigichoMigrationPlan: SchemaMigrationPlan {
 | S8 | `screenAddMembership()` | `MembershipFormView` | `.sheet(item:)` | `MembershipFormStore` | 新規 `Membership` |
 | S9 | `screenAddApplication()` | `ApplicationFormView` | `.sheet(item:)` | `ApplicationFormStore` | 新規 `ApplicationEntry` ほか |
 
+**S9拡張（申込編集・`docs/plans/application-edit/`）**: `ApplicationFormView`は`mode: .create` / `.edit(ApplicationEntry)`を受け取る共通コンポーネントとして実装する（追加要件R2-9・roadmap 0-11b）。編集エントリはS5（申込詳細）のツールバーから`AppSheet.editApplication(id:)`で開く。書き込み経路は既存のローカルSSoT + `POST /v1/sync/push`のみ（REST `PATCH /v1/applications/:id`は使わない）。詳細は計画の`plan.md`参照。
+
 ```swift
 public enum AppRoute: Hashable { case identity(UUID), application(UUID), sharePreview }
 public enum AppSheet: Identifiable, Hashable {

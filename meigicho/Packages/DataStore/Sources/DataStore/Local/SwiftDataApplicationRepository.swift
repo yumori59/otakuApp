@@ -101,6 +101,65 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
             throw AppError.notFound
         }
 
+        try applyApplicationPatch(patch, to: record, in: context, now: now)
+
+        OutboxQueue.enqueue(collection: .applications, targetID: record.id, in: context, now: now)
+        try context.save()
+        onWrite.didWrite()
+        guard let entry = try toDomain(record, in: context) else { throw AppError.notFound }
+        return entry
+    }
+
+    /// 申込 + そのツアー / 公演をまとめて 1 回の `save()` で更新する（編集画面専用・D-3）。
+    ///
+    /// - `plan.tourDraft` あり: `findOrCreateTour` で解決（現地更新／付け替えの両方を吸収）。
+    ///   `plan.eventDraft` が無い（公演自体は無変更）場合でも、解決したツアーへ event の
+    ///   `tourID` を付け替える必要がある（FR-AE-9 はツアー名だけの変更もありうる）。
+    /// - `plan.eventDraft` あり: `EventDraft.id` は常に編集前の公演 id なので現地更新（`upsertEvent`）。
+    /// - 対象が存在しない／論理削除済みなら新しい行を作らず `.notFound`（AC-AE-13）。
+    public func updateScoped(applicationID: UUID, plan: ApplicationEditPlan) async throws -> ApplicationEntry {
+        let context = ModelContext(container)
+        let now = Date()
+
+        guard let record = try ApplicationRecord.fetchRecord(id: applicationID, in: context), record.deletedAt == nil else {
+            throw AppError.notFound
+        }
+        guard let existingEvent = try EventRecord.fetchRecord(id: record.eventID, in: context) else {
+            throw AppError.notFound
+        }
+
+        var resolvedTourID = existingEvent.tourID
+        if let tourDraft = plan.tourDraft {
+            let tour = try findOrCreateTour(tourDraft, in: context, now: now)
+            resolvedTourID = tour.id
+        }
+
+        if let eventDraft = plan.eventDraft {
+            _ = try upsertEvent(eventDraft, tourID: resolvedTourID, in: context, now: now)
+        } else if resolvedTourID != existingEvent.tourID {
+            // 公演自体は無変更でも、ツアーの付け替え先が変わっていれば event.tourID だけ更新する。
+            existingEvent.tourID = resolvedTourID
+            existingEvent.markDirty(now: now)
+            OutboxQueue.enqueue(collection: .events, targetID: existingEvent.id, in: context, now: now)
+        }
+
+        try applyApplicationPatch(plan.applicationPatch, to: record, in: context, now: now)
+        OutboxQueue.enqueue(collection: .applications, targetID: record.id, in: context, now: now)
+
+        try context.save()
+        onWrite.didWrite()
+        guard let entry = try toDomain(record, in: context) else { throw AppError.notFound }
+        return entry
+    }
+
+    /// `update` / `updateScoped` 共通の「申込レコードへパッチを適用する」処理（重複実装しない）。
+    /// companions は `.set` のときだけ全置換。`.unchanged` なら一切触らない（AC-APP-12）。
+    private func applyApplicationPatch(
+        _ patch: ApplicationPatch,
+        to record: ApplicationRecord,
+        in context: ModelContext,
+        now: Date
+    ) throws {
         let nextIdentityID = patch.repIdentityID.applied(to: record.repIdentityID) ?? record.repIdentityID
         if case .set = patch.repIdentityID {
             try assertIdentityOwned(nextIdentityID, in: context)
@@ -120,7 +179,6 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
 
         record.apply(patch: patch, now: now)
 
-        // companions は `.set` のときだけ全置換。`.unchanged` なら一切触らない（AC-APP-12）。
         if case .set(let incoming) = patch.companions {
             let normalized = try Self.normalizeCompanions(incoming ?? [])
             for companion in normalized {
@@ -130,12 +188,6 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
             }
             try replaceCompanions(normalized, applicationID: record.id, in: context, now: now)
         }
-
-        OutboxQueue.enqueue(collection: .applications, targetID: record.id, in: context, now: now)
-        try context.save()
-        onWrite.didWrite()
-        guard let entry = try toDomain(record, in: context) else { throw AppError.notFound }
-        return entry
     }
 
     /// 申込と配下 companions をソフトデリート（BE `remove` と同じ）。
@@ -170,11 +222,33 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
             predicate: #Predicate { $0.name == name }
         )
         if let existing = try context.fetch(descriptor).first {
-            if existing.deletedAt != nil {
+            var changed = false
+            let isRevival = existing.deletedAt != nil
+            if isRevival {
                 existing.deletedAt = nil
-                if !draft.artistNameRaw.isEmpty {
+                changed = true
+            }
+            // 編集経路（updateScoped）ではアーティスト名だけの変更もここを通るので、
+            // 既存（アクティブな）ツアーでも一致していれば反映する（ソフトデリート復活時限定ではない）。
+            // ・ソフトデリート復活時（`isRevival`）は常に反映する（BE `tours.service.ts` の
+            //   `artist_name_raw ?? existing.artistNameRaw` と同じ、従来からの挙動）
+            // ・アクティブな既存ツアーは `existing.id == draft.id`（＝同一ツアーの現地更新。ツアー名変更
+            //   で新規 UUID が発行される吸収ケースでは false になる）のときだけ反映する。
+            //   ツアー名変更で別の既存ツアーに**吸収**された場合は `draft.artistNameRaw` が編集前ツアーの
+            //   文脈から来た値で吸収先とは無関係なので上書きしない（FR-AE-9）。create 経路でも
+            //   `draft.id` は常に新規 UUID なので、既存ツアーへの意図しないアーティスト名上書きを防げる
+            // ・同一ツアーの現地更新のときだけ、アーティスト名を**空にする変更**も反映する（FR-AE-8）。
+            //   復活/吸収では空値を「未入力」として黙殺し既存値を残す
+            if isRevival {
+                if !draft.artistNameRaw.isEmpty && existing.artistNameRaw != draft.artistNameRaw {
                     existing.artistNameRaw = draft.artistNameRaw
+                    changed = true
                 }
+            } else if existing.id == draft.id && existing.artistNameRaw != draft.artistNameRaw {
+                existing.artistNameRaw = draft.artistNameRaw
+                changed = true
+            }
+            if changed {
                 existing.markDirty(now: now)
                 OutboxQueue.enqueue(collection: .tours, targetID: existing.id, in: context, now: now)
             }

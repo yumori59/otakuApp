@@ -373,6 +373,50 @@ public final class ApplicationStore {
         await applyOptimistic(id: id, patch: patch) { $0.seatRaw = trimmed }
     }
 
+    /// 申込編集（T5 の編集フォームから呼ばれる想定）。
+    ///
+    /// 差分計算は `ApplicationEditPlanner.makePlan`（純粋関数・T1）に委ね、Store は
+    /// 「現在値の取得 → plan 組み立て → `updateScoped` 呼び出し → ローカル反映」の配線だけを持つ
+    /// （`updateApplicationStatus` / `updateApplicationSeat` と同じ「Store が差分を組み立てる」パターン）。
+    ///
+    /// **楽観更新はしない**（D-5）。申込 + 公演 + ツアーにまたがる変更を後付け undo で巻き戻すと
+    /// 途中状態が残りうる（IOS-13）。保存中は `isSaving`、成功したらリポジトリの戻り値をそのまま
+    /// 反映し、失敗したら `writeError` を立てて何も書き換えない（`addApplication` と同じ方針）。
+    @discardableResult
+    public func updateApplication(_ id: UUID, input: ApplicationEditFormInput) async -> ApplicationEntry? {
+        guard let current = application(for: id),
+              let currentTour = tour(for: current.tourID),
+              let currentEvent = event(for: current.eventID)
+        else {
+            writeError = .notFound
+            return nil
+        }
+
+        let plan = ApplicationEditPlanner.makePlan(
+            current: current,
+            currentTour: currentTour,
+            currentEvent: currentEvent,
+            input: input
+        )
+
+        guard let repository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            return applyEditLocally(id: id, plan: plan)
+        }
+        writeError = nil
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let entry = try await repository.updateScoped(applicationID: id, plan: plan)
+            reconcileEditedCatalog(with: entry, plan: plan)
+            upsert(application: entry)
+            return entry
+        } catch {
+            writeError = Self.appError(from: error)
+            return nil
+        }
+    }
+
     /// 楽観更新 → PATCH → 成功ならサーバーの値で置換 / 失敗なら巻き戻す。
     private func applyOptimistic(
         id: UUID,
@@ -416,27 +460,11 @@ public final class ApplicationStore {
     }
 
     public static func normalizedCompanions(_ companions: [Companion]) -> [Companion] {
-        var seen = Set<UUID>()
-        var result: [Companion] = []
-        for companion in companions.sorted(by: { $0.position < $1.position }) {
-            if let identityID = companion.identityID {
-                guard seen.insert(identityID).inserted else { continue }
-            }
-            guard result.count < maxCompanions else { break }
-            result.append(
-                Companion(
-                    id: companion.id,
-                    identityID: companion.identityID,
-                    displayName: companion.displayName,
-                    position: result.count
-                )
-            )
-        }
-        return result
+        CompanionNormalizer.normalize(companions)
     }
 
     /// `api-contract.md` §7「companions は 0〜3 件」
-    public static let maxCompanions = 3
+    public static let maxCompanions = CompanionNormalizer.maxCompanions
 
     private func upsert(application entry: ApplicationEntry) {
         if let index = applications.firstIndex(where: { $0.id == entry.id }) {
@@ -452,6 +480,91 @@ public final class ApplicationStore {
         } else {
             events.append(entity)
         }
+    }
+
+    private func upsert(tour: Tour) {
+        if let index = tours.firstIndex(where: { $0.id == tour.id }) {
+            tours[index] = tour
+        } else {
+            tours.append(tour)
+        }
+    }
+
+    /// `updateApplication` の戻り値でカタログを揃える。`addApplication` の `reconcileCatalog` と違い、
+    /// 編集は**現地更新**（同じ id を上書き）もありうるので `upsert`（無ければ追加・あれば置換）を使う。
+    ///
+    /// `entry.tourID` はサーバーの find-or-create の結果なので、`plan.tourDraft.id`（編集前の文脈から
+    /// 計算した付け替え候補の id）と一致しないことがある＝**既存の別ツアーに吸収された**。
+    /// その場合 `tourDraft.artistNameRaw` は吸収先ツアーの実際の値とは無関係なので上書きしない
+    /// （吸収先の既存 `artistNameRaw` を保持する）。一致する場合だけ「同一ツアーの現地更新」として反映する。
+    private func reconcileEditedCatalog(with entry: ApplicationEntry, plan: ApplicationEditPlan) {
+        if let tourDraft = plan.tourDraft {
+            if let existingTour = tour(for: entry.tourID) {
+                let artistNameRaw = entry.tourID == tourDraft.id
+                    ? tourDraft.artistNameRaw
+                    : existingTour.artistNameRaw
+                upsert(tour: Tour(
+                    id: entry.tourID,
+                    name: tourDraft.name,
+                    artistNameRaw: artistNameRaw,
+                    updatedAt: now()
+                ))
+            } else {
+                tours.append(Tour(
+                    id: entry.tourID,
+                    name: tourDraft.name,
+                    artistNameRaw: tourDraft.artistNameRaw,
+                    updatedAt: now()
+                ))
+            }
+        }
+        if let eventDraft = plan.eventDraft {
+            upsert(event: EventEntity(
+                id: entry.eventID,
+                tourID: entry.tourID,
+                name: eventDraft.name,
+                venueNameRaw: eventDraft.venueNameRaw,
+                eventDate: eventDraft.eventDate,
+                startsAt: eventDraft.startsAt,
+                updatedAt: now()
+            ))
+        }
+    }
+
+    /// ネットワーク未接続時（Preview / テスト）のローカル編集反映。
+    @discardableResult
+    private func applyEditLocally(id: UUID, plan: ApplicationEditPlan) -> ApplicationEntry? {
+        guard let index = applications.firstIndex(where: { $0.id == id }) else {
+            writeError = .notFound
+            return nil
+        }
+        var entry = applications[index]
+        let patch = plan.applicationPatch
+        entry.repIdentityID = patch.repIdentityID.applied(to: entry.repIdentityID) ?? entry.repIdentityID
+        entry.repMembershipID = patch.repMembershipID.applied(to: entry.repMembershipID)
+        entry.roundName = patch.roundName.applied(to: entry.roundName)
+        entry.appliedOn = patch.appliedOn.applied(to: entry.appliedOn)
+        entry.resultOn = patch.resultOn.applied(to: entry.resultOn)
+        entry.status = patch.status.applied(to: entry.status) ?? entry.status
+        entry.seatRaw = patch.seatRaw.applied(to: entry.seatRaw) ?? entry.seatRaw
+        entry.ticketCount = patch.ticketCount.applied(to: entry.ticketCount) ?? entry.ticketCount
+        entry.priceYen = patch.priceYen.applied(to: entry.priceYen)
+        entry.note = patch.note.applied(to: entry.note) ?? ""
+        entry.companions = patch.companions.applied(to: entry.companions) ?? entry.companions
+        if let tourDraft = plan.tourDraft {
+            // `tourDraft.id != entry.tourID`（＝ツアー名変更で新規 id を発行した）ときだけ、
+            // サーバーの find-or-create と同じく**ツアー名の一致で既存ツアーに吸収**する（`applyLocally` と同じ設計）。
+            // 一致しなければ本当に新規ツアーとして `tourDraft.id` を使う（`reconcileEditedCatalog` が append する）。
+            if tourDraft.id != entry.tourID, let existing = tours.first(where: { $0.name == tourDraft.name }) {
+                entry.tourID = existing.id
+            } else {
+                entry.tourID = tourDraft.id
+            }
+        }
+        if let eventDraft = plan.eventDraft { entry.eventID = eventDraft.id }
+        applications[index] = entry
+        reconcileEditedCatalog(with: entry, plan: plan)
+        return entry
     }
 
     /// サーバーが確定させた `tour_id` / `event_id` に手元のカタログを合わせる。

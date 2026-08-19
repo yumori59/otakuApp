@@ -339,6 +339,37 @@ Apple / Google サインイン（証明書・クライアント ID 未設定）�
 
 `feedback_review_patterns.md`にBE-11を追記。
 
+## 13. 申込編集機能 — `docs/plans/application-edit/`（2026-08-19 完了）
+
+申込（代表者・同行者・公演情報・ツアー名・ステータス・座席・メモ）の編集画面。計画確定済み（要件はR2-9として`docs/01-product-overview.md`に追記、roadmap 0-11bとして追加）。
+
+| タスク | 内容 | 状態 |
+|---|---|---|
+| T1 | 編集フォーム入力から`ApplicationPatch`/`TourDraft?`/`EventDraft?`を組み立てる純粋関数（`ApplicationEditPlanner`）+ `CompanionNormalizer`共通化 | ✅ |
+| T2 | `ApplicationRepository.updateScoped`追加 + `ApplicationStore.updateApplication` | ✅ |
+| T3 | `SwiftDataApplicationRepository.updateScoped`実装（1回のcontext.saveでtour/event/application/companionsを更新） | ✅ |
+| T4 | `AddApplicationView`から`ApplicationFormView`を振る舞い不変で抽出 | ✅ |
+| T5 | 編集モードのUI配線（`AppSheet.editApplication`・詳細画面への編集ボタン・波及注意文） | ✅ |
+| T6 | docs追従（`01-product-overview.md`/`05-ios-client.md`/`09-roadmap.md`） | ✅ |
+
+**BE追加実装なし**（既存の`POST /v1/sync/push`のみ使用。REST PATCHは不使用 — D-1）。
+
+### レビュー
+
+初回で中5件検出（うち4件修正、詳細は`docs/plans/application-edit/review.md`）:
+- 修正: nilの日付が無変更保存で今日の日付に化けて他申込へ波及するバグ（データ整合性）、tour/event欠落時に空欄フォームが開く問題、編集ボタンがGuestGateを通っていない問題、ツアー名単独変更時に波及警告が出ない問題
+- 残課題: ツアー吸収時のアーティスト名無言破棄（UI注記との不一致）、軽微7件
+
+検証: `swift test --package-path Packages/Domain`（226テスト）・`Packages/DataStore`（33テスト）全緑、`xcodebuild` BUILD SUCCEEDED（いずれも独立して複数回再確認済み）。
+
+### 未実施
+
+**手動UI確認**（AC-AE-01/07/08/11/14/15、`plan.md`§5）が未実施。このセッションのiOSシミュレータ制御ツールが入力（タップ）を配信できない環境問題が発生し、複数の座標・複数回の試行でも改善しなかったため。次回セッションで実施すること。
+
+### 副産物: 同期pushの重大バグ2件を先行発見・修正
+
+本機能の実装中（T7の調査、および設計上の懸念検証）で、`POST /v1/sync/push`に実DBで確認できるデータ消失・認可の穴を発見し、本機能より先に修正・マージした。詳細は本ファイル §12 および `docs/plans/STATUS.md`内の同期push関連の既存エントリを参照。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。

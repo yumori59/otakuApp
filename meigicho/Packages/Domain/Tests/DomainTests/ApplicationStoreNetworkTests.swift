@@ -272,6 +272,196 @@ final class ApplicationStoreNetworkTests: XCTestCase {
         XCTAssertEqual(store.writeError, .offline)
     }
 
+    // MARK: - T2: updateApplication（申込 + tour/event 付け替え）
+
+    /// ツアー名変更でツアーが付け替わり（新 tour）、リポジトリの戻り値で `tours`/`events` が整合すること。
+    /// `plan.md` 135 行目: T2 は Store の薄い委譲だが、この整合部分だけは Store テストで押さえる。
+    func testUpdateApplicationReconcilesToursAndEventsFromRepositoryResult() async {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "ARTIST", updatedAt: today)
+        let existingEvent = EventEntity(
+            id: event1, tourID: tour1, name: "公演A", venueNameRaw: "会場A",
+            eventDate: day(2026, 9, 13), updatedAt: today
+        )
+        let existing = entry(id: UUID(), eventID: event1, status: .applied, seatRaw: "")
+        let newTourID = UUID(uuidString: "00000000-0000-7000-8000-000000000999")!
+
+        let repository = FakeApplicationRepository(pages: [])
+        await repository.setUpdateScopedResult { id, plan in
+            var updated = existing
+            updated.tourID = plan.tourDraft?.id ?? updated.tourID
+            updated.status = plan.applicationPatch.status.applied(to: updated.status) ?? updated.status
+            return updated
+        }
+        let store = ApplicationStore(repository: repository, now: { [today] in today })
+        store.applications = [existing]
+        store.tours = [oldTour]
+        store.events = [existingEvent]
+
+        var input = ApplicationEditFormInput(
+            eventName: existingEvent.name,
+            tourName: "新ツアー",
+            artistNameRaw: oldTour.artistNameRaw,
+            venueNameRaw: existingEvent.venueNameRaw,
+            eventDate: existingEvent.eventDate,
+            repIdentityID: existing.repIdentityID,
+            status: .won
+        )
+        input.appliedOn = existing.appliedOn
+        input.resultOn = existing.resultOn
+        input.seatRaw = existing.seatRaw
+        input.note = existing.note
+
+        let updated = await store.updateApplication(existing.id, input: input)
+
+        XCTAssertNotNil(updated)
+        XCTAssertEqual(updated?.status, .won)
+        let plans = await repository.updateScopedPlans
+        XCTAssertEqual(plans.count, 1)
+        XCTAssertEqual(plans[0].tourDraft?.name, "新ツアー")
+
+        // リポジトリが返した tourID（= plan.tourDraft.id）で新ツアーが 1 件増え、旧ツアーは残る
+        XCTAssertEqual(store.tours.count, 2, "付け替え先の新ツアーが増える")
+        XCTAssertEqual(store.tour(for: updated!.tourID)?.name, "新ツアー")
+        XCTAssertEqual(store.tour(for: tour1)?.name, "旧ツアー", "旧ツアー自体は書き換えない")
+        XCTAssertNil(store.writeError)
+        XCTAssertFalse(store.isSaving)
+    }
+
+    /// 【中】既存の別ツアーに吸収されたとき、`tourDraft.artistNameRaw`（編集前の文脈から計算した値）で
+    /// 吸収先の既存ツアーの `artistNameRaw` を上書きしない（review #3）。
+    func testUpdateApplicationAbsorbedIntoExistingTourKeepsExistingArtistNameRaw() async {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "編集前アーティスト", updatedAt: today)
+        let absorbedTourID = UUID(uuidString: "00000000-0000-7000-8000-000000000888")!
+        let absorbedTour = Tour(
+            id: absorbedTourID, name: "既存ツアー",
+            artistNameRaw: "既存アーティスト（保持されるべき）", updatedAt: today
+        )
+        let existingEvent = EventEntity(
+            id: event1, tourID: tour1, name: "公演A", venueNameRaw: "会場A",
+            eventDate: day(2026, 9, 13), updatedAt: today
+        )
+        let existing = entry(id: UUID(), eventID: event1, status: .applied, seatRaw: "")
+
+        let repository = FakeApplicationRepository(pages: [])
+        // サーバーの find-or-create が「既存ツアー」に吸収した想定。
+        // 返ってくる tourID（= absorbedTourID）は plan.tourDraft.id（新規発行）とは異なる
+        await repository.setUpdateScopedResult { id, plan in
+            var updated = existing
+            updated.tourID = absorbedTourID
+            updated.status = plan.applicationPatch.status.applied(to: updated.status) ?? updated.status
+            return updated
+        }
+        let store = ApplicationStore(repository: repository, now: { [today] in today })
+        store.applications = [existing]
+        store.tours = [oldTour, absorbedTour]
+        store.events = [existingEvent]
+
+        var input = ApplicationEditFormInput(
+            eventName: existingEvent.name,
+            tourName: "既存ツアー",
+            artistNameRaw: "編集画面でうっかり入力してしまったアーティスト名",
+            venueNameRaw: existingEvent.venueNameRaw,
+            eventDate: existingEvent.eventDate,
+            repIdentityID: existing.repIdentityID,
+            status: existing.status
+        )
+        input.appliedOn = existing.appliedOn
+        input.resultOn = existing.resultOn
+        input.seatRaw = existing.seatRaw
+        input.note = existing.note
+
+        let updated = await store.updateApplication(existing.id, input: input)
+
+        XCTAssertEqual(updated?.tourID, absorbedTourID)
+        XCTAssertEqual(store.tours.count, 2, "吸収先は既存ツアーなのでツアーは増えない")
+        XCTAssertEqual(
+            store.tour(for: absorbedTourID)?.artistNameRaw,
+            "既存アーティスト（保持されるべき）",
+            "吸収先の既存 artistNameRaw を編集前文脈の値で上書きしない"
+        )
+    }
+
+    /// 【中】repository なし（Preview / テスト）のローカル編集経路でも、
+    /// サーバーの find-or-create と同じくツアー名の一致で既存ツアーに吸収し、重複作成しない。
+    func testLocalEditAbsorbsIntoExistingTourByNameWithoutRepository() async {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "旧アーティスト", updatedAt: today)
+        let existingTourID = UUID(uuidString: "00000000-0000-7000-8000-000000000777")!
+        let existingTour = Tour(id: existingTourID, name: "既存ツアー", artistNameRaw: "既存アーティスト", updatedAt: today)
+        let existingEvent = EventEntity(
+            id: event1, tourID: tour1, name: "公演A", venueNameRaw: "会場A",
+            eventDate: day(2026, 9, 13), updatedAt: today
+        )
+        let existing = entry(id: UUID(), eventID: event1, status: .applied, seatRaw: "")
+
+        let store = ApplicationStore(now: { [today] in today }) // repository なし = ローカル経路
+        store.applications = [existing]
+        store.tours = [oldTour, existingTour]
+        store.events = [existingEvent]
+
+        var input = ApplicationEditFormInput(
+            eventName: existingEvent.name,
+            tourName: "既存ツアー",
+            artistNameRaw: oldTour.artistNameRaw,
+            venueNameRaw: existingEvent.venueNameRaw,
+            eventDate: existingEvent.eventDate,
+            repIdentityID: existing.repIdentityID,
+            status: existing.status
+        )
+        input.appliedOn = existing.appliedOn
+        input.resultOn = existing.resultOn
+        input.seatRaw = existing.seatRaw
+        input.note = existing.note
+
+        let updated = await store.updateApplication(existing.id, input: input)
+
+        XCTAssertEqual(updated?.tourID, existingTourID, "同名の既存ツアーに吸収され、新規 id は使わない")
+        XCTAssertEqual(store.tours.count, 2, "ツアーが重複作成されない")
+        XCTAssertEqual(store.tour(for: existingTourID)?.artistNameRaw, "既存アーティスト", "吸収先の既存値を保持する")
+    }
+
+    /// 【中】`InMemoryApplicationRepository.updateScoped` 単体でも、同名の既存ツアーに吸収し重複作成しない。
+    func testInMemoryRepositoryUpdateScopedAbsorbsIntoExistingTourByName() async throws {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "旧アーティスト", updatedAt: today)
+        let existingTourID = UUID(uuidString: "00000000-0000-7000-8000-000000000777")!
+        let existingTour = Tour(id: existingTourID, name: "既存ツアー", artistNameRaw: "既存アーティスト", updatedAt: today)
+        let existing = entry(id: UUID(), eventID: event1)
+
+        let repository = InMemoryApplicationRepository(items: [existing], tours: [oldTour, existingTour])
+        let plan = ApplicationEditPlan(
+            applicationPatch: ApplicationPatch(),
+            tourDraft: TourDraft(name: "既存ツアー"), // 新規 UUID（既存 id とは異なる）を発行済みの想定
+            eventDraft: nil
+        )
+
+        let updated = try await repository.updateScoped(applicationID: existing.id, plan: plan)
+
+        XCTAssertEqual(updated.tourID, existingTourID, "同名の既存ツアーに吸収される")
+    }
+
+    func testUpdateApplicationFailureSetsWriteErrorAndKeepsApplicationUnchanged() async {
+        let existing = entry(id: UUID(), eventID: event1, status: .applied, seatRaw: "")
+        let existingTour = Tour(id: tour1, name: "TOUR", updatedAt: today)
+        let existingEvent = EventEntity(id: event1, tourID: tour1, name: "公演A", updatedAt: today)
+        let repository = FakeApplicationRepository(pages: [])
+        await repository.setFailure(.offline)
+        let store = ApplicationStore(repository: repository, now: { [today] in today })
+        store.applications = [existing]
+        store.tours = [existingTour]
+        store.events = [existingEvent]
+
+        let input = ApplicationEditFormInput(
+            eventName: existingEvent.name,
+            tourName: existingTour.name,
+            repIdentityID: existing.repIdentityID,
+            status: .won
+        )
+        let updated = await store.updateApplication(existing.id, input: input)
+
+        XCTAssertNil(updated)
+        XCTAssertEqual(store.writeError, .offline)
+        XCTAssertEqual(store.applications[0].status, .applied, "失敗時は書き換えない（楽観更新しない・D-5）")
+    }
+
     // MARK: - ヘルパー
 
     private func makePage(count: Int, nextCursor: String?, hasMore: Bool) -> ApplicationPage {
@@ -312,12 +502,14 @@ actor FakeApplicationRepository: ApplicationRepository {
 
     private(set) var calls: [Call] = []
     private(set) var updatePatches: [ApplicationPatch] = []
+    private(set) var updateScopedPlans: [ApplicationEditPlan] = []
     private var pages: [ApplicationPage]
     private let alwaysMore: Bool
     private let itemsPerPage: Int
     private var failure: AppError?
     private var createResult: (@Sendable (ApplicationDraft) -> ApplicationEntry)?
     private var updateResult: (@Sendable (UUID, ApplicationPatch) -> ApplicationEntry)?
+    private var updateScopedResult: (@Sendable (UUID, ApplicationEditPlan) -> ApplicationEntry)?
 
     init(pages: [ApplicationPage] = [], alwaysMore: Bool = false, itemsPerPage: Int = 1) {
         self.pages = pages
@@ -331,6 +523,9 @@ actor FakeApplicationRepository: ApplicationRepository {
     }
     func setUpdateResult(_ handler: @escaping @Sendable (UUID, ApplicationPatch) -> ApplicationEntry) {
         updateResult = handler
+    }
+    func setUpdateScopedResult(_ handler: @escaping @Sendable (UUID, ApplicationEditPlan) -> ApplicationEntry) {
+        updateScopedResult = handler
     }
 
     func listPage(limit: Int, cursor: String?) async throws -> ApplicationPage {
@@ -359,6 +554,13 @@ actor FakeApplicationRepository: ApplicationRepository {
         updatePatches.append(patch)
         if let failure { throw failure }
         if let updateResult { return updateResult(id, patch) }
+        throw AppError.notFound
+    }
+
+    func updateScoped(applicationID: UUID, plan: ApplicationEditPlan) async throws -> ApplicationEntry {
+        updateScopedPlans.append(plan)
+        if let failure { throw failure }
+        if let updateScopedResult { return updateScopedResult(applicationID, plan) }
         throw AppError.notFound
     }
 

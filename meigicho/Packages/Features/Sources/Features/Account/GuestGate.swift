@@ -25,6 +25,7 @@ enum SignInPrompt {
     // 書き込み（ログインが必要）
     static let addIdentity = "名義を追加するにはログインが必要です。"
     static let addApplication = "申込を追加するにはログインが必要です。"
+    static let editApplication = "申込を編集するにはログインが必要です。"
     static let addAny = "名義や申込を登録するにはログインが必要です。"
     static let share = "ツアー表を共有するにはログインが必要です。"
 }

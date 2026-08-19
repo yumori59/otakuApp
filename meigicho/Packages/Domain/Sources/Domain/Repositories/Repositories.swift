@@ -72,7 +72,17 @@ public protocol ApplicationRepository: Sendable {
     func listPage(limit: Int, cursor: String?) async throws -> ApplicationPage
     func create(_ draft: ApplicationDraft) async throws -> ApplicationEntry
     func update(id: UUID, _ patch: ApplicationPatch) async throws -> ApplicationEntry
+    /// 申込 + そのツアー / 公演をまとめて 1 回で更新する（編集画面専用・`docs/plans/application-edit/plan.md` D-3）。
+    /// 既定実装は明示的に throw する（黙ってフォールバックしない = BE-2 の iOS 版）。
+    /// `InMemoryApplicationRepository` は実装を持つ。`RemoteApplicationRepository`（未使用・D-1）は既定のまま。
+    func updateScoped(applicationID: UUID, plan: ApplicationEditPlan) async throws -> ApplicationEntry
     func delete(id: UUID) async throws
+}
+
+public extension ApplicationRepository {
+    func updateScoped(applicationID: UUID, plan: ApplicationEditPlan) async throws -> ApplicationEntry {
+        throw AppError.validation(message: "この Repository は申込編集（updateScoped）に未対応です")
+    }
 }
 
 /// 共有リンク（オーナー側・Bearer 必須）。
