@@ -113,9 +113,16 @@ public actor InMemoryCatalogRepository: CatalogRepository {
 
 public actor InMemoryApplicationRepository: ApplicationRepository {
     private var items: [ApplicationEntry]
+    /// find-or-create の照合用ツアー名スナップショット。
+    /// このフェイクは application の FK（`tourID` / `eventID`）しか持たず、`InMemoryCatalogRepository` の
+    /// ツアー本体とは独立したインスタンスなので、常に完全な同期は取れない（両者を既定値
+    /// [`SampleData.tours`] のまま使う分には名前が一致する）。`updateScoped` でのツアー名重複を防ぐ
+    /// 最小限の目的でのみ使う。
+    private var tourNameToID: [String: UUID]
 
-    public init(items: [ApplicationEntry] = SampleData.applications) {
+    public init(items: [ApplicationEntry] = SampleData.applications, tours: [Tour] = SampleData.tours) {
         self.items = items
+        self.tourNameToID = Dictionary(tours.map { ($0.name, $0.id) }, uniquingKeysWith: { first, _ in first })
     }
 
     public func listPage(limit: Int, cursor: String?) async throws -> ApplicationPage {
@@ -159,6 +166,29 @@ public actor InMemoryApplicationRepository: ApplicationRepository {
         item.companions = patch.companions.applied(to: item.companions) ?? item.companions
         items[index] = item
         return item
+    }
+
+    /// T2: 申込 + tour/event 付け替えをまとめて反映する（`ApplicationEditPlan`）。
+    /// このフェイクは application の FK（`tourID` / `eventID`）しか持たないので、名称等の tour/event 本体は
+    /// `InMemoryCatalogRepository` 側の責務。ただし `tourDraft.id` をそのまま採用すると
+    /// サーバーの find-or-create（`AC-AP-07-M`）と違ってツアー名が重複してしまうため、
+    /// `tourNameToID` スナップショットで「同名の既存ツアーへの吸収」だけは再現する。
+    public func updateScoped(applicationID: UUID, plan: ApplicationEditPlan) async throws -> ApplicationEntry {
+        var entry = try await update(id: applicationID, plan.applicationPatch)
+        guard plan.tourDraft != nil || plan.eventDraft != nil else { return entry }
+        if let tourDraft = plan.tourDraft {
+            if let existingID = tourNameToID[tourDraft.name], existingID != tourDraft.id {
+                entry.tourID = existingID
+            } else {
+                entry.tourID = tourDraft.id
+                tourNameToID[tourDraft.name] = tourDraft.id
+            }
+        }
+        if let eventDraft = plan.eventDraft { entry.eventID = eventDraft.id }
+        if let index = items.firstIndex(where: { $0.id == applicationID }) {
+            items[index] = entry
+        }
+        return entry
     }
 
     public func delete(id: UUID) async throws {

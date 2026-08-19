@@ -140,6 +140,7 @@ final class AdGatekeeperTests: XCTestCase {
             "Features/Sources/Features/Forms/AddIdentityView.swift",
             "Features/Sources/Features/Forms/AddMembershipView.swift",
             "Features/Sources/Features/Forms/AddApplicationView.swift",
+            "Features/Sources/Features/Forms/ApplicationFormView.swift",
             "Features/Sources/Features/Forms/SheetContentView.swift",
             "Features/Sources/Features/Share/SharePreviewView.swift",
             // `OpenSharedBoardView.swift`（token 貼り付け画面）は共有のアカウント招待制化で削除された。

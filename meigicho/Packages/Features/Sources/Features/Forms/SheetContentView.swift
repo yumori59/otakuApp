@@ -1,7 +1,9 @@
 import SwiftUI
 import Domain
+import DesignSystem
 
 struct SheetContentView: View {
+    @Environment(ApplicationStore.self) private var applicationStore
     let sheet: AppSheet
     let onIdentitySaved: (UUID) -> Void
 
@@ -14,6 +16,12 @@ struct SheetContentView: View {
                 AddMembershipView(identityID: identityID)
             case .addApplication:
                 AddApplicationView()
+            case .editApplication(let id):
+                if let entry = applicationStore.application(for: id) {
+                    ApplicationFormView(mode: .edit(entry))
+                } else {
+                    EmptyStateView("申込が見つかりません")
+                }
             case .shareRecipients(let tourName):
                 ShareRecipientsView(tourName: tourName)
             case .signIn(let reason):

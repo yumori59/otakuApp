@@ -6,9 +6,11 @@ import Core
 struct ApplicationDetailView: View {
     @Environment(IdentityStore.self) private var identityStore
     @Environment(ApplicationStore.self) private var applicationStore
+    @Environment(AuthStore.self) private var auth
     /// 当落ステータス切り替え後 60 秒の広告クールダウン（F4-5）の起点を記録するためだけに参照する。
     /// **この画面に広告枠は置かない**（F3 / AC-AD-35。禁止面のソース走査テストが機械的に担保する）
     @Environment(AdsStore.self) private var adsStore
+    @Environment(SheetPresenter.self) private var sheetPresenter
     @Environment(\.themeStore) private var theme
     @Binding var path: NavigationPath
 
@@ -51,6 +53,20 @@ struct ApplicationDetailView: View {
         .background(theme.bgApp)
         .navigationTitle("申込詳細")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if app != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("編集") {
+                        // 修正3（レビュー中4件）: 他の書き込み導線と同じくゲート越しにシートを開く（Q5）
+                        sheetPresenter.present(
+                            .editApplication(id: applicationID),
+                            requiringSignIn: auth,
+                            reason: SignInPrompt.editApplication
+                        )
+                    }
+                }
+            }
+        }
         .task {
             applicationStore.clearWriteError()
             // 手元に無い公演は 1 件だけ取り直す（`contract-mapping.md` §4.6。空文字を描かない）
