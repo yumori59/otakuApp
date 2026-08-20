@@ -7,9 +7,19 @@ import Core
 
 public actor InMemoryIdentityRepository: IdentityRepository {
     private var items: [Identity]
+    /// 名義削除時の連鎖（`SwiftDataIdentityRepository.delete` と同じセマンティクス）をフェイクでも
+    /// 再現するための任意の参照。未指定なら identity 自体の削除のみ（従来の振る舞い）。
+    private let membershipRepository: InMemoryMembershipRepository?
+    private let applicationRepository: InMemoryApplicationRepository?
 
-    public init(items: [Identity] = SampleData.identities) {
+    public init(
+        items: [Identity] = SampleData.identities,
+        membershipRepository: InMemoryMembershipRepository? = nil,
+        applicationRepository: InMemoryApplicationRepository? = nil
+    ) {
         self.items = items
+        self.membershipRepository = membershipRepository
+        self.applicationRepository = applicationRepository
     }
 
     public func list() async throws -> [Identity] { items }
@@ -33,8 +43,14 @@ public actor InMemoryIdentityRepository: IdentityRepository {
         return item
     }
 
+    /// identity + 配下 membership + それらを参照する application の `repMembershipID` クリアまで
+    /// 連鎖する（`membershipRepository` / `applicationRepository` が注入されている場合のみ）。
     public func delete(id: UUID) async throws {
         items.removeAll { $0.id == id }
+        guard let membershipRepository else { return }
+        let clearedMembershipIDs = await membershipRepository.deleteAll(forIdentityID: id)
+        guard let applicationRepository, !clearedMembershipIDs.isEmpty else { return }
+        await applicationRepository.clearRepMembershipID(in: Set(clearedMembershipIDs))
     }
 }
 
@@ -69,6 +85,14 @@ public actor InMemoryMembershipRepository: MembershipRepository {
 
     public func delete(id: UUID) async throws {
         items.removeAll { $0.id == id }
+    }
+
+    /// 名義削除の連鎖用（`InMemoryIdentityRepository.delete` から呼ばれる）。
+    /// 対象 identityID に属する membership を全て削除し、削除した id 一覧を返す。
+    func deleteAll(forIdentityID identityID: UUID) -> [UUID] {
+        let targetIDs = items.filter { $0.identityID == identityID }.map(\.id)
+        items.removeAll { $0.identityID == identityID }
+        return targetIDs
     }
 }
 
@@ -193,6 +217,17 @@ public actor InMemoryApplicationRepository: ApplicationRepository {
 
     public func delete(id: UUID) async throws {
         items.removeAll { $0.id == id }
+    }
+
+    /// 名義削除の連鎖用（`InMemoryIdentityRepository.delete` から呼ばれる）。
+    /// 指定した membership を代表会員として参照している application の `repMembershipID` をクリアする。
+    func clearRepMembershipID(in membershipIDs: Set<UUID>) {
+        guard !membershipIDs.isEmpty else { return }
+        for index in items.indices {
+            guard let repMembershipID = items[index].repMembershipID,
+                  membershipIDs.contains(repMembershipID) else { continue }
+            items[index].repMembershipID = nil
+        }
     }
 }
 

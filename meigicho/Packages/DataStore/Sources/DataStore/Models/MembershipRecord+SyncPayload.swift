@@ -76,6 +76,14 @@ extension MembershipRecord: SyncableRecord {
         return try context.fetch(descriptor).first
     }
 
+    /// 指定名義の未削除会員情報（名義削除の連鎖用 / Issue #11 dT1）。
+    public static func fetchActive(identityID: UUID, in context: ModelContext) throws -> [MembershipRecord] {
+        let descriptor = FetchDescriptor<MembershipRecord>(
+            predicate: #Predicate { $0.identityID == identityID && $0.deletedAt == nil }
+        )
+        return try context.fetch(descriptor)
+    }
+
     public static func upsertRemote(_ object: [String: JSONValue], in context: ModelContext) throws {
         guard let remote = parseRemote(object) else { return }
         if let local = try fetchRecord(id: remote.id, in: context) {

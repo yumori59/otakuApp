@@ -48,6 +48,12 @@ public protocol IdentityRepository: Sendable {
     func list() async throws -> [Identity]
     func create(_ identity: Identity) async throws -> Identity
     func update(id: UUID, _ patch: IdentityPatch) async throws -> Identity
+    /// 名義を削除する。**identity 単体では終わらず連鎖する**（Issue #11 dT1 /
+    /// `SwiftDataIdentityRepository.delete` 実装）: 配下の未削除 membership も同一保存で
+    /// 連鎖ソフトデリートし、削除される membership を代表会員として参照している未削除 application
+    /// があれば `repMembershipID` をクリアする（`deletedAt` は変えない）。
+    /// 呼び出し元（`IdentityStore.deleteIdentity`）は成功後、ローカルの `memberships` からも
+    /// 該当分を取り除く。
     func delete(id: UUID) async throws
 }
 

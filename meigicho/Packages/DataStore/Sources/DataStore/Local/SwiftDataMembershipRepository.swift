@@ -61,13 +61,17 @@ public actor SwiftDataMembershipRepository: MembershipRepository {
         return record.toDomain()
     }
 
+    /// 会員情報を単体でソフトデリート。代表会員として参照している未削除 application があれば
+    /// 同一セーブで `repMembershipID` をクリアする（`MembershipDeletionCascade` / Issue #11 dT1）。
     public func delete(id: UUID) async throws {
         let context = ModelContext(container)
+        let now = Date()
         guard let record = try MembershipRecord.fetchRecord(id: id, in: context), record.deletedAt == nil else {
             throw AppError.notFound
         }
-        record.softDelete()
-        OutboxQueue.enqueue(collection: .memberships, targetID: id, in: context)
+        record.softDelete(now: now)
+        OutboxQueue.enqueue(collection: .memberships, targetID: id, in: context, now: now)
+        try MembershipDeletionCascade.clearApplicationsReferencing(membershipID: id, in: context, now: now)
         try context.save()
         onWrite.didWrite()
     }

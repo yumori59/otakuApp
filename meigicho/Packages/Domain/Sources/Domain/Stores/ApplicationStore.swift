@@ -417,6 +417,31 @@ public final class ApplicationStore {
         }
     }
 
+    /// 申込削除（T3 の削除ボタンから呼ばれる想定）。
+    ///
+    /// **楽観更新はしない**（削除は申込 + 同行者にまたがるため、後付け undo で巻き戻すと途中状態が
+    /// 残りうる。IOS-13）。成功したら `await repository.delete(id:)` の完了後にローカルの `applications`
+    /// から取り除く。失敗したら配列は変えず `writeError` を立てる（`updateApplication` と同じ方針）。
+    @discardableResult
+    public func deleteApplication(_ id: UUID) async -> Bool {
+        guard let repository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            applications.removeAll { $0.id == id }
+            return true
+        }
+        writeError = nil
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await repository.delete(id: id)
+            applications.removeAll { $0.id == id }
+            return true
+        } catch {
+            writeError = Self.appError(from: error)
+            return false
+        }
+    }
+
     /// 楽観更新 → PATCH → 成功ならサーバーの値で置換 / 失敗なら巻き戻す。
     private func applyOptimistic(
         id: UUID,

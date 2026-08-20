@@ -332,6 +332,25 @@ public enum MeigichoMigrationPlan: SchemaMigrationPlan {
 
 **S9拡張（申込編集・`docs/plans/application-edit/`）**: `ApplicationFormView`は`mode: .create` / `.edit(ApplicationEntry)`を受け取る共通コンポーネントとして実装する（追加要件R2-9・roadmap 0-11b）。編集エントリはS5（申込詳細）のツールバーから`AppSheet.editApplication(id:)`で開く。書き込み経路は既存のローカルSSoT + `POST /v1/sync/push`のみ（REST `PATCH /v1/applications/:id`は使わない）。詳細は計画の`plan.md`参照。
 
+**S7/S8拡張（名義・会員情報の編集・削除・`docs/plans/identity-edit-and-delete/` + `docs/plans/delete-ui/`）**: `IdentityFormView` / `MembershipFormView` も `ApplicationFormView` と同じ形で `mode: .create` / `.edit` を受け取る共通コンポーネントに統合した（roadmap 0-5b/0-6b）。旧 `AddIdentityView` / `AddMembershipView` は広告禁止画面のソース走査テストが絶対パス参照しているため削除せず、薄いラッパとして残す。
+
+| 対象 | 編集の導線 | 削除の導線 |
+|---|---|---|
+| 名義 | `IdentityDetailView` の `topBarTrailing`「編集」→ `IdentityFormView(mode: .edit)` で表示名・続柄・色・入会日・メモを編集 | 詳細本文最下部の destructive ボタン + `confirmationDialog`（実データ件数を文言に含める） |
+| 会員情報 | 名義詳細の会員情報カードをタップ → `MembershipFormView(mode: .edit)` で FC名・会員番号下4桁・更新日・年会費を編集（`MembershipCard` の API は変えず `Button` + `.contentShape` で包む） | 編集シート最下部の destructive ボタン（会員情報には詳細画面が無いため） |
+| 申込 | S5 ツールバー「編集」（既存） | 詳細本文最下部の destructive ボタン + `confirmationDialog` |
+
+書き込み経路は編集・削除とも既存のローカルSSoT + `POST /v1/sync/push`のみ。REST `PATCH/DELETE /v1/identities|memberships|applications/:id` は使わない（BE契約は変更しない）。
+
+削除の連鎖・表示規則:
+- **名義削除**は配下の未削除 `Membership` も同一 `ModelContext` の1セーブで連鎖削除し、それらを代表会員情報 (`repMembershipID`) にしていた未削除 `ApplicationEntry` は `repMembershipID` を `nil` にクリアする（`applications` 自体は削除されず記録として残る）。BE `memberships.service.ts` の `DELETE /v1/memberships/:id` と同じセマンティクスをローカル側にも揃えた（`feedback_review_patterns.md` BE-9 の穴を閉じる）。
+- **会員情報の単体削除**でも同じ `repMembershipID` クリア処理を通る。名義・申込自体は残る。
+- 削除済み名義を代表者・同行者として参照する申込は、`IdentityStore.identity(for:)` が `nil` を返すことを合図に「削除された名義」とグレー表示・非リンク（タップ不可）にする（`ApplicationDetailView`）。
+- 削除・編集は楽観更新しない（`await` して成功したら反映、失敗したら画面は閉じずエラー表示）。既存の名義カラー・備考インライン編集・共有スイッチの楽観更新3経路はこの変更で触っていない。
+- 削除成功後は `notificationBridge.rescheduleIfAuthorized()` を呼び、更新期限・当落発表通知を再スケジュールする。
+
+> **復元・取り消しUIは未実装**（2026-08-20）。`deleted_at` によるソフトデリートのみで、削除を取り消す画面・操作は無い。[01-product-overview.md](./01-product-overview.md) の「復元可能期間30日」との既知の乖離（`docs/plans/delete-ui/plan.md` リスク R-1）。
+
 ```swift
 public enum AppRoute: Hashable { case identity(UUID), application(UUID), sharePreview }
 public enum AppSheet: Identifiable, Hashable {

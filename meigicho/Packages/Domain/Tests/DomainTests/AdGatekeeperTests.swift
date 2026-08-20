@@ -138,7 +138,9 @@ final class AdGatekeeperTests: XCTestCase {
         let forbiddenScreenRelativePaths = [
             "Features/Sources/Features/Detail/ApplicationDetailView.swift",
             "Features/Sources/Features/Forms/AddIdentityView.swift",
+            "Features/Sources/Features/Forms/IdentityFormView.swift",
             "Features/Sources/Features/Forms/AddMembershipView.swift",
+            "Features/Sources/Features/Forms/MembershipFormView.swift",
             "Features/Sources/Features/Forms/AddApplicationView.swift",
             "Features/Sources/Features/Forms/ApplicationFormView.swift",
             "Features/Sources/Features/Forms/SheetContentView.swift",
