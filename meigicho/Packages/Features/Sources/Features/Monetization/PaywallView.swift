@@ -93,7 +93,7 @@ struct PaywallView: View {
 
     private var headline: String {
         switch trigger {
-        case .identityLimit: "4件目の名義を登録するには"
+        case .identityLimit: "11件目の名義を登録するには"
         case .shareLinkLimit: "共有リンクは無料版で1本まで"
         case .settings: "参戦名義帳 Plus"
         }
@@ -103,7 +103,7 @@ struct PaywallView: View {
         switch trigger {
         case .identityLimit:
             """
-            無料版では名義を3件まで登録できます。
+            無料版では名義を10件まで登録できます。
             家族や友人の名義もまとめて管理すると、
             「誰の会員資格がいつ切れるか」を一覧で追えるようになります。
             """

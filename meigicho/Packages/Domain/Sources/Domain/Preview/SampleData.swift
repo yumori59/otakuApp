@@ -193,7 +193,7 @@ public enum SampleData {
         authProviders: []
     )
 
-    public static let entitlement = Entitlement(plan: .free, identityLimit: 3, shareLimit: 1)
+    public static let entitlement = Entitlement(plan: .free, identityLimit: 10, shareLimit: 1)
 
     // MARK: - Helper
 

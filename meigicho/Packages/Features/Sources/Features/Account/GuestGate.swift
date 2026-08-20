@@ -57,7 +57,7 @@ extension SheetPresenter {
             activeSheet = .signIn(reason: SignInPrompt.addIdentity)
             return
         }
-        let entitlement = profile.entitlement ?? Entitlement(plan: .free, identityLimit: 3, shareLimit: 1)
+        let entitlement = profile.entitlement ?? Entitlement(plan: .free, identityLimit: 10, shareLimit: 1)
         if !entitlement.canAddIdentity(currentCount: identityCount) {
             activeSheet = .paywall(.identityLimit)
             return

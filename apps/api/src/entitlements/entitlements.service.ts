@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** free プランの名義上限（bonus 加算前）。 */
-export const FREE_IDENTITY_LIMIT = 3;
+export const FREE_IDENTITY_LIMIT = 10;
 /** free プランの同時有効共有リンク数。 */
 export const FREE_SHARE_LIMIT = 1;
 /** free プランの write 共有 1 本あたりの公演数上限（C8）。 */

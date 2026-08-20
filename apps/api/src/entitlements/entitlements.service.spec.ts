@@ -66,41 +66,41 @@ describe('EntitlementsService', () => {
   });
 
   describe('identityLimit', () => {
-    it('AC-CORE-07 free は 3', async () => {
+    it('AC-CORE-07 free は 10', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(row());
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(3);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(10);
     });
 
-    it('AC-CORE-07 entitlement 行なしは 3', async () => {
+    it('AC-CORE-07 entitlement 行なしは 10', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(null);
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(3);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(10);
     });
 
-    it('AC-CORE-07 free + 有効な bonus 2 枠は 5', async () => {
+    it('AC-CORE-07 free + 有効な bonus 2 枠は 12', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(
         row({
           bonusIdentitySlots: 2,
           bonusExpiresAt: new Date('2026-09-01T00:00:00.000Z'),
         }),
       );
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(5);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(12);
     });
 
-    it('AC-CORE-07 free + 期限切れ bonus は 3', async () => {
+    it('AC-CORE-07 free + 期限切れ bonus は 10', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(
         row({
           bonusIdentitySlots: 2,
           bonusExpiresAt: new Date('2026-07-31T23:59:59.000Z'),
         }),
       );
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(3);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(10);
     });
 
-    it('AC-CORE-07 bonus 期限ちょうどは無効（3）', async () => {
+    it('AC-CORE-07 bonus 期限ちょうどは無効（10）', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(
         row({ bonusIdentitySlots: 2, bonusExpiresAt: NOW }),
       );
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(3);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(10);
     });
 
     it('AC-CORE-07 plus は null（無制限）', async () => {
@@ -119,14 +119,14 @@ describe('EntitlementsService', () => {
       await expect(service.identityLimit(USER_ID)).resolves.toBeNull();
     });
 
-    it('AC-CORE-07 free + in_grace_period=true は上限 3（plus 以外に無制限を与えない）', async () => {
+    it('AC-CORE-07 free + in_grace_period=true は上限 10（plus 以外に無制限を与えない）', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(
         row({ plan: 'free', inGracePeriod: true }),
       );
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(3);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(10);
     });
 
-    it('AC-CORE-07 free + in_grace_period=true でも bonus 枠は加算される（5）', async () => {
+    it('AC-CORE-07 free + in_grace_period=true でも bonus 枠は加算される（12）', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(
         row({
           plan: 'free',
@@ -135,10 +135,10 @@ describe('EntitlementsService', () => {
           bonusExpiresAt: new Date('2026-09-01T00:00:00.000Z'),
         }),
       );
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(5);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(12);
     });
 
-    it('AC-CORE-07 期限切れ plus（猶予なし）は free 相当の 3', async () => {
+    it('AC-CORE-07 期限切れ plus（猶予なし）は free 相当の 10', async () => {
       prisma.entitlement.findUnique.mockResolvedValue(
         row({
           plan: 'plus',
@@ -146,7 +146,7 @@ describe('EntitlementsService', () => {
           inGracePeriod: false,
         }),
       );
-      await expect(service.identityLimit(USER_ID)).resolves.toBe(3);
+      await expect(service.identityLimit(USER_ID)).resolves.toBe(10);
     });
   });
 

@@ -188,7 +188,7 @@ canActivate(ctx: ExecutionContext): boolean {
 
 ```typescript
 async create(userId: string, dto: CreateIdentityDto) {
-  const limit = await this.entitlements.identityLimit(userId); // free: 3+bonus
+  const limit = await this.entitlements.identityLimit(userId); // free: 10+bonus
   const count = await this.prisma.identity.count({
     where: { owner_id: userId, deleted_at: null },
   });

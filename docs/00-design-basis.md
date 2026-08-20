@@ -80,7 +80,7 @@ J1・J2 が「毎日開く理由」、J4 が「他人を連れてくる導線」
 ユーザー意向（NestJS で自前APIを持ち、GCP Cloud Run で動かす）を第一に採用します。この構成がこのアプリに合う点は次の通りです。
 
 1. **認可・課金・共有トークンをアプリケーション層で明示制御できる。**
-   「名義3件制限」「共有リンクのマスキング」「RevenueCat Webhook」は Guard / UseCase / Service に自然に載る（層構成は [02 ADR-009](./02-architecture.md#adr-009-nestjs-は-controller--usecase--service--prisma)）。
+   「名義10件制限」「共有リンクのマスキング」「RevenueCat Webhook」は Guard / UseCase / Service に自然に載る（層構成は [02 ADR-009](./02-architecture.md#adr-009-nestjs-は-controller--usecase--service--prisma)）。
 2. **Cloud Run の scale-to-zero** により、Phase 1 初期のリクエストが少ない期間でも常駐VMを持たずに済む。
    Supabase Free で Postgres をホスティングすれば DB も ¥0 から始められる。コストの支配項は DB 有料化（Supabase Pro 移行等）まで **Cloud Run 等の従量課金**に下がる（詳細は `06`）。
 3. **PostgreSQL + Prisma** で集計ビュー（当選率・更新期限・ツアー表）をそのまま使える。
@@ -157,7 +157,7 @@ profiles ─┬─< identities ─< memberships >─ fan_clubs >─ artists
 
 | プラン | 価格 | 名義数 | 広告 | 主な機能 |
 |--------|------|--------|------|---------|
-| Free | ¥0 | **3名義まで** | あり | 申込記録は無制限、ローカル通知、共有リンク1本 |
+| Free | ¥0 | **10名義まで** | あり | 申込記録は無制限、ローカル通知、共有リンク1本 |
 | Plus | 月 ¥350 / 年 ¥2,800 | 無制限 | なし | 端末間同期、共有リンク無制限、統計、エクスポート、共同編集(Phase 2) |
 
 - **申込件数は絶対に制限しない**。蓄積データこそが乗り換えコストであり、制限すると記録習慣自体が壊れる。

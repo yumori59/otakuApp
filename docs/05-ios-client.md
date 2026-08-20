@@ -15,7 +15,7 @@
 | 同期 | `updated_at` ベースの Last-Write-Wins、`deleted_at` によるソフトデリート |
 | 主キー | UUID v7（**クライアント生成**）。オフラインでもIDが確定するため楽観的更新が成立する |
 | 通知 | ローカル通知（`UNUserNotificationCenter`）が第一選択。APNs は Phase 2 |
-| 課金・広告 | StoreKit 2 + RevenueCat / AdMob。Free は名義3件まで、**申込件数は無制限** |
+| 課金・広告 | StoreKit 2 + RevenueCat / AdMob。Free は名義10件まで、**申込件数は無制限** |
 
 ---
 
@@ -392,7 +392,7 @@ public final class HomeStore {
 3つのソートのうち `SortDescriptor` で表現できるのは「入会が古い順」だけです。
 「更新が近い順」は `min(memberships.renewalOn)` という to-many の集約、「当選が多い順」は別テーブルを跨いだ集計
 （しかも R2-7 により**代表者と同行者の両方**を数える）で、いずれも述語に落とせません。対処はデータ規模で切り分けます。
-名義は Free 3件、Plus でも現実的に数十件で1,000件には決してならないため、(1) `deletedAt == nil` の `Identity` を全件フェッチ、
+名義は Free 10件、Plus でも現実的に数十件で1,000件には決してならないため、(1) `deletedAt == nil` の `Identity` を全件フェッチ、
 (2) `ApplicationEntry` を**1回だけ**フェッチして `[UUID: Stats]` に畳む（N+1を作らない）、(3) Swift 側で `sorted(by:)`、
 (4) 結果を Store がキャッシュしソート切替では再計算しない、とします。
 
