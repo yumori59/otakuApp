@@ -202,17 +202,20 @@ struct HomeTab: View {
     }
 
     private var statCards: [(value: String, label: String)] {
-        if let summary = homeStore.summary {
-            return [
-                ("\(summary.identityCount)", "管理中の名義"),
-                ("\(summary.renewalsWithin30Days)", "30日以内に\n更新期限"),
-                ("\(summary.pendingResults)", "当落発表\n待ち"),
-            ]
-        }
+        // 値の算出は `HomeStatCards.make`（Domain の純粋関数）に委ねる。「当落発表待ち」は
+        // サーバー集計のスナップショット（`homeStore.summary`）ではなく常にローカル SSoT
+        // （`ApplicationStore.pendingResultCount()`）を使い、申込のステータス変更が
+        // `homeStore.load()` を待たずに即時反映されるようにする（バグ修正）。
+        let cards = HomeStatCards.make(
+            summary: homeStore.summary,
+            localIdentityCount: identityStore.identities.count,
+            localExpiringMembershipCount: identityStore.expiringMembershipCount(),
+            localPendingResults: applicationStore.pendingResultCount()
+        )
         return [
-            ("\(identityStore.identities.count)", "管理中の名義"),
-            ("\(identityStore.expiringMembershipCount())", "30日以内に\n更新期限"),
-            ("\(applicationStore.pendingResultCount())", "当落発表\n待ち"),
+            ("\(cards.identityCount)", "管理中の名義"),
+            ("\(cards.renewalsWithin30Days)", "30日以内に\n更新期限"),
+            ("\(cards.pendingResults)", "当落発表\n待ち"),
         ]
     }
 
