@@ -12,7 +12,9 @@ final class AdSlotForbiddenScreensTests: XCTestCase {
     private static let forbiddenRelativePaths = [
         "Detail/ApplicationDetailView.swift",
         "Forms/AddIdentityView.swift",
+        "Forms/IdentityFormView.swift",
         "Forms/AddMembershipView.swift",
+        "Forms/MembershipFormView.swift",
         "Forms/AddApplicationView.swift",
         "Forms/ApplicationFormView.swift",
         "Forms/SheetContentView.swift",

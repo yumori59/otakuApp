@@ -1,5 +1,6 @@
 import { AppError } from '../common/errors/app-error';
 import { ErrorCode } from '../common/errors/error-codes';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { IdentitiesService } from '../identities/identities.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from './sync.service';
@@ -515,4 +516,146 @@ describe('SyncService', () => {
     expect(result.rejected).toEqual([]);
     expect(result.accepted).toEqual([APPLICATION_ID]);
   });
+
+  it('AC-10 push — identities: tombstone (deleted_at 付き) upsert は ensureWithinLimit を呼ばずに accepted される', async () => {
+    tx.identity.findUnique.mockResolvedValue({
+      ownerId: USER_ID,
+      updatedAt: new Date('2026-07-31T09:00:00.000Z'),
+    });
+
+    const result = await service.push(USER_ID, {
+      mutations: [
+        {
+          collection: 'identities',
+          op: 'upsert',
+          id: IDENTITY_ID,
+          updated_at: '2026-08-01T00:00:00.000Z',
+          payload: {
+            display_name: '自分',
+            deleted_at: '2026-08-01T00:00:00.000Z',
+          },
+        },
+      ],
+    });
+
+    expect(identities.ensureWithinLimit).not.toHaveBeenCalled();
+    expect(result.rejected).toEqual([]);
+    expect(result.accepted).toEqual([IDENTITY_ID]);
+  });
+
+  it(
+    'AC-11 push — applications: 削除済み (tombstone) の identity を参照する ' +
+      'applications の tombstone push も accepted される (削除済み親を参照する子の tombstone を弾かない)',
+    async () => {
+      tx.application.findUnique.mockResolvedValue({
+        ownerId: USER_ID,
+        updatedAt: new Date('2026-07-31T09:00:00.000Z'),
+      });
+      tx.event.findUnique.mockResolvedValue({ ownerId: USER_ID });
+      // 参照先 identity は既に tombstone 済み（deletedAt が立っている）が、
+      // validateForeignKeys は deletedAt を条件に含めないため ownerId 一致のみで通る。
+      tx.identity.findUnique.mockResolvedValue({
+        ownerId: USER_ID,
+        deletedAt: new Date('2026-08-01T00:00:00.000Z'),
+      });
+
+      const result = await service.push(USER_ID, {
+        mutations: [
+          {
+            collection: 'applications',
+            op: 'upsert',
+            id: APPLICATION_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: {
+              event_id: EVENT_ID,
+              rep_identity_id: IDENTITY_ID,
+              status: 'applied',
+              deleted_at: '2026-08-01T00:00:00.000Z',
+            },
+          },
+        ],
+      });
+
+      expect(result.rejected).toEqual([]);
+      expect(result.accepted).toEqual([APPLICATION_ID]);
+    },
+  );
+
+  it('AC-12 push — memberships: tombstone (deleted_at 付き) upsert は accepted される', async () => {
+    tx.membership.findUnique.mockResolvedValue({
+      ownerId: USER_ID,
+      updatedAt: new Date('2026-07-31T09:00:00.000Z'),
+    });
+    tx.identity.findUnique.mockResolvedValue({ ownerId: USER_ID });
+
+    const result = await service.push(USER_ID, {
+      mutations: [
+        {
+          collection: 'memberships',
+          op: 'upsert',
+          id: MEMBERSHIP_ID,
+          updated_at: '2026-08-01T00:00:00.000Z',
+          payload: {
+            identity_id: IDENTITY_ID,
+            fan_club_name_raw: '削除対象FC',
+            deleted_at: '2026-08-01T00:00:00.000Z',
+          },
+        },
+      ],
+    });
+
+    expect(result.rejected).toEqual([]);
+    expect(result.accepted).toEqual([MEMBERSHIP_ID]);
+  });
+
+  it(
+    'AC-13 push — identities: 名義上限に達したユーザーが既存 (新規ではない) identity を ' +
+      '編集 upsert しても PLAN_LIMIT_IDENTITY にならず accepted される ' +
+      '(IdentitiesService.ensureWithinLimit を SyncService 経由の統合で回帰確認する)',
+    async () => {
+      const entitlementsStub = { identityLimit: jest.fn().mockResolvedValue(1) };
+      const realIdentities = new IdentitiesService(
+        prisma as unknown as PrismaService,
+        entitlementsStub as unknown as EntitlementsService,
+      );
+      const localService = new SyncService(
+        prisma as unknown as PrismaService,
+        realIdentities,
+      );
+
+      // SyncService 自身の既存/LWW チェック用
+      tx.identity.findUnique.mockResolvedValue({
+        ownerId: USER_ID,
+        updatedAt: new Date('2026-07-31T09:00:00.000Z'),
+      });
+      // IdentitiesService.ensureWithinLimit の既存判定用 (deletedAt:null で既存行が見つかる → 上限チェックをスキップ)
+      tx.identity.findFirst.mockResolvedValue({
+        id: IDENTITY_ID,
+        ownerId: USER_ID,
+        deletedAt: null,
+      });
+
+      const result = await localService.push(USER_ID, {
+        mutations: [
+          {
+            collection: 'identities',
+            op: 'upsert',
+            id: IDENTITY_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: {
+              display_name: '編集後の表示名',
+              relation: 'other',
+              color: '#0017C1',
+              history_visible: true,
+              sort_order: 0,
+            },
+          },
+        ],
+      });
+
+      expect(entitlementsStub.identityLimit).not.toHaveBeenCalled();
+      expect(result.rejected).toEqual([]);
+      expect(result.accepted).toEqual([IDENTITY_ID]);
+    },
+  );
 });

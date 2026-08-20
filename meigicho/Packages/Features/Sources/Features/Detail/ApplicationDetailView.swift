@@ -12,12 +12,14 @@ struct ApplicationDetailView: View {
     @Environment(AdsStore.self) private var adsStore
     @Environment(SheetPresenter.self) private var sheetPresenter
     @Environment(\.themeStore) private var theme
+    @Environment(\.notificationBridge) private var notifications
     @Binding var path: NavigationPath
 
     let applicationID: UUID
     @State private var isEditingSeat = false
     @State private var draftSeat = ""
     @FocusState private var seatFocused: Bool
+    @State private var showDeleteConfirmation = false
 
     private var app: ApplicationEntry? { applicationStore.application(for: applicationID) }
 
@@ -44,6 +46,7 @@ struct ApplicationDetailView: View {
                             .background(DS.Gray.g100)
                             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
                     }
+                    deleteButton()
                 }
                 .padding(16)
             } else {
@@ -74,6 +77,30 @@ struct ApplicationDetailView: View {
                 await applicationStore.ensureEvent(id: app.eventID)
             }
         }
+        .confirmationDialog(
+            "この申込を削除しますか？",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("削除する", role: .destructive) {
+                Task { await deleteApplication() }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("同行者の記録も一緒に削除されます。この操作は取り消せません。")
+        }
+    }
+
+    /// 削除実行。成功したら画面を閉じて呼び出し元へ戻り、通知を再スケジュールする（IOS-13 に配慮し
+    /// リポジトリの完了後にのみローカル状態と画面遷移を進める）。失敗時は画面を閉じず `writeError` の
+    /// 表示に任せる（`applicationStore.deleteApplication` が設定する）。
+    private func deleteApplication() async {
+        let ok = await applicationStore.deleteApplication(applicationID)
+        guard ok else { return }
+        if !path.isEmpty {
+            path.removeLast()
+        }
+        await notifications.rescheduleIfAuthorized()
     }
 
     private func ticketHero(_ app: ApplicationEntry) -> some View {
@@ -131,8 +158,13 @@ struct ApplicationDetailView: View {
     private func infoList(_ app: ApplicationEntry) -> some View {
         let rep = identityStore.identity(for: app.repIdentityID)
         return CardList {
-            infoLinkRow("代表者（FC名義）", value: rep?.displayName ?? "不明") {
-                path.append(AppRoute.identity(app.repIdentityID))
+            // FR-DEL-13: 代表者名義が削除済み（ローカルに存在しない）場合は行き止まりリンクにしない
+            if let rep {
+                infoLinkRow("代表者（FC名義）", value: rep.displayName) {
+                    path.append(AppRoute.identity(app.repIdentityID))
+                }
+            } else {
+                deletedIdentityRow("代表者（FC名義）")
             }
             Divider()
             VStack(alignment: .leading, spacing: 6) {
@@ -141,7 +173,8 @@ struct ApplicationDetailView: View {
                     Text("なし").font(DSFont.body).foregroundStyle(DS.Gray.g400)
                 } else {
                     ForEach(app.companions) { c in
-                        if let id = c.identityID {
+                        // FR-DEL-14: 表示名 (display_name) はそのまま出し、名義が削除済みならリンクだけ無効化する
+                        if let id = c.identityID, identityStore.identity(for: id) != nil {
                             Button { path.append(AppRoute.identity(id)) } label: {
                                 HStack {
                                     Spacer()
@@ -207,6 +240,31 @@ struct ApplicationDetailView: View {
             Text(value).font(DSFont.bodyBold).multilineTextAlignment(.trailing)
         }
         .padding(14)
+    }
+
+    /// 削除済み名義の行（FR-DEL-13）。タップ不可・グレー表示。`infoRow` と違い値の色を弱める
+    private func deletedIdentityRow(_ label: String) -> some View {
+        HStack {
+            Text(label).font(DSFont.caption).foregroundStyle(DS.Gray.g500)
+            Spacer()
+            Text("削除された名義").font(DSFont.bodyBold).foregroundStyle(DS.Gray.g400)
+        }
+        .padding(14)
+    }
+
+    private func deleteButton() -> some View {
+        Button(role: .destructive) {
+            showDeleteConfirmation = true
+        } label: {
+            Text("この申込を削除")
+                .font(DSFont.bodyBold)
+                .foregroundStyle(DS.error)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+        .disabled(applicationStore.isSaving)
+        .padding(.top, 8)
     }
 
     private func infoLinkRow(_ label: String, value: String, action: @escaping () -> Void) -> some View {

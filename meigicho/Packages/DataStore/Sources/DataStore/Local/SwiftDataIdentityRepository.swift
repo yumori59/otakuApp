@@ -49,13 +49,24 @@ public actor SwiftDataIdentityRepository: IdentityRepository {
         return record.toDomain()
     }
 
+    /// 名義をソフトデリートし、配下の未削除 membership も同一セーブで連鎖ソフトデリートする。
+    /// 削除される membership を代表会員として参照している未削除 application があれば
+    /// `repMembershipID` をクリアする（`MembershipDeletionCascade` / Issue #11 dT1）。
     public func delete(id: UUID) async throws {
         let context = ModelContext(container)
+        let now = Date()
         guard let record = try fetchRecord(id: id, in: context), record.deletedAt == nil else {
             throw AppError.notFound
         }
-        record.softDelete()
-        enqueueOutbox(targetID: id, in: context)
+        record.softDelete(now: now)
+        OutboxQueue.enqueue(collection: .identities, targetID: id, in: context, now: now)
+
+        for membership in try MembershipRecord.fetchActive(identityID: id, in: context) {
+            membership.softDelete(now: now)
+            OutboxQueue.enqueue(collection: .memberships, targetID: membership.id, in: context, now: now)
+            try MembershipDeletionCascade.clearApplicationsReferencing(membershipID: membership.id, in: context, now: now)
+        }
+
         try context.save()
         onWrite.didWrite()
     }

@@ -4,6 +4,7 @@ import DesignSystem
 
 struct SheetContentView: View {
     @Environment(ApplicationStore.self) private var applicationStore
+    @Environment(IdentityStore.self) private var identityStore
     let sheet: AppSheet
     let onIdentitySaved: (UUID) -> Void
 
@@ -21,6 +22,18 @@ struct SheetContentView: View {
                     ApplicationFormView(mode: .edit(entry))
                 } else {
                     EmptyStateView("申込が見つかりません")
+                }
+            case .editIdentity(let id):
+                if let identity = identityStore.identity(for: id) {
+                    IdentityFormView(mode: .edit(identity))
+                } else {
+                    EmptyStateView("名義が見つかりません")
+                }
+            case .editMembership(let id):
+                if let membership = identityStore.memberships.first(where: { $0.id == id }) {
+                    MembershipFormView(mode: .edit(membership))
+                } else {
+                    EmptyStateView("会員情報が見つかりません")
                 }
             case .shareRecipients(let tourName):
                 ShareRecipientsView(tourName: tourName)

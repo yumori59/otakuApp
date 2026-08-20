@@ -184,6 +184,120 @@ public final class IdentityStore {
         }
     }
 
+    /// 名義削除（削除ボタンは後続タスクで配線）。
+    ///
+    /// **楽観更新はしない**（削除は identity + 配下 membership + それらを参照する application の
+    /// `repMembershipID` クリアにまたがる。IOS-13）。`repository.delete(id:)` の完了後に
+    /// ローカルの `identities` と、その名義に属していた `memberships` を取り除く。
+    /// 失敗したら配列は変えず `actionError` を立てる（`ApplicationStore.deleteApplication` と同じ方針）。
+    ///
+    /// 確認ダイアログ用の会員情報件数・代表申込件数の算出は呼び出し元 View の責務
+    /// （`IdentityStore` から `ApplicationStore` へは参照しない方針を崩さない）。
+    @discardableResult
+    public func deleteIdentity(_ id: UUID) async -> Bool {
+        guard let repository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            identities.removeAll { $0.id == id }
+            memberships.removeAll { $0.identityID == id }
+            return true
+        }
+        actionError = nil
+        do {
+            try await repository.delete(id: id)
+            identities.removeAll { $0.id == id }
+            memberships.removeAll { $0.identityID == id }
+            return true
+        } catch {
+            actionError = Self.appError(from: error)
+            return false
+        }
+    }
+
+    /// 名義編集（TE-3・`docs/plans/identity-edit-and-delete/plan.md` D-4 / D-5）。
+    ///
+    /// 差分計算は `IdentityEditPlanner.makePatch`（純粋関数）に委ねる。
+    /// **無変更（`patch == IdentityPatch()`）ならリポジトリを呼ばない**（D-4:
+    /// `apply(patch:)` は `.unchanged` だけの patch でも `updatedAt` を進めてしまうため、
+    /// 「開いて閉じただけ」で別端末の未送信編集を LWW で負けさせないよう Store 側で止める）。
+    /// **楽観更新はしない**（D-5・`deleteIdentity` と同じ方針）。成功したらリポジトリの戻り値を
+    /// そのまま反映し、失敗したら配列を変えず `actionError` を立てる。
+    @discardableResult
+    public func updateIdentity(id: UUID, input: IdentityEditFormInput) async -> Identity? {
+        guard let current = identity(for: id) else {
+            actionError = .notFound
+            return nil
+        }
+        let patch = IdentityEditPlanner.makePatch(current: current, input: input)
+        guard patch != IdentityPatch() else {
+            actionError = nil
+            return current
+        }
+        guard let repository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            return applyIdentityPatchLocally(id: id, patch: patch)
+        }
+        actionError = nil
+        do {
+            let updated = try await repository.update(id: id, patch)
+            replaceIdentity(id, with: updated)
+            return updated
+        } catch {
+            actionError = Self.appError(from: error)
+            return nil
+        }
+    }
+
+    /// 会員情報編集（TE-3。`updateIdentity` と同じ D-4 / D-5 方針）。
+    @discardableResult
+    public func updateMembership(id: UUID, input: MembershipEditFormInput) async -> Membership? {
+        guard let current = memberships.first(where: { $0.id == id }) else {
+            actionError = .notFound
+            return nil
+        }
+        let patch = MembershipEditPlanner.makePatch(current: current, input: input)
+        guard patch != MembershipPatch() else {
+            actionError = nil
+            return current
+        }
+        guard let membershipRepository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            return applyMembershipPatchLocally(id: id, patch: patch)
+        }
+        actionError = nil
+        do {
+            let updated = try await membershipRepository.update(id: id, patch)
+            replaceMembership(id, with: updated)
+            return updated
+        } catch {
+            actionError = Self.appError(from: error)
+            return nil
+        }
+    }
+
+    /// 会員情報単体削除（TE-7 の削除ボタンから呼ばれる想定）。
+    ///
+    /// **楽観更新はしない**（`deleteIdentity` / `ApplicationStore.deleteApplication` と同じ方針）。
+    /// その会員情報を代表会員情報にしていた application の `repMembershipID` クリアは
+    /// `SwiftDataMembershipRepository.delete` 側で既に処理済み（dT1）なので、ここでは
+    /// `memberships` 配列から取り除くだけでよい。
+    @discardableResult
+    public func deleteMembership(_ id: UUID) async -> Bool {
+        guard let membershipRepository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            memberships.removeAll { $0.id == id }
+            return true
+        }
+        actionError = nil
+        do {
+            try await membershipRepository.delete(id: id)
+            memberships.removeAll { $0.id == id }
+            return true
+        } catch {
+            actionError = Self.appError(from: error)
+            return false
+        }
+    }
+
     @discardableResult
     public func addMembership(
         to identityID: UUID,
@@ -241,6 +355,49 @@ public final class IdentityStore {
     private func replaceIdentity(_ id: UUID, with identity: Identity) {
         guard let index = identities.firstIndex(where: { $0.id == id }) else { return }
         identities[index] = identity
+    }
+
+    private func replaceMembership(_ id: UUID, with membership: Membership) {
+        guard let index = memberships.firstIndex(where: { $0.id == id }) else { return }
+        memberships[index] = membership
+    }
+
+    /// `updateIdentity` の repository 無し経路（Preview / テスト）。
+    private func applyIdentityPatchLocally(id: UUID, patch: IdentityPatch) -> Identity? {
+        guard let index = identities.firstIndex(where: { $0.id == id }) else {
+            actionError = .notFound
+            return nil
+        }
+        var identity = identities[index]
+        identity.displayName = patch.displayName.applied(to: identity.displayName) ?? identity.displayName
+        identity.relation = patch.relation.applied(to: identity.relation) ?? identity.relation
+        identity.colorHex = patch.colorHex.applied(to: identity.colorHex) ?? identity.colorHex
+        identity.joinedOn = patch.joinedOn.applied(to: identity.joinedOn)
+        identity.note = patch.note.applied(to: identity.note) ?? ""
+        identity.historyVisible = patch.historyVisible.applied(to: identity.historyVisible) ?? identity.historyVisible
+        identity.sortOrder = patch.sortOrder.applied(to: identity.sortOrder) ?? identity.sortOrder
+        identity.updatedAt = now()
+        identities[index] = identity
+        return identity
+    }
+
+    /// `updateMembership` の repository 無し経路（Preview / テスト）。
+    private func applyMembershipPatchLocally(id: UUID, patch: MembershipPatch) -> Membership? {
+        guard let index = memberships.firstIndex(where: { $0.id == id }) else {
+            actionError = .notFound
+            return nil
+        }
+        var membership = memberships[index]
+        membership.identityID = patch.identityID.applied(to: membership.identityID) ?? membership.identityID
+        membership.fanClubNameRaw = patch.fanClubNameRaw.applied(to: membership.fanClubNameRaw) ?? membership.fanClubNameRaw
+        membership.memberNoLast4 = patch.memberNoLast4.applied(to: membership.memberNoLast4)
+        membership.rank = patch.rank.applied(to: membership.rank)
+        membership.renewalOn = patch.renewalOn.applied(to: membership.renewalOn)
+        membership.feeYen = patch.feeYen.applied(to: membership.feeYen)
+        membership.autoRenew = patch.autoRenew.applied(to: membership.autoRenew) ?? membership.autoRenew
+        membership.note = patch.note.applied(to: membership.note) ?? ""
+        memberships[index] = membership
+        return membership
     }
 
     private func persistMembershipCreate(_ membership: Membership) {

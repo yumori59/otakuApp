@@ -462,6 +462,49 @@ final class ApplicationStoreNetworkTests: XCTestCase {
         XCTAssertEqual(store.applications[0].status, .applied, "失敗時は書き換えない（楽観更新しない・D-5）")
     }
 
+    // MARK: - T3: deleteApplication（申込削除）
+
+    func testDeleteApplicationSuccessRemovesFromApplications() async {
+        let existing = entry(id: UUID(), eventID: event1)
+        let other = entry(id: UUID(), eventID: event1)
+        let repository = FakeApplicationRepository(pages: [])
+        let store = ApplicationStore(repository: repository, now: { [today] in today })
+        store.applications = [existing, other]
+
+        let result = await store.deleteApplication(existing.id)
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(store.applications.map(\.id), [other.id])
+        XCTAssertNil(store.writeError)
+        let calls = await repository.deleteCalls
+        XCTAssertEqual(calls, [existing.id])
+    }
+
+    func testDeleteApplicationFailureKeepsApplicationsUnchangedAndSetsWriteError() async {
+        let existing = entry(id: UUID(), eventID: event1)
+        let repository = FakeApplicationRepository(pages: [])
+        await repository.setFailure(.offline)
+        let store = ApplicationStore(repository: repository, now: { [today] in today })
+        store.applications = [existing]
+
+        let result = await store.deleteApplication(existing.id)
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(store.applications.map(\.id), [existing.id], "失敗時は削除しない（楽観更新しない）")
+        XCTAssertEqual(store.writeError, .offline)
+    }
+
+    func testDeleteApplicationWithoutRepositoryRemovesLocally() async {
+        let existing = entry(id: UUID(), eventID: event1)
+        let store = ApplicationStore(now: { [today] in today }) // repository なし = ローカル経路
+        store.applications = [existing]
+
+        let result = await store.deleteApplication(existing.id)
+
+        XCTAssertTrue(result)
+        XCTAssertTrue(store.applications.isEmpty)
+    }
+
     // MARK: - ヘルパー
 
     private func makePage(count: Int, nextCursor: String?, hasMore: Bool) -> ApplicationPage {
@@ -503,6 +546,7 @@ actor FakeApplicationRepository: ApplicationRepository {
     private(set) var calls: [Call] = []
     private(set) var updatePatches: [ApplicationPatch] = []
     private(set) var updateScopedPlans: [ApplicationEditPlan] = []
+    private(set) var deleteCalls: [UUID] = []
     private var pages: [ApplicationPage]
     private let alwaysMore: Bool
     private let itemsPerPage: Int
@@ -565,6 +609,7 @@ actor FakeApplicationRepository: ApplicationRepository {
     }
 
     func delete(id: UUID) async throws {
+        deleteCalls.append(id)
         if let failure { throw failure }
     }
 }

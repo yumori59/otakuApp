@@ -21,6 +21,10 @@ public enum AppSheet: Identifiable, Hashable {
     case addApplication
     /// 申込編集（T5・`docs/plans/application-edit/plan.md`）。`ApplicationDetailView` の「編集」から開く
     case editApplication(id: UUID)
+    /// 名義編集（TE-6・`docs/plans/identity-edit-and-delete/plan.md`）。`IdentityDetailView` の「編集」から開く
+    case editIdentity(id: UUID)
+    /// 会員情報編集（TE-6）。`IdentityDetailView` の会員情報カードタップから開く
+    case editMembership(id: UUID)
     case shareRecipients(tourName: String)
     /// 未ログインで書き込み操作が要求されたときのログイン誘導（Q5）。
     /// `reason` は「なぜログインが必要か」の 1 行。閲覧からの導線では nil
@@ -34,6 +38,8 @@ public enum AppSheet: Identifiable, Hashable {
         case .addMembership(let id): "addMembership-\(id)"
         case .addApplication: "addApplication"
         case .editApplication(let id): "editApplication-\(id)"
+        case .editIdentity(let id): "editIdentity-\(id)"
+        case .editMembership(let id): "editMembership-\(id)"
         case .shareRecipients(let tour): "shareRecipients-\( tour)"
         case .signIn: "signIn"
         case .paywall(let trigger): "paywall-\(trigger.rawValue)"
