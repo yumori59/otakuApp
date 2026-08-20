@@ -196,7 +196,10 @@ struct MeigichoApp: App {
         await engine.syncNow(reason: reason)
         async let identities: Void = identityStore.load()
         async let applications: Void = applicationStore.load()
-        _ = await (identities, applications)
+        // ホームの 3 指標カード（管理中の名義 / 30日以内更新 / 当落発表待ち）のうち
+        // サーバー集計に頼っている 2 枚も、同期のたびに追随させる（レビュー指摘）
+        async let home: Void = homeStore.load()
+        _ = await (identities, applications, home)
     }
 
     private var notificationBridge: NotificationBridge {

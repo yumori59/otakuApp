@@ -387,7 +387,9 @@ public final class HomeStore {
 モックが `<br>` で2行にしていた「30日以内に更新期限」は Dynamic Type で3行になり得るため
 `.fixedSize(horizontal: false, vertical: true)` を付けます。
 
-**S2 名義一覧 — 集計ソートの扱い。** 3つのソートのうち `SortDescriptor` で表現できるのは「入会が古い順」だけです。
+**S2 名義一覧 — FC別グルーピングとソート。** 名義一覧は `Membership.fanClubNameRaw` をキーに常時グルーピング表示する（`IdentityStore.groupedByFanClub` / `docs/plans/identity-grouping/`）。1名義が複数FCに所属する場合は各グループに `(Identity, Membership)` 行として重複表示する。セグメンテッドコントロールの3種ソートは**グループ内の並び順**として適用する（グループ自体の順序は各グループの最小 `renewalOn` 昇順、FC未登録は常に最後）。
+
+3つのソートのうち `SortDescriptor` で表現できるのは「入会が古い順」だけです。
 「更新が近い順」は `min(memberships.renewalOn)` という to-many の集約、「当選が多い順」は別テーブルを跨いだ集計
 （しかも R2-7 により**代表者と同行者の両方**を数える）で、いずれも述語に落とせません。対処はデータ規模で切り分けます。
 名義は Free 3件、Plus でも現実的に数十件で1,000件には決してならないため、(1) `deletedAt == nil` の `Identity` を全件フェッチ、
