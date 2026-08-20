@@ -108,17 +108,24 @@ struct IdentitiesTab: View {
             options: IdentitySortOrder.allCases.map { ($0, $0.label) },
             selection: $sortOrder
         )
-        let sorted = identityStore.sortedIdentities(
-            by: sortOrder,
-            winCounts: statsStore.winCounts(fallback: applicationStore.winCounts())
-        )
-        if sorted.isEmpty {
+        let winCounts = statsStore.winCounts(fallback: applicationStore.winCounts())
+        let groups = identityStore.groupedByFanClub(sortedBy: sortOrder, winCounts: winCounts)
+        if groups.isEmpty {
             EmptyStateView("まだ名義が登録されていません。\n右上の＋から追加できます。")
         } else {
-            CardList {
-                ForEach(Array(sorted.enumerated()), id: \.element.id) { index, identity in
-                    identityRow(identity)
-                    if index < sorted.count - 1 { Divider().padding(.leading, 70) }
+            LazyVStack(alignment: .leading, spacing: 20) {
+                ForEach(groups) { group in
+                    VStack(alignment: .leading, spacing: 0) {
+                        SectionHeader("\(group.displayName)（\(group.rows.count)）")
+                        CardList {
+                            ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
+                                identityRow(row, winCounts: winCounts)
+                                if index < group.rows.count - 1 {
+                                    Divider().padding(.leading, 70)
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // card-list の後、画面最下部にインラインバナー 1 枚（docs/07 §7.2 / F2-2）
@@ -131,25 +138,41 @@ struct IdentitiesTab: View {
         Binding(get: { sheetPresenter.activeSheet }, set: { sheetPresenter.activeSheet = $0 })
     }
 
-    private func identityRow(_ identity: Identity) -> some View {
-        let soonest = identityStore.nearestRenewal(for: identity.id)
-        let names = identityStore.fanClubNames(for: identity.id)
-        let fcNames = names.isEmpty ? "ファンクラブ未登録" : names.joined(separator: " / ")
+    private func identityRow(_ row: FanClubGroup.Row, winCounts: [UUID: Int]) -> some View {
+        let identity = row.identity
         let wins = statsStore.winCount(
             for: identity.id,
-            fallback: applicationStore.winCount(for: identity.id)
+            fallback: winCounts[identity.id] ?? applicationStore.winCount(for: identity.id)
         )
         let joined = identity.joinedOn.map { DateFormatting.formatDateShort($0) } ?? "未定"
+        let subtitle = membershipSubtitle(row.membership)
 
         return ListRow(
             avatarInitial: identity.displayName,
             avatarColor: identity.colorHex,
             title: identity.displayName,
-            subtitle: fcNames,
+            subtitle: subtitle,
             meta: "入会 \(joined) ・ 当選 \(wins)回",
-            trailing: soonest.map { CountdownBadge.renewal(for: $0, today: identityStore.today) }
+            trailing: row.membership?.renewalOn.map {
+                CountdownBadge.renewal(for: $0, today: identityStore.today)
+            }
         ) {
             path.append(AppRoute.identity(identity.id))
         }
+    }
+
+    private func membershipSubtitle(_ membership: Membership?) -> String {
+        guard let membership else { return "会員情報なし" }
+        var parts: [String] = []
+        if let rank = membership.rank, !rank.isEmpty {
+            parts.append(rank)
+        }
+        if let feeYen = membership.feeYen {
+            parts.append("年会費 \(DateFormatting.formatYen(feeYen))")
+        }
+        if parts.isEmpty {
+            return "会員情報登録済み"
+        }
+        return parts.joined(separator: " ・ ")
     }
 }
