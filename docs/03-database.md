@@ -616,7 +616,7 @@ returns integer language sql stable security definer set search_path = public as
   select case
     when e.plan = 'plus' and (e.expires_at is null or e.expires_at > now()) then 2147483647
     when e.plan = 'plus' and e.in_grace_period then 2147483647
-    else 3 + case when e.bonus_expires_at > now() then e.bonus_identity_slots else 0 end
+    else 10 + case when e.bonus_expires_at > now() then e.bonus_identity_slots else 0 end
   end
   from entitlements e where e.user_id = p_user;
 $$;
@@ -630,7 +630,7 @@ declare
 begin
   select count(*) into v_count
     from identities where owner_id = new.owner_id and deleted_at is null;
-  v_limit := coalesce(current_identity_limit(new.owner_id), 3);
+  v_limit := coalesce(current_identity_limit(new.owner_id), 10);
   if v_count >= v_limit then
     raise exception 'identity limit reached (limit=%, current=%)', v_limit, v_count
       using errcode = 'P0001', hint = 'PLAN_LIMIT_IDENTITY';

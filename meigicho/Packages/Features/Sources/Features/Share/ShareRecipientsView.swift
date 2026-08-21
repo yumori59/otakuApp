@@ -268,7 +268,7 @@ struct ShareRecipientsView: View {
 
         if case .unshared = shareState {
             let entitlement = profile.entitlement
-                ?? Entitlement(plan: .free, identityLimit: 3, shareLimit: 1)
+                ?? Entitlement(plan: .free, identityLimit: 10, shareLimit: 1)
             if !entitlement.canCreateShareLink(activeLinkCount: shareLinks.activeLinkCount()) {
                 sheetPresenter.presentPaywall(.shareLinkLimit)
                 return
