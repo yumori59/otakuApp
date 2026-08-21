@@ -12,7 +12,7 @@ export interface MembershipResponse {
   id: string;
   identity_id: string;
   fan_club_name_raw: string;
-  member_no_last4: string | null;
+  member_no: string | null;
   rank: string | null;
   renewal_on: string | null;
   fee_yen: number | null;
@@ -75,7 +75,7 @@ export class MembershipsService {
         ownerId: userId,
         identityId: dto.identity_id,
         fanClubNameRaw: dto.fan_club_name_raw,
-        memberNoLast4: dto.member_no_last4 ?? null,
+        memberNo: dto.member_no ?? null,
         rank: dto.rank ?? null,
         renewalOn: dto.renewal_on ? toDateOnly(dto.renewal_on) : null,
         feeYen: dto.fee_yen ?? null,
@@ -106,8 +106,8 @@ export class MembershipsService {
     if (dto.fan_club_name_raw !== undefined) {
       data.fanClubNameRaw = dto.fan_club_name_raw;
     }
-    if (dto.member_no_last4 !== undefined) {
-      data.memberNoLast4 = dto.member_no_last4;
+    if (dto.member_no !== undefined) {
+      data.memberNo = dto.member_no;
     }
     if (dto.rank !== undefined) data.rank = dto.rank;
     if (dto.renewal_on !== undefined) {
@@ -181,7 +181,7 @@ function toMembershipResponse(row: Membership): MembershipResponse {
     id: row.id,
     identity_id: row.identityId,
     fan_club_name_raw: row.fanClubNameRaw,
-    member_no_last4: row.memberNoLast4,
+    member_no: row.memberNo,
     rank: row.rank,
     renewal_on: fromDateOnly(row.renewalOn),
     fee_yen: row.feeYen,

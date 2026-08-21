@@ -302,14 +302,14 @@ public final class IdentityStore {
     public func addMembership(
         to identityID: UUID,
         fanClubNameRaw: String,
-        memberNoLast4: String?,
+        memberNo: String?,
         renewalOn: Date?,
         feeYen: Int?
     ) -> Membership {
         let membership = Membership(
             identityID: identityID,
             fanClubNameRaw: fanClubNameRaw,
-            memberNoLast4: memberNoLast4,
+            memberNo: memberNo,
             renewalOn: renewalOn,
             feeYen: feeYen
         )
@@ -390,7 +390,7 @@ public final class IdentityStore {
         var membership = memberships[index]
         membership.identityID = patch.identityID.applied(to: membership.identityID) ?? membership.identityID
         membership.fanClubNameRaw = patch.fanClubNameRaw.applied(to: membership.fanClubNameRaw) ?? membership.fanClubNameRaw
-        membership.memberNoLast4 = patch.memberNoLast4.applied(to: membership.memberNoLast4)
+        membership.memberNo = patch.memberNo.applied(to: membership.memberNo)
         membership.rank = patch.rank.applied(to: membership.rank)
         membership.renewalOn = patch.renewalOn.applied(to: membership.renewalOn)
         membership.feeYen = patch.feeYen.applied(to: membership.feeYen)

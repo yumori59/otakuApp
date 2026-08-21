@@ -128,7 +128,7 @@ model Membership {
   ownerId        String    @map("owner_id") @db.Uuid
   identityId     String    @map("identity_id") @db.Uuid
   fanClubNameRaw String    @map("fan_club_name_raw")
-  memberNoLast4  String?   @map("member_no_last4")
+  memberNo       String?   @map("member_no")
   rank           String?
   renewalOn      DateTime? @map("renewal_on") @db.Date
   feeYen         Int?      @map("fee_yen")

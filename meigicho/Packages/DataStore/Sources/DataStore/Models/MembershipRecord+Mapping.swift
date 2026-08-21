@@ -8,7 +8,7 @@ extension MembershipRecord {
             id: membership.id,
             identityID: membership.identityID,
             fanClubNameRaw: membership.fanClubNameRaw,
-            memberNoLast4: membership.memberNoLast4,
+            memberNo: membership.memberNo,
             rank: membership.rank,
             renewalOn: membership.renewalOn,
             feeYen: membership.feeYen,
@@ -24,7 +24,7 @@ extension MembershipRecord {
             id: id,
             identityID: identityID,
             fanClubNameRaw: fanClubNameRaw,
-            memberNoLast4: memberNoLast4,
+            memberNo: memberNo,
             rank: rank,
             renewalOn: renewalOn,
             feeYen: feeYen,
@@ -36,7 +36,7 @@ extension MembershipRecord {
     public func apply(patch: MembershipPatch, now: Date = Date()) {
         identityID = patch.identityID.applied(to: identityID) ?? identityID
         fanClubNameRaw = patch.fanClubNameRaw.applied(to: fanClubNameRaw) ?? fanClubNameRaw
-        memberNoLast4 = patch.memberNoLast4.applied(to: memberNoLast4)
+        memberNo = patch.memberNo.applied(to: memberNo)
         rank = patch.rank.applied(to: rank)
         renewalOn = patch.renewalOn.applied(to: renewalOn)
         feeYen = patch.feeYen.applied(to: feeYen)
@@ -48,7 +48,7 @@ extension MembershipRecord {
     func applyRemote(_ remote: RemoteMembership) {
         identityID = remote.identityID
         fanClubNameRaw = remote.fanClubNameRaw
-        memberNoLast4 = remote.memberNoLast4
+        memberNo = remote.memberNo
         rank = remote.rank
         renewalOn = remote.renewalOn
         feeYen = remote.feeYen

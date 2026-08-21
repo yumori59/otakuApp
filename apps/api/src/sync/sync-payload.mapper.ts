@@ -41,7 +41,7 @@ export function payloadToPrismaData(
       return {
         identityId: payload.identity_id,
         fanClubNameRaw: payload.fan_club_name_raw,
-        memberNoLast4: payload.member_no_last4 ?? null,
+        memberNo: payload.member_no ?? null,
         rank: payload.rank ?? null,
         renewalOn: parseDateOnly(payload.renewal_on),
         feeYen: payload.fee_yen ?? null,

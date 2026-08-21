@@ -101,7 +101,7 @@ final class IdentityStoreEditTests: XCTestCase {
 
         let input = MembershipEditFormInput(
             fanClubNameRaw: membership.fanClubNameRaw,
-            memberNoLast4Raw: membership.memberNoLast4 ?? "",
+            memberNoRaw: membership.memberNo ?? "",
             renewalOn: membership.renewalOn,
             feeYen: membership.feeYen
         )
@@ -124,7 +124,7 @@ final class IdentityStoreEditTests: XCTestCase {
 
         let input = MembershipEditFormInput(
             fanClubNameRaw: "新FC",
-            memberNoLast4Raw: membership.memberNoLast4 ?? "",
+            memberNoRaw: membership.memberNo ?? "",
             renewalOn: membership.renewalOn,
             feeYen: membership.feeYen
         )
@@ -144,7 +144,7 @@ final class IdentityStoreEditTests: XCTestCase {
 
         let input = MembershipEditFormInput(
             fanClubNameRaw: "新FC",
-            memberNoLast4Raw: membership.memberNoLast4 ?? "",
+            memberNoRaw: membership.memberNo ?? "",
             renewalOn: membership.renewalOn,
             feeYen: membership.feeYen
         )
@@ -193,7 +193,7 @@ final class IdentityStoreEditTests: XCTestCase {
     }
 
     private func makeMembership() -> Membership {
-        Membership(id: membershipID, identityID: identityID, fanClubNameRaw: "FC-A", memberNoLast4: "1234", renewalOn: nil, feeYen: nil)
+        Membership(id: membershipID, identityID: identityID, fanClubNameRaw: "FC-A", memberNo: "1234", renewalOn: nil, feeYen: nil)
     }
 }
 

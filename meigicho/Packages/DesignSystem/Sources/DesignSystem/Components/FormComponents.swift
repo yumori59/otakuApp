@@ -220,17 +220,17 @@ public struct AddRowButton: View {
 
 public struct MembershipCard: View {
     let fcName: String
-    /// 会員番号の下 4 桁（任意）。平文の全桁は保持しない
-    let memberNoLast4: String?
+    /// 会員番号（任意）。全桁を平文で保持し、常時表示する（2026-08-20 ユーザー判断で暗号化・下4桁表示を撤回）
+    let memberNo: String?
     /// 更新日は未設定がありうる
     let renewalOn: Date?
     /// 年会費は未設定がありうる
     let feeYen: Int?
     let today: Date
 
-    public init(fcName: String, memberNoLast4: String?, renewalOn: Date?, feeYen: Int?, today: Date) {
+    public init(fcName: String, memberNo: String?, renewalOn: Date?, feeYen: Int?, today: Date) {
         self.fcName = fcName
-        self.memberNoLast4 = memberNoLast4
+        self.memberNo = memberNo
         self.renewalOn = renewalOn
         self.feeYen = feeYen
         self.today = today
@@ -241,8 +241,12 @@ public struct MembershipCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(fcName).font(DSFont.bodyBold)
-                    if let memberNoLast4, !memberNoLast4.isEmpty {
-                        Text("No. \(memberNoLast4)").font(DSFont.caption).foregroundStyle(DS.Gray.g600)
+                    if let memberNo, !memberNo.isEmpty {
+                        Text("No. \(memberNo)")
+                            .font(DSFont.caption)
+                            .foregroundStyle(DS.Gray.g600)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
                 }
                 Spacer()
