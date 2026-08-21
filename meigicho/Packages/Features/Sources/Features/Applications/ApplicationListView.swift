@@ -309,6 +309,7 @@ struct TourGroupView: View {
     @Environment(SheetPresenter.self) private var sheetPresenter
     /// 当落ステータス切り替え後 60 秒の広告クールダウン（F4-5）の起点を記録するためだけに参照する
     @Environment(AdsStore.self) private var adsStore
+    @Environment(\.notificationBridge) private var notifications
 
     let group: ApplicationStore.TourGroup
     @Binding var path: NavigationPath
@@ -316,6 +317,8 @@ struct TourGroupView: View {
     @State private var editingSeatID: UUID?
     @State private var draftSeat = ""
     @State private var isRefreshing = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
 
     /// 未共有 / 共有中 / 共有終了 の 3 状態（`ShareLinkStore`）。
     private var shareState: ShareLinkState { shareLinks.shareState(forTour: group.id) }
@@ -330,6 +333,18 @@ struct TourGroupView: View {
                 FormHint("同じ公演に複数の申込があります。代表者を入れ替えた意図的な重複か確認してください。")
             }
             FormHint("状況と座席はこの表で直接編集できます。共有相手が書き込んだ内容は「最新を取得」で反映されます。")
+        }
+        .confirmationDialog(
+            "「\(group.tourName)」を削除しますか？",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("削除する", role: .destructive) {
+                Task { await deleteTour() }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text(deleteConfirmationMessage)
         }
     }
 
@@ -389,6 +404,17 @@ struct TourGroupView: View {
             case .unshared:
                 TourActionButton("共有相手を選んで共有する") { presentShareSheet() }
             }
+            TourActionButton("編集", icon: "pencil") {
+                sheetPresenter.present(
+                    .editTour(id: group.id),
+                    requiringSignIn: auth,
+                    reason: SignInPrompt.editTour
+                )
+            }
+            TourActionButton(isDeleting ? "削除中…" : "削除", icon: "trash", isDestructive: true) {
+                showDeleteConfirmation = true
+            }
+            .disabled(isDeleting)
         }
     }
 
@@ -425,6 +451,27 @@ struct TourGroupView: View {
         defer { isRefreshing = false }
         await applicationStore.load()
         await shareLinks.load()
+    }
+
+    /// FR-TE-10: 削除確認ダイアログに公演・申込の実件数を出す（件数算出は Store 側 = `tourDeletionImpact`）。
+    /// FR-TE-14 / D-7: 共有中なら警告行を 1 行足す（`ShareLinkStore.revoke` は呼ばない — D-7 却下理由）。
+    private var deleteConfirmationMessage: String {
+        let impact = applicationStore.tourDeletionImpact(tourID: group.id)
+        var message = "公演 \(impact.eventCount) 件・申込 \(impact.applicationCount) 件も削除されます。この操作は取り消せません。"
+        if case .shared = shareState {
+            message += "\nこのツアーは共有中です。削除すると共有相手はこのツアーを閲覧できなくなります（相手への通知はありません）。"
+        }
+        return message
+    }
+
+    /// 削除実行。成功したら通知を再スケジュールする（D-8）。失敗したら `writeError` の表示に任せ、
+    /// ツアー表からは消さない（`ApplicationStore.deleteTour` が非楽観のため配列はそのまま = D-6）。
+    private func deleteTour() async {
+        isDeleting = true
+        let ok = await applicationStore.deleteTour(id: group.id)
+        isDeleting = false
+        guard ok else { return }
+        await notifications.rescheduleIfAuthorized()
     }
 
     // MARK: - 表（常にローカルデータ）

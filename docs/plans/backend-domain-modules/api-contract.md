@@ -328,6 +328,8 @@ POST と同じフィールド（`id` を除く、すべて任意）。200 で更
 - `PATCH` で変更可能なのは `name` / `artist_name_raw`。`name` 変更で既存同名 tour と衝突したら `CONFLICT` 409
 - `DELETE` はソフトデリート。配下 events / applications は連鎖させない（requirements C4）
 
+> **R-1（2026-08-21・`tour-edit-and-delete` 計画 D-5）**: `DELETE /v1/tours/:id` は上記のとおり配下 events/applications へ連鎖しない実装のままだが、iOS 側は `POST /v1/sync/push` 経由でローカル削除を配下 events/applications/application_companions まで連鎖させる実効挙動を持つ（`docs/05-ios-client.md` §3 S4拡張参照）。BE REST の DELETE は本番の書き込み経路として使われていないため契約上の齟齬にはならないが、将来 BE REST を書き込み経路として使う変更をする場合は連鎖の実装が必要になる。
+
 ### `GET /v1/tours/:id/matrix`
 
 ```json

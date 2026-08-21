@@ -35,6 +35,12 @@ struct SheetContentView: View {
                 } else {
                     EmptyStateView("会員情報が見つかりません")
                 }
+            case .editTour(let id):
+                if applicationStore.tour(for: id) != nil {
+                    TourFormView(tourID: id)
+                } else {
+                    EmptyStateView("ツアーが見つかりません")
+                }
             case .shareRecipients(let tourName):
                 ShareRecipientsView(tourName: tourName)
             case .signIn(let reason):

@@ -658,4 +658,156 @@ describe('SyncService', () => {
       expect(result.accepted).toEqual([IDENTITY_ID]);
     },
   );
+
+  const COMPANION_ID = '018f3c2a-ffff-7c90-9d2a-000000000100';
+
+  it(
+    'AC-TE-17 push — tours の tombstone と同一バッチの子 (events → applications → ' +
+      'application_companions) の tombstone がすべて accepted される ' +
+      '(削除済み親を参照する子の FK 検証は deletedAt を見ない — sync.service.ts の ' +
+      'validateForeignKeys 実装に依存する回帰ガード)',
+    async () => {
+      // `mockResolvedValue` は渡された `where` を無視するため、FK検証が誤って
+      // `deletedAt` フィルタを足しても素通りしてしまい回帰を検出できない
+      // (2026-08-21 レビュー指摘)。`mockImplementation` で `where` を検査し、
+      // 「実際に削除済みの親」(`deletedAt` が非 null) を返すようにする —
+      // `where` に `id` 以外のキー (例: `deletedAt: null` フィルタ) が
+      // 含まれていたら、実 DB なら一致しないはずなので `null` を返す。
+      const ownedDeletedParent = (expectedId: string) =>
+        jest
+          .fn()
+          .mockImplementation(async (args: { where: Record<string, unknown> }) => {
+            const { where } = args;
+            if (where.id !== expectedId) return null;
+            if (Object.keys(where).some((key) => key !== 'id')) return null;
+            return {
+              ownerId: USER_ID,
+              updatedAt: new Date('2026-07-31T09:00:00.000Z'),
+              deletedAt: new Date('2026-07-31T09:00:00.000Z'),
+            };
+          });
+
+      // tour tombstone: 既存の tour を編集 (delete) する想定
+      tx.tour.findUnique = ownedDeletedParent(TOUR_ID);
+      // events tombstone が参照する tour: 同一バッチで tombstone 化済みでも
+      // ownerId が一致していれば FK 検証を通る (deletedAt は見ない)。
+      tx.event.findUnique = ownedDeletedParent(EVENT_ID);
+      // applications tombstone が参照する event: 同様に tombstone 済みでも通る。
+      tx.application.findUnique = ownedDeletedParent(APPLICATION_ID);
+      tx.identity.findUnique.mockResolvedValue({ ownerId: USER_ID });
+      // application_companions tombstone が参照する application: tombstone 済みでも通る。
+      tx.applicationCompanion.findUnique = ownedDeletedParent(COMPANION_ID);
+
+      const result = await service.push(USER_ID, {
+        mutations: [
+          {
+            collection: 'tours',
+            op: 'upsert',
+            id: TOUR_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: {
+              name: '削除対象ツアー',
+              deleted_at: '2026-08-01T00:00:00.000Z',
+            },
+          },
+          {
+            collection: 'events',
+            op: 'upsert',
+            id: EVENT_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: {
+              tour_id: TOUR_ID,
+              name: '削除対象公演',
+              deleted_at: '2026-08-01T00:00:00.000Z',
+            },
+          },
+          {
+            collection: 'applications',
+            op: 'upsert',
+            id: APPLICATION_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: {
+              event_id: EVENT_ID,
+              rep_identity_id: IDENTITY_ID,
+              status: 'applied',
+              deleted_at: '2026-08-01T00:00:00.000Z',
+            },
+          },
+          {
+            collection: 'application_companions',
+            op: 'upsert',
+            id: COMPANION_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: {
+              application_id: APPLICATION_ID,
+              identity_id: null,
+              display_name: 'テキスト同行者',
+              deleted_at: '2026-08-01T00:00:00.000Z',
+            },
+          },
+        ],
+      });
+
+      expect(result.rejected).toEqual([]);
+      expect(result.accepted).toEqual([
+        TOUR_ID,
+        EVENT_ID,
+        APPLICATION_ID,
+        COMPANION_ID,
+      ]);
+    },
+  );
+
+  it(
+    'AC-TE-18 push — tours: 既存 tour と同名の upsert は SYNC_APPLY_FAILED で個別 reject ' +
+      'されるが、同一バッチの他の mutation は accepted のまま DB に反映される ' +
+      '(トランザクションが巻き添えで abort しない — BE-11 の回帰ガード)',
+    async () => {
+      const DUP_NAME_TOUR_ID = TOUR_ID;
+      const OTHER_TOUR_ID = '018f3c2a-cccc-7c90-9d2a-000000000096';
+
+      tx.tour.findUnique.mockResolvedValue(null); // どちらも新規 tour 扱い
+      tx.tour.findFirst.mockImplementation(
+        async (args: { where: { name: string } }) => {
+          if (args.where.name === '既存ツアーと同名') {
+            return { id: 'existing-tour-id' };
+          }
+          return null;
+        },
+      );
+
+      const result = await service.push(USER_ID, {
+        mutations: [
+          {
+            collection: 'tours',
+            op: 'upsert',
+            id: DUP_NAME_TOUR_ID,
+            updated_at: '2026-08-01T00:00:00.000Z',
+            payload: { name: '既存ツアーと同名' },
+          },
+          {
+            collection: 'tours',
+            op: 'upsert',
+            id: OTHER_TOUR_ID,
+            updated_at: '2026-08-01T00:00:01.000Z',
+            payload: { name: '正常に作成できるツアー' },
+          },
+        ],
+      });
+
+      expect(result.rejected).toEqual([
+        {
+          id: DUP_NAME_TOUR_ID,
+          code: 'SYNC_APPLY_FAILED',
+          message: 'tour name already exists',
+        },
+      ]);
+      expect(result.accepted).toEqual([OTHER_TOUR_ID]);
+      // 同名衝突の tour は upsert 自体が呼ばれず、他方の tour だけが DB に反映される。
+      expect(tx.tour.upsert).toHaveBeenCalledTimes(1);
+      expect(tx.tour.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: OTHER_TOUR_ID } }),
+      );
+    },
+  );
 });

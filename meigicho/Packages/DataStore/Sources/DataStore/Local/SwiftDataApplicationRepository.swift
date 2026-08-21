@@ -197,13 +197,7 @@ public actor SwiftDataApplicationRepository: ApplicationRepository {
         guard let record = try ApplicationRecord.fetchRecord(id: id, in: context), record.deletedAt == nil else {
             throw AppError.notFound
         }
-        record.softDelete(now: now)
-        OutboxQueue.enqueue(collection: .applications, targetID: record.id, in: context, now: now)
-
-        for companion in try ApplicationCompanionRecord.fetchActive(applicationID: id, in: context) {
-            companion.softDelete(now: now)
-            OutboxQueue.enqueue(collection: .applicationCompanions, targetID: companion.id, in: context, now: now)
-        }
+        try ApplicationCascadeTombstone.apply(to: record, in: context, now: now)
         try context.save()
         onWrite.didWrite()
     }

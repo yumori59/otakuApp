@@ -133,6 +133,13 @@ public actor InMemoryCatalogRepository: CatalogRepository {
         events[index] = item
         return item
     }
+
+    /// Preview 用の単純な削除。連鎖セマンティクス（配下 event/application/companion）の再現は
+    /// 本番実装（`SwiftDataCatalogRepository.deleteTour`）の責務で、このフェイクは tour 本体のみ消す。
+    public func deleteTour(id: UUID) async throws {
+        guard tours.contains(where: { $0.id == id }) else { throw AppError.notFound }
+        tours.removeAll { $0.id == id }
+    }
 }
 
 public actor InMemoryApplicationRepository: ApplicationRepository {

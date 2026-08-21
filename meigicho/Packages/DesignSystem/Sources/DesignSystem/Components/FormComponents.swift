@@ -302,27 +302,33 @@ public struct ProfileCard: View {
 public struct TourActionButton: View {
     let title: String
     let icon: String?
+    /// 削除など取り消せない操作向け（`ApplicationDetailView.deleteButton()` 等と同じ `DS.error` 色に揃える）。
+    let isDestructive: Bool
     let action: () -> Void
     @Environment(\.themeStore) private var theme
 
-    public init(_ title: String, icon: String? = nil, action: @escaping () -> Void) {
+    public init(_ title: String, icon: String? = nil, isDestructive: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
+        self.isDestructive = isDestructive
         self.action = action
     }
 
     public var body: some View {
-        Button(action: action) {
+        Button(role: isDestructive ? .destructive : nil, action: action) {
             HStack(spacing: 4) {
                 if let icon { Image(systemName: icon).font(.system(size: 14)) }
                 Text(title).font(DSFont.caption)
             }
-            .foregroundStyle(theme.primary)
+            .foregroundStyle(isDestructive ? DS.error : theme.primary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(DS.surface)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
-            .overlay(RoundedRectangle(cornerRadius: DS.Radius.sm).stroke(DS.Gray.g200, lineWidth: 1))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .stroke(isDestructive ? DS.error : DS.Gray.g200, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
