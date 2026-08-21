@@ -41,12 +41,12 @@ public struct Identity: Identifiable, Equatable, Sendable {
 }
 
 /// ファンクラブ会員情報（`contract-mapping.md` §3.2）。
-/// **会員番号は下 4 桁しか持たない**（平文の全桁を端末に置かない / Q8・C5）。
+/// 会員番号は全桁を平文で保存・表示する（2026-08-20 ユーザー判断により暗号化・下4桁表示を撤回。共有時のマスキングは維持）。
 public struct Membership: Identifiable, Equatable, Sendable {
     public let id: UUID
     public var identityID: UUID
     public var fanClubNameRaw: String
-    public var memberNoLast4: String?
+    public var memberNo: String?
     public var rank: String?
     public var renewalOn: Date?
     public var feeYen: Int?
@@ -57,7 +57,7 @@ public struct Membership: Identifiable, Equatable, Sendable {
         id: UUID = UUIDv7.generate(),
         identityID: UUID,
         fanClubNameRaw: String,
-        memberNoLast4: String? = nil,
+        memberNo: String? = nil,
         rank: String? = nil,
         renewalOn: Date? = nil,
         feeYen: Int? = nil,
@@ -67,7 +67,7 @@ public struct Membership: Identifiable, Equatable, Sendable {
         self.id = id
         self.identityID = identityID
         self.fanClubNameRaw = fanClubNameRaw
-        self.memberNoLast4 = memberNoLast4
+        self.memberNo = memberNo
         self.rank = rank
         self.renewalOn = renewalOn
         self.feeYen = feeYen

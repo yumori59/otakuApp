@@ -88,7 +88,7 @@ final class SyncEngineCollectionsTests: XCTestCase {
                 "id": .string(membershipID.uuidString),
                 "identity_id": .string(identityID.uuidString),
                 "fan_club_name_raw": .string("FC B"),
-                "member_no_last4": .string("9876"),
+                "member_no": .string("9876"),
                 "auto_renew": .bool(true),
                 "fee_yen": .number(4400),
                 "renewal_on": .string("2026-12-01"),
@@ -141,7 +141,7 @@ final class SyncEngineCollectionsTests: XCTestCase {
         XCTAssertEqual(identities.map(\.id), [identityID])
 
         let memberships = try await SwiftDataMembershipRepository(container: container).list()
-        XCTAssertEqual(memberships.first?.memberNoLast4, "9876")
+        XCTAssertEqual(memberships.first?.memberNo, "9876")
         XCTAssertEqual(memberships.first?.feeYen, 4400)
 
         let catalog = SwiftDataCatalogRepository(container: container)

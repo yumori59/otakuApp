@@ -16,7 +16,7 @@ public struct IdentityPatch: Equatable, Sendable {
 public struct MembershipPatch: Equatable, Sendable {
     public var identityID: Patchable<UUID> = .unchanged
     public var fanClubNameRaw: Patchable<String> = .unchanged
-    public var memberNoLast4: Patchable<String> = .unchanged
+    public var memberNo: Patchable<String> = .unchanged
     public var rank: Patchable<String> = .unchanged
     public var renewalOn: Patchable<Date> = .unchanged
     public var feeYen: Patchable<Int> = .unchanged

@@ -36,7 +36,7 @@ final class SwiftDataIdentityRepositoryDeleteTests: XCTestCase {
             Identity(displayName: "本人", relation: .self, colorHex: "#0017C1")
         )
         let membership = try await membershipRepository.create(
-            Membership(identityID: identity.id, fanClubNameRaw: "FC A", memberNoLast4: "1234")
+            Membership(identityID: identity.id, fanClubNameRaw: "FC A", memberNo: "1234")
         )
 
         // 削除される membership を代表会員として参照する未削除 application。

@@ -76,19 +76,19 @@ public enum SampleData {
         ),
     ]
 
-    // MARK: - 会員情報（会員番号は下 4 桁のみ保持する = C5）
+    // MARK: - 会員情報（会員番号は全桁を保持・表示する）
 
     public static let memberships: [Membership] = [
         Membership(id: uuid(0x401), identityID: identity1, fanClubNameRaw: "STELLARIS OFFICIAL FAN CLUB",
-                   memberNoLast4: "4821", renewalOn: date(2026, 11, 3), feeYen: 4000),
+                   memberNo: "STL-04821", renewalOn: date(2026, 11, 3), feeYen: 4000),
         Membership(id: uuid(0x402), identityID: identity1, fanClubNameRaw: "ORBIT native club",
-                   memberNoLast4: "1239", renewalOn: date(2027, 2, 14), feeYen: 3500),
+                   memberNo: "ORB-01239", renewalOn: date(2027, 2, 14), feeYen: 3500),
         Membership(id: uuid(0x403), identityID: identity2, fanClubNameRaw: "STELLARIS OFFICIAL FAN CLUB",
-                   memberNoLast4: "9931", renewalOn: date(2026, 8, 19), feeYen: 4000),
+                   memberNo: "STL-09931", renewalOn: date(2026, 8, 19), feeYen: 4000),
         Membership(id: uuid(0x404), identityID: identity3, fanClubNameRaw: "ORBIT native club",
-                   memberNoLast4: "2984", renewalOn: date(2026, 9, 5), feeYen: 3500),
+                   memberNo: "ORB-02984", renewalOn: date(2026, 9, 5), feeYen: 3500),
         Membership(id: uuid(0x405), identityID: identity4, fanClubNameRaw: "陽炎 (Kagerou) Fan Club",
-                   memberNoLast4: "0567", renewalOn: date(2026, 12, 1), feeYen: 5000),
+                   memberNo: "KGR-00567", renewalOn: date(2026, 12, 1), feeYen: 5000),
     ]
 
     // MARK: - ツアー / 公演

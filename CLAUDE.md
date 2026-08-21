@@ -51,7 +51,7 @@ xcodebuild -project meigicho/Meigicho.xcodeproj -scheme Meigicho \
 - **共有はアカウント招待制**（2026-08-07・`docs/plans/share-account-invites/`）。`public` モジュール（`GET/PATCH /public/shares/:token`）は**削除済み**。受け取りは Bearer 必須の `shares/received/*`（受信箱）に一本化。契約は `docs/plans/share-account-invites/api-contract-delta.md` が正。レビュー完了・重大ゼロ・main マージ済み（`docs/plans/STATUS.md` §9 参照）
 - 実 DB（Docker）を使った統合テストは未整備。現状は Prisma モックによる unit test のみ（`prisma db push` はローカル Docker DB に反映済み）
 - `apps/api/.env.example` への `GOOGLE_CLIENT_IDS` / `GOOGLE_ISSUER` / `GOOGLE_JWKS_URL` / `RESEND_API_KEY` / `RESEND_FROM_EMAIL` 追記はハーネスの deny 設定でエージェントが書けないため未検証。手動確認が必要
-- 本番運用前に必須: Resend を `docs/08-compliance-risk.md` の委託先一覧に追記、パスワードリセットのメール送信基盤の法務確認
+- 本番運用前に必須: Resend を `docs/08-compliance-risk.md` の委託先一覧に追記、パスワードリセットのメール送信基盤の法務確認、**会員番号の平文保存についての法務確認**（2026-08-20 追加。暗号化・下4桁表示を撤回し全桁平文保存に変更したため。`docs/08-compliance-risk.md` §2.6）
 
 ## ディレクトリ構成
 

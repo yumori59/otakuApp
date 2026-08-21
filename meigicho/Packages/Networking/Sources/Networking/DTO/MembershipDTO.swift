@@ -3,7 +3,7 @@ import Core
 import Domain
 
 // `contract-mapping.md` §4.4。
-// **`member_no` / `member_no_cipher` は型として定義しない**（送ると 400。§4.4）。
+// `member_no` は全桁（1〜64文字・制御文字禁止・null 可）。`member_no_last4` / `member_no_cipher` は受理しない（送ると 400）。
 
 // MARK: - Response
 
@@ -15,7 +15,7 @@ struct MembershipResponse: Decodable, Sendable {
     let id: UUID
     let identityID: UUID
     let fanClubNameRaw: String
-    let memberNoLast4: String?
+    let memberNo: String?
     let rank: String?
     let renewalOn: String?
     let feeYen: Int?
@@ -29,7 +29,7 @@ struct MembershipResponse: Decodable, Sendable {
         case id
         case identityID = "identity_id"
         case fanClubNameRaw = "fan_club_name_raw"
-        case memberNoLast4 = "member_no_last4"
+        case memberNo = "member_no"
         case rank
         case renewalOn = "renewal_on"
         case feeYen = "fee_yen"
@@ -43,12 +43,12 @@ struct MembershipResponse: Decodable, Sendable {
 
 // MARK: - Request
 
-/// `POST /v1/memberships`。**`member_no` / `member_no_cipher` は持たない**（送ると 400）。
+/// `POST /v1/memberships`。**`member_no_last4` / `member_no_cipher` は持たない**（送ると 400）。
 struct CreateMembershipRequest: Encodable, Sendable {
     let id: UUID
     let identityID: UUID
     let fanClubNameRaw: String
-    let memberNoLast4: String?
+    let memberNo: String?
     let rank: String?
     let renewalOn: String?
     let feeYen: Int?
@@ -59,7 +59,7 @@ struct CreateMembershipRequest: Encodable, Sendable {
         case id
         case identityID = "identity_id"
         case fanClubNameRaw = "fan_club_name_raw"
-        case memberNoLast4 = "member_no_last4"
+        case memberNo = "member_no"
         case rank
         case renewalOn = "renewal_on"
         case feeYen = "fee_yen"
@@ -72,7 +72,7 @@ struct CreateMembershipRequest: Encodable, Sendable {
 struct UpdateMembershipRequest: Encodable, Sendable {
     var identityID: Patchable<UUID> = .unchanged
     var fanClubNameRaw: Patchable<String> = .unchanged
-    var memberNoLast4: Patchable<String> = .unchanged
+    var memberNo: Patchable<String> = .unchanged
     var rank: Patchable<String> = .unchanged
     var renewalOn: Patchable<Date> = .unchanged
     var feeYen: Patchable<Int> = .unchanged
@@ -82,7 +82,7 @@ struct UpdateMembershipRequest: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case identityID = "identity_id"
         case fanClubNameRaw = "fan_club_name_raw"
-        case memberNoLast4 = "member_no_last4"
+        case memberNo = "member_no"
         case rank
         case renewalOn = "renewal_on"
         case feeYen = "fee_yen"
@@ -94,7 +94,7 @@ struct UpdateMembershipRequest: Encodable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodePatch(identityID, forKey: .identityID)
         try container.encodePatch(fanClubNameRaw, forKey: .fanClubNameRaw)
-        try container.encodePatch(memberNoLast4, forKey: .memberNoLast4)
+        try container.encodePatch(memberNo, forKey: .memberNo)
         try container.encodePatch(rank, forKey: .rank)
         try container.encodePatch(renewalOn, forKey: .renewalOn) { APIDateFormat.dateOnlyString(from: $0) }
         try container.encodePatch(feeYen, forKey: .feeYen)
@@ -111,7 +111,7 @@ extension MembershipResponse {
             id: id,
             identityID: identityID,
             fanClubNameRaw: fanClubNameRaw,
-            memberNoLast4: memberNoLast4,
+            memberNo: memberNo,
             rank: rank,
             renewalOn: renewalOn.flatMap { APIDateFormat.dateOnly(from: $0) },
             feeYen: feeYen,
@@ -128,7 +128,7 @@ extension Membership {
             id: id,
             identityID: identityID,
             fanClubNameRaw: fanClubNameRaw,
-            memberNoLast4: memberNoLast4,
+            memberNo: memberNo,
             rank: rank,
             renewalOn: renewalOn.map { APIDateFormat.dateOnlyString(from: $0) },
             feeYen: feeYen,
@@ -144,7 +144,7 @@ extension MembershipPatch {
         var request = UpdateMembershipRequest()
         request.identityID = identityID
         request.fanClubNameRaw = fanClubNameRaw
-        request.memberNoLast4 = memberNoLast4
+        request.memberNo = memberNo
         request.rank = rank
         request.renewalOn = renewalOn
         request.feeYen = feeYen

@@ -73,7 +73,7 @@ public actor InMemoryMembershipRepository: MembershipRepository {
         var item = items[index]
         item.identityID = patch.identityID.applied(to: item.identityID) ?? item.identityID
         item.fanClubNameRaw = patch.fanClubNameRaw.applied(to: item.fanClubNameRaw) ?? item.fanClubNameRaw
-        item.memberNoLast4 = patch.memberNoLast4.applied(to: item.memberNoLast4)
+        item.memberNo = patch.memberNo.applied(to: item.memberNo)
         item.rank = patch.rank.applied(to: item.rank)
         item.renewalOn = patch.renewalOn.applied(to: item.renewalOn)
         item.feeYen = patch.feeYen.applied(to: item.feeYen)

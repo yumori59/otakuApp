@@ -19,6 +19,9 @@ enum MembershipFormMode {
 }
 
 struct MembershipFormView: View {
+    /// BE の `@MaxLength(64)`（`create-membership.dto.ts` / `update-membership.dto.ts`）と揃える
+    private static let memberNoMaxLength = 64
+
     let mode: MembershipFormMode
 
     @Environment(\.dismiss) private var dismiss
@@ -27,8 +30,8 @@ struct MembershipFormView: View {
     @Environment(\.notificationBridge) private var notifications
 
     @State private var fcName = ""
-    /// 会員番号は**下 4 桁だけ**保持する（`contract-mapping.md` §3.2 / C5）。1〜4 文字の英数のみ
-    @State private var memberNoLast4 = ""
+    /// 会員番号は全桁を平文で保持する（2026-08-20 ユーザー判断で暗号化・下4桁表示を撤回）。1〜64 文字・文字種は制限しない
+    @State private var memberNo = ""
     /// 更新日は未設定のまま保存できる（AC-ID-09-M）
     @State private var hasRenewalOn = false
     @State private var renewalOn = Date()
@@ -64,12 +67,15 @@ struct MembershipFormView: View {
                     FormRow("ファンクラブ / アーティスト名") {
                         FormTextField("例）STELLARIS OFFICIAL FAN CLUB", text: $fcName)
                     }
-                    FormRow("会員番号の下4桁（任意）") {
-                        FormTextField("例）4821", text: $memberNoLast4)
-                            .onChange(of: memberNoLast4) { _, new in
-                                // 1〜4 文字の英数のみ（`contract-mapping.md` §4.4）
-                                let filtered = new.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
-                                memberNoLast4 = String(filtered.prefix(4))
+                    FormRow("会員番号（任意）") {
+                        FormTextField("例）STL-04821", text: $memberNo)
+                            .onChange(of: memberNo) { old, new in
+                                // 文字種は制限しない。上限64文字を超える入力は受け付けない（BE の @MaxLength(64) と揃える）。
+                                // FR-MN-4: 切り詰めではなく打ち止め。prefix で削ると末尾が黙って欠落するため、
+                                // 変更前の値へ戻して「それ以上入力できない」挙動にする
+                                if new.count > Self.memberNoMaxLength {
+                                    memberNo = old
+                                }
                             }
                     }
                     FormRow("更新日") {
@@ -177,7 +183,7 @@ struct MembershipFormView: View {
             renewalOn = identityStore.today
         case .edit(let membership):
             fcName = membership.fanClubNameRaw
-            memberNoLast4 = membership.memberNoLast4 ?? ""
+            memberNo = membership.memberNo ?? ""
             hasRenewalOn = membership.renewalOn != nil
             renewalOn = membership.renewalOn ?? identityStore.today
             feeText = membership.feeYen.map(String.init) ?? ""
@@ -196,12 +202,12 @@ struct MembershipFormView: View {
     private func saveCreate() {
         let fc = fcName.trimmingCharacters(in: .whitespaces)
         guard !fc.isEmpty else { return }
-        let last4 = memberNoLast4.trimmingCharacters(in: .whitespaces)
+        let trimmedMemberNo = memberNo.trimmingCharacters(in: .whitespaces)
         let isFirstMembershipEver = identityStore.memberships.isEmpty
         identityStore.addMembership(
             to: identityID,
             fanClubNameRaw: fc,
-            memberNoLast4: last4.isEmpty ? nil : last4,
+            memberNo: trimmedMemberNo.isEmpty ? nil : trimmedMemberNo,
             renewalOn: hasRenewalOn ? renewalOn : nil,
             feeYen: Int(feeText)
         )
@@ -217,10 +223,10 @@ struct MembershipFormView: View {
     private func saveEdit(_ membership: Membership) {
         let fc = fcName.trimmingCharacters(in: .whitespaces)
         guard !fc.isEmpty else { return }
-        let last4 = memberNoLast4.trimmingCharacters(in: .whitespaces)
+        let trimmedMemberNo = memberNo.trimmingCharacters(in: .whitespaces)
         let input = MembershipEditFormInput(
             fanClubNameRaw: fc,
-            memberNoLast4Raw: last4,
+            memberNoRaw: trimmedMemberNo,
             renewalOn: hasRenewalOn ? renewalOn : nil,
             feeYen: Int(feeText)
         )
