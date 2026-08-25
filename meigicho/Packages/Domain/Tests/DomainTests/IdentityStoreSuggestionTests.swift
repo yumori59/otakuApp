@@ -26,6 +26,6 @@ final class IdentityStoreSuggestionTests: XCTestCase {
     }
 
     private func makeMembership(identityID: UUID, fanClubNameRaw: String) -> Membership {
-        Membership(identityID: identityID, fanClubNameRaw: fanClubNameRaw, memberNoLast4: nil, renewalOn: nil, feeYen: nil)
+        Membership(identityID: identityID, fanClubNameRaw: fanClubNameRaw, memberNo: nil, renewalOn: nil, feeYen: nil)
     }
 }
