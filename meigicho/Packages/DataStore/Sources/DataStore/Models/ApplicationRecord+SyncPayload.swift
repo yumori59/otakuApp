@@ -96,6 +96,14 @@ extension ApplicationRecord: SyncableRecord {
         return try context.fetch(descriptor).first
     }
 
+    /// 同一 event の未削除 application（ツアー削除の連鎖用・`tour-edit-and-delete` D-5）。
+    public static func fetchActive(eventID: UUID, in context: ModelContext) throws -> [ApplicationRecord] {
+        let descriptor = FetchDescriptor<ApplicationRecord>(
+            predicate: #Predicate { $0.eventID == eventID && $0.deletedAt == nil }
+        )
+        return try context.fetch(descriptor)
+    }
+
     public static func upsertRemote(_ object: [String: JSONValue], in context: ModelContext) throws {
         guard let remote = parseRemote(object) else { return }
         if let local = try fetchRecord(id: remote.id, in: context) {

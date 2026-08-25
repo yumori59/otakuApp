@@ -442,6 +442,97 @@ public final class ApplicationStore {
         }
     }
 
+    /// ツアー編集（T5 のツアー編集フォームから呼ばれる想定）。
+    ///
+    /// **楽観更新はしない**（D-6）。`await` して成功したらローカルの `tours` を差し替え、
+    /// 失敗したら何も変えず `writeError` を立てる（`updateApplication` / `deleteApplication` と同じ方針）。
+    @discardableResult
+    public func updateTour(id: UUID, name: String, artistName: String?) async -> Tour? {
+        var patch = TourPatch()
+        patch.name = .set(name)
+        patch.artistNameRaw = .set(artistName)
+
+        guard let catalogRepository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            guard let index = tours.firstIndex(where: { $0.id == id }) else {
+                writeError = .notFound
+                return nil
+            }
+            let current = tours[index]
+            let updated = Tour(
+                id: current.id,
+                name: patch.name.applied(to: current.name) ?? current.name,
+                // `SwiftDataCatalogRepository.updateTour` と同じく、null は空文字に落とす（artistNameRaw は非 optional）
+                artistNameRaw: patch.artistNameRaw.applied(to: current.artistNameRaw) ?? "",
+                updatedAt: now()
+            )
+            tours[index] = updated
+            return updated
+        }
+        writeError = nil
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let updated = try await catalogRepository.updateTour(id: id, patch)
+            upsert(tour: updated)
+            return updated
+        } catch {
+            writeError = Self.appError(from: error)
+            return nil
+        }
+    }
+
+    /// ツアー削除（T6 の削除ボタンから呼ばれる想定）。
+    ///
+    /// **楽観更新はしない**（削除は `tours` / `events` / `applications` の 3 配列にまたがるため、
+    /// 後付け undo で巻き戻すと途中状態が残りうる。IOS-13 / D-6）。成功したら
+    /// `await catalogRepository.deleteTour(id:)` の完了後にローカルの 3 配列から該当分を取り除く
+    /// （配下 event → 配下 application の連鎖は `CatalogRepository.deleteTour` の実装側が担い、
+    /// Store 側は「消えた」という結果だけを 3 配列に反映する。D-5）。
+    /// 失敗したら配列は変えず `writeError` を立てる（`deleteApplication` と同じ方針）。
+    @discardableResult
+    public func deleteTour(id: UUID) async -> Bool {
+        guard let catalogRepository else {
+            // Preview / テスト（ネットワーク未接続）: ローカルだけで完結させる
+            removeTourCascade(id)
+            return true
+        }
+        writeError = nil
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await catalogRepository.deleteTour(id: id)
+            removeTourCascade(id)
+            return true
+        } catch {
+            writeError = Self.appError(from: error)
+            return false
+        }
+    }
+
+    /// 削除確認ダイアログ用の件数（D-5 の連鎖範囲と揃える）。**View 側で数えない**。
+    ///
+    /// `applications` は手元に event が無い申込（`fillMissingEvents`/`ensureEvent` 参照）を許容するため、
+    /// `eventID` 経由のフィルタだけでは拾えない。`tourID` 一致 **または** `eventID` 一致の両方を対象にする
+    /// （`removeTourCascade` と同じ判定に揃える）。
+    public func tourDeletionImpact(tourID: UUID) -> (eventCount: Int, applicationCount: Int) {
+        let eventIDs = Set(events.filter { $0.tourID == tourID }.map(\.id))
+        let applicationCount = applications.filter { $0.tourID == tourID || eventIDs.contains($0.eventID) }.count
+        return (eventIDs.count, applicationCount)
+    }
+
+    /// `tours` / `events` / `applications` からツアー配下を連鎖して取り除く（D-5 の実効挙動を Store 側にも反映）。
+    ///
+    /// `applications` は手元に event が無い申込を許容する設計（`fillMissingEvents`/`ensureEvent`）のため、
+    /// `eventID` だけで絞ると event を持たない申込がツアー削除後も残ってしまう。`tourID` 一致 **または**
+    /// `eventID` 一致のどちらの経路でも削除連鎖から漏らさない。
+    private func removeTourCascade(_ tourID: UUID) {
+        let eventIDs = Set(events.filter { $0.tourID == tourID }.map(\.id))
+        applications.removeAll { $0.tourID == tourID || eventIDs.contains($0.eventID) }
+        events.removeAll { $0.tourID == tourID }
+        tours.removeAll { $0.id == tourID }
+    }
+
     /// 楽観更新 → PATCH → 成功ならサーバーの値で置換 / 失敗なら巻き戻す。
     private func applyOptimistic(
         id: UUID,

@@ -349,6 +349,20 @@ public enum MeigichoMigrationPlan: SchemaMigrationPlan {
 - 削除・編集は楽観更新しない（`await` して成功したら反映、失敗したら画面は閉じずエラー表示）。既存の名義カラー・備考インライン編集・共有スイッチの楽観更新3経路はこの変更で触っていない。
 - 削除成功後は `notificationBridge.rescheduleIfAuthorized()` を呼び、更新期限・当落発表通知を再スケジュールする。
 
+**S4拡張（ツアー編集・削除・`docs/plans/tour-edit-and-delete/`）**: 専用画面は新設せず、`TourGroupView`（S4のツアー表モード、`ApplicationListView.swift`）のヘッダーに「編集」「削除」ボタンを追加した。編集は新規 `TourFormView`（ツアー名 + アーティスト名の2項目のみを持つ専用シート）を `AppSheet.editTour(id:)` 経由で開く。`ApplicationFormView`（S9）は流用しない（ツアー名欄の意味が異なるため）。
+
+| 対象 | 編集の導線 | 削除の導線 |
+|---|---|---|
+| ツアー | `TourGroupView` ヘッダーの「編集」→ `TourFormView(mode: .edit)` でツアー名・アーティスト名を編集 | ヘッダーの「削除」+ `confirmationDialog`（配下の公演N件・申込M件の実数を文言に含め、共有中なら警告行を追加） |
+
+書き込み経路は編集・削除とも既存のローカルSSoT + `POST /v1/sync/push`のみ。REST `PATCH/DELETE /v1/tours/:id` は使わない（BE契約は変更しない。BE の `DELETE` は配下へ連鎖しない実装のままで、iOS側の実効挙動と意味が異なる点は `docs/plans/backend-domain-modules/api-contract.md` §5 のR-1注記を参照）。
+
+ツアー削除の連鎖・表示規則:
+- `SwiftDataCatalogRepository.deleteTour(id:)` が同一 `ModelContext` の1セーブで、tour → 配下の未削除 events → 各eventの未削除 applications → 各applicationの未削除 companions、までソフトデリートを連鎖させる。それぞれ outbox へ enqueue し（`tours`/`events`/`applications`/`application_companions` の4コレクション経由）で同期する。
+- **identity（名義）・membership（会員情報）は連鎖削除の対象外**。ツアー配下の申込が参照していた代表者・同行者の名義・会員情報はそのまま残る。
+- 削除・編集は楽観更新しない（`await`して成功したら反映、失敗したら画面は閉じずエラー表示）。
+- 削除成功後は `notificationBridge.rescheduleIfAuthorized()` を呼び、更新期限・当落発表通知を再スケジュールする。
+
 > **復元・取り消しUIは未実装**（2026-08-20）。`deleted_at` によるソフトデリートのみで、削除を取り消す画面・操作は無い。[01-product-overview.md](./01-product-overview.md) の「復元可能期間30日」との既知の乖離（`docs/plans/delete-ui/plan.md` リスク R-1）。
 
 ```swift

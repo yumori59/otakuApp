@@ -370,6 +370,12 @@ Apple / Google サインイン（証明書・クライアント ID 未設定）�
 
 本機能の実装中（T7の調査、および設計上の懸念検証）で、`POST /v1/sync/push`に実DBで確認できるデータ消失・認可の穴を発見し、本機能より先に修正・マージした。詳細は本ファイル §12 および `docs/plans/STATUS.md`内の同期push関連の既存エントリを参照。
 
+## 14. ツアー編集・削除機能 — `docs/plans/tour-edit-and-delete/`（レビュー済み・中5件修正待ち）
+
+ツアー表ヘッダーからのツアー編集（アーティスト名・ツアー名）・削除（配下 event/application/companion を連鎖ソフトデリート）。DB/BE 製品コード変更ゼロ、iOS のみ（`docs/plans/tour-edit-and-delete/plan.md` D-1〜D-8）。
+
+`code-reviewer`によるレビューで重大0件・中5件・軽微6件を検出（詳細は`docs/plans/tour-edit-and-delete/review.md`）。中5件のうち#1（Store側連鎖のキー不一致）・#2（FR-TE-14文言）はマージ前修正推奨。検証ゲート（レビュアーが独立再実行）: `sync.service.spec.ts`21件・`Packages/DataStore`63件・`Packages/Domain`284件全緑、`xcodebuild`BUILD SUCCEEDED。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。
