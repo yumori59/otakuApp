@@ -49,4 +49,15 @@ public struct RemoteCatalogRepository: CatalogRepository {
         )
         return try response.toDomain()
     }
+
+    /// `DELETE /v1/tours/:id`。**本番の書き込み経路としては使われない**
+    /// （`docs/plans/tour-edit-and-delete/plan.md` D-3: ローカル SwiftData が SSoT で、削除は
+    /// `POST /v1/sync/push` 経由。この実装は protocol 準拠のためだけに存在する。
+    /// `RemoteApplicationRepository.updateScoped` と同じ立場）。
+    /// BE 側もこの経路では配下 event/application へ連鎖しない（`tours.service.ts:74-91`）。
+    public func deleteTour(id: UUID) async throws {
+        try await client.sendVoid(
+            .versioned(.delete, "/tours/\(id.uuidString.lowercased())")
+        )
+    }
 }

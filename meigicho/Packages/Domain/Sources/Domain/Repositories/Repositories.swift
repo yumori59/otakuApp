@@ -71,6 +71,12 @@ public protocol CatalogRepository: Sendable {
     func fetchEvent(id: UUID) async throws -> EventEntity
     func updateTour(id: UUID, _ patch: TourPatch) async throws -> Tour
     func updateEvent(id: UUID, _ patch: EventPatch) async throws -> EventEntity
+    /// ツアーを削除する。**tour 単体では終わらず連鎖する**（`docs/plans/tour-edit-and-delete/plan.md` D-5 /
+    /// `SwiftDataCatalogRepository.deleteTour` 実装）: 配下の未削除 event・その配下の未削除 application・
+    /// さらにその配下の未削除 companion までを同一保存でソフトデリートする。
+    /// **BE の `DELETE /v1/tours/:id` は配下へ連鎖しない**（`tours.service.ts:74-91`）ので、この連鎖範囲は
+    /// iOS 側（ローカル SSoT + `POST /v1/sync/push`）の実効挙動として定義される（同計画 D-3）。
+    func deleteTour(id: UUID) async throws
 }
 
 public protocol ApplicationRepository: Sendable {
