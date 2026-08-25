@@ -90,6 +90,38 @@ public struct FormHint: View {
     }
 }
 
+/// 入力候補行（過去入力履歴からの候補一覧）。
+/// 各行はタップ領域 44pt 以上を確保する（`docs/05-ios-client.md` の候補行仕様）。
+/// `items` が空なら何も描画しない（空の枠を残さない）。
+public struct FormSuggestionList: View {
+    let items: [String]
+    let onSelect: (String) -> Void
+    @Environment(\.themeStore) private var theme
+
+    public init(items: [String], onSelect: @escaping (String) -> Void) {
+        self.items = items
+        self.onSelect = onSelect
+    }
+
+    public var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(items, id: \.self) { item in
+                    Button {
+                        onSelect(item)
+                    } label: {
+                        Text(item)
+                            .font(DSFont.body)
+                            .foregroundStyle(theme.primary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
 public struct PrimaryButton: View {
     let title: String
     var isDestructive = false

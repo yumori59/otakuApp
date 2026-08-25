@@ -52,6 +52,10 @@ struct MembershipFormView: View {
         identityStore.identity(for: identityID)?.displayName ?? ""
     }
 
+    private var filteredFanClubNames: [String] {
+        InputSuggestion.match(identityStore.existingFanClubNames, query: fcName)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -63,6 +67,7 @@ struct MembershipFormView: View {
                 FormCard {
                     FormRow("ファンクラブ / アーティスト名") {
                         FormTextField("例）STELLARIS OFFICIAL FAN CLUB", text: $fcName)
+                        FormSuggestionList(items: filteredFanClubNames) { fcName = $0 }
                     }
                     FormRow("会員番号の下4桁（任意）") {
                         FormTextField("例）4821", text: $memberNoLast4)

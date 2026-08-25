@@ -480,8 +480,10 @@ S8=FC名・更新日、S9=公演名・代表者・公演日（モックの各 `s
 保存後の遷移は S7 だけ特殊で、モックは `state.stack.pop()` → `navigate('identity-detail')` でした。SwiftUI では sheet を
 閉じるアニメーションと push が衝突するため `dismiss()` の後に一拍置きます（`Task { try? await Task.sleep(for: .milliseconds(250));
 path.append(.identity(newID)) }`）。ツアー名サジェストはモックが `<datalist>` でしたが SwiftUI に等価物が無いため、入力中に
-既存 `Tour.name` を前方一致で引いて候補行（各44pt）を出す方式に置き換え、保存時は **find-or-create**（同名 `Tour` があれば再利用、
-無ければ `UUIDv7` で新規）とします。空欄なら公演名をツアー名にする（モック `tour = ... || event`）挙動は維持します。
+既存候補を**部分一致**（大小文字無視・完全一致は除外、`InputSuggestion.match`）で引いて候補行（各44pt、`FormSuggestionList`）を
+出す方式に置き換えます。対象は**ツアー名・アーティスト名・会場名の3項目**（`docs/plans/input-history-suggestions/`）。保存時は
+**find-or-create**（同名 `Tour` があれば再利用、無ければ `UUIDv7` で新規）とします。空欄なら公演名をツアー名にする
+（モック `tour = ... || event`）挙動は維持します。
 
 ---
 

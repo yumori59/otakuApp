@@ -88,6 +88,12 @@ public final class IdentityStore {
         memberships(for: identityID).map(\.fanClubNameRaw)
     }
 
+    /// 全会員情報の FC名候補（入力サジェスト用・AC-SG-17-T）。
+    /// `InputSuggestion.candidates(from:)` で trim → 空除去 → 重複除去 → 昇順にする。
+    public var existingFanClubNames: [String] {
+        InputSuggestion.candidates(from: memberships.map(\.fanClubNameRaw))
+    }
+
     public func expiringMembershipCount(within days: Int = 30) -> Int {
         let today = now()
         return memberships.compactMap(\.renewalOn).filter { renewalOn in

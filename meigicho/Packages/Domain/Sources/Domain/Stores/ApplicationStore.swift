@@ -303,7 +303,24 @@ public final class ApplicationStore {
     }
 
     public var existingTourNames: [String] {
-        Array(Set(tours.map(\.name))).sorted()
+        InputSuggestion.candidates(from: tours.map(\.name))
+    }
+
+    /// アーティスト名サジェストの候補ソース（`docs/plans/input-history-suggestions/plan.md` D-2・FR-3）。
+    public var existingArtistNames: [String] {
+        InputSuggestion.candidates(from: tours.map(\.artistNameRaw))
+    }
+
+    /// 会場名サジェストの候補ソース。ツアー / アーティストで絞り込まない（D-5・FR-4）。
+    public var existingVenueNames: [String] {
+        InputSuggestion.candidates(from: events.map(\.venueNameRaw))
+    }
+
+    /// ツアー名候補タップ時のアーティスト名オートフィル用（D-3・FR-6）。
+    /// 名前が完全一致するツアーの非空 `artistNameRaw` を返す。一致なし / 空なら `nil`。
+    public func artistName(forTourNamed name: String) -> String? {
+        guard let tour = tours.first(where: { $0.name == name }), !tour.artistNameRaw.isEmpty else { return nil }
+        return tour.artistNameRaw
     }
 
     private func groupApplications(_ apps: [ApplicationEntry]) -> [TourGroup] {

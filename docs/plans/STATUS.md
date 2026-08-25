@@ -370,6 +370,23 @@ Apple / Google サインイン（証明書・クライアント ID 未設定）�
 
 本機能の実装中（T7の調査、および設計上の懸念検証）で、`POST /v1/sync/push`に実DBで確認できるデータ消失・認可の穴を発見し、本機能より先に修正・マージした。詳細は本ファイル §12 および `docs/plans/STATUS.md`内の同期push関連の既存エントリを参照。
 
+## 14. 入力履歴サジェスト拡張 — `docs/plans/input-history-suggestions/`（実装済み・レビュー前）
+
+申込フォームのアーティスト名・会場名にも既存ツアー名と同じサジェストを拡張し、会員情報フォームのFC名にも新規追加（Q7-B確定）。
+候補計算は `InputSuggestion`（Domain の純粋関数、部分一致・大小無視・完全一致除外・上限5件）に一本化し、
+既存のツアー名候補（`filteredTours`）もこの関数経由に置き換えた。ツアー候補タップ時はアーティスト欄を自動補完する。
+API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。roadmap 0-11c として追加、0-7（FC名サジェスト）を実装済みに更新。
+
+| タスク | 内容 | 状態 |
+|---|---|---|
+| T1 | `InputSuggestion`（Domain）+ `ApplicationStore` に `existingArtistNames`/`existingVenueNames`/`artistName(forTourNamed:)` | ✅ |
+| T2 | `FormSuggestionList`（DesignSystem 共通候補行、44pt） | ✅ |
+| T3 | `ApplicationFormView` 配線（3フィールド + オートフィル + 死にコード `showTourSuggestions` 削除） | ✅ |
+| T5 | `IdentityStore.existingFanClubNames` + `MembershipFormView` FC名欄への配線 | ✅ |
+| T4 | docs追従（`01-product-overview.md`/`05-ios-client.md`/`09-roadmap.md`/本ファイル） | ✅ |
+
+**未実施**: `code-reviewer`（別セッション）、`swift test --package-path meigicho/Packages/Domain` と `xcodebuild` の実行確認。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。

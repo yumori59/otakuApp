@@ -43,7 +43,6 @@ struct ApplicationFormView: View {
     @State private var status: ApplicationStatus = .applied
     @State private var seat = ""
     @State private var note = ""
-    @State private var showTourSuggestions = false
     @State private var isSaving = false
 
     var body: some View {
@@ -67,20 +66,16 @@ struct ApplicationFormView: View {
                         FormTextField("例）STELLARIS ARENA TOUR 2026", text: $tourName)
                         FormHint("空欄の場合は公演名がそのままツアー名として使われます。")
                             .padding(.top, 6)
-                        if !filteredTours.isEmpty && !tourName.isEmpty {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(filteredTours, id: \.self) { tour in
-                                    Button(tour) { tourName = tour }
-                                        .font(DSFont.body)
-                                        .foregroundStyle(theme.primary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.vertical, 8)
-                                }
+                        FormSuggestionList(items: filteredTours) { tour in
+                            tourName = tour
+                            if let artist = applicationStore.artistName(forTourNamed: tour) {
+                                artistName = artist
                             }
                         }
                     }
                     FormRow("アーティスト / グループ") {
                         FormTextField("例）STELLARIS", text: $artistName)
+                        FormSuggestionList(items: filteredArtistNames) { artistName = $0 }
                         // FR-AE-8: アーティスト名の変更は同じツアーの申込すべてに反映される
                         if mode.isEdit {
                             FormHint("同じツアーの申込すべてに反映されます。")
@@ -89,6 +84,7 @@ struct ApplicationFormView: View {
                     }
                     FormRow("会場") {
                         FormTextField("例）マリンメッセ福岡", text: $venueName)
+                        FormSuggestionList(items: filteredVenueNames) { venueName = $0 }
                     }
                     FormRow("公演日") {
                         DatePicker("", selection: eventOnBinding, displayedComponents: .date).labelsHidden()
@@ -241,11 +237,15 @@ struct ApplicationFormView: View {
     }
 
     private var filteredTours: [String] {
-        let q = tourName.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return [] }
-        return applicationStore.existingTourNames.filter {
-            $0.localizedCaseInsensitiveContains(q) && $0.caseInsensitiveCompare(q) != .orderedSame
-        }
+        InputSuggestion.match(applicationStore.existingTourNames, query: tourName)
+    }
+
+    private var filteredArtistNames: [String] {
+        InputSuggestion.match(applicationStore.existingArtistNames, query: artistName)
+    }
+
+    private var filteredVenueNames: [String] {
+        InputSuggestion.match(applicationStore.existingVenueNames, query: venueName)
     }
 
     // MARK: - 同行者入力の共通変換
