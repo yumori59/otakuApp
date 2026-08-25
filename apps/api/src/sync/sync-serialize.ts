@@ -31,7 +31,7 @@ export function serializeSyncRecord(
         owner_id: row.ownerId,
         identity_id: row.identityId,
         fan_club_name_raw: row.fanClubNameRaw,
-        member_no_last4: row.memberNoLast4,
+        member_no: row.memberNo,
         rank: row.rank,
         renewal_on: fromDateOnly(row.renewalOn as Date | null),
         fee_yen: row.feeYen,

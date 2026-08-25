@@ -66,6 +66,14 @@ extension EventRecord: SyncableRecord {
         return try context.fetch(descriptor).first
     }
 
+    /// 同一ツアーの未削除 event（ツアー削除の連鎖用・`tour-edit-and-delete` D-5）。
+    public static func fetchActive(tourID: UUID, in context: ModelContext) throws -> [EventRecord] {
+        let descriptor = FetchDescriptor<EventRecord>(
+            predicate: #Predicate { $0.tourID == tourID && $0.deletedAt == nil }
+        )
+        return try context.fetch(descriptor)
+    }
+
     public static func upsertRemote(_ object: [String: JSONValue], in context: ModelContext) throws {
         guard let remote = parseRemote(object) else { return }
         if let local = try fetchRecord(id: remote.id, in: context) {

@@ -175,8 +175,7 @@ public final class Membership: SyncableModel {
     @Attribute(.unique) public var id: UUID
     public var identity: Identity?
     public var fanClubID: UUID?, fanClubNameRaw: String
-    public var memberNoCipher: Data?       // 平文は持たない。Keychain の鍵で暗号化（03 の member_no_cipher）
-    public var memberNoLast4: String?, rank: String?
+    public var memberNo: String?, rank: String?   // 全桁・平文（2026-08-20 暗号化・下4桁表示を撤回）
     public var renewalOn: Date?, feeYen: Int?, autoRenew: Bool = false, note: String = ""
 }
 @Model
@@ -337,7 +336,7 @@ public enum MeigichoMigrationPlan: SchemaMigrationPlan {
 | 対象 | 編集の導線 | 削除の導線 |
 |---|---|---|
 | 名義 | `IdentityDetailView` の `topBarTrailing`「編集」→ `IdentityFormView(mode: .edit)` で表示名・続柄・色・入会日・メモを編集 | 詳細本文最下部の destructive ボタン + `confirmationDialog`（実データ件数を文言に含める） |
-| 会員情報 | 名義詳細の会員情報カードをタップ → `MembershipFormView(mode: .edit)` で FC名・会員番号下4桁・更新日・年会費を編集（`MembershipCard` の API は変えず `Button` + `.contentShape` で包む） | 編集シート最下部の destructive ボタン（会員情報には詳細画面が無いため） |
+| 会員情報 | 名義詳細の会員情報カードをタップ → `MembershipFormView(mode: .edit)` で FC名・会員番号・更新日・年会費を編集（`MembershipCard` の API は変えず `Button` + `.contentShape` で包む） | 編集シート最下部の destructive ボタン（会員情報には詳細画面が無いため） |
 | 申込 | S5 ツールバー「編集」（既存） | 詳細本文最下部の destructive ボタン + `confirmationDialog` |
 
 書き込み経路は編集・削除とも既存のローカルSSoT + `POST /v1/sync/push`のみ。REST `PATCH/DELETE /v1/identities|memberships|applications/:id` は使わない（BE契約は変更しない）。
@@ -347,6 +346,20 @@ public enum MeigichoMigrationPlan: SchemaMigrationPlan {
 - **会員情報の単体削除**でも同じ `repMembershipID` クリア処理を通る。名義・申込自体は残る。
 - 削除済み名義を代表者・同行者として参照する申込は、`IdentityStore.identity(for:)` が `nil` を返すことを合図に「削除された名義」とグレー表示・非リンク（タップ不可）にする（`ApplicationDetailView`）。
 - 削除・編集は楽観更新しない（`await` して成功したら反映、失敗したら画面は閉じずエラー表示）。既存の名義カラー・備考インライン編集・共有スイッチの楽観更新3経路はこの変更で触っていない。
+- 削除成功後は `notificationBridge.rescheduleIfAuthorized()` を呼び、更新期限・当落発表通知を再スケジュールする。
+
+**S4拡張（ツアー編集・削除・`docs/plans/tour-edit-and-delete/`）**: 専用画面は新設せず、`TourGroupView`（S4のツアー表モード、`ApplicationListView.swift`）のヘッダーに「編集」「削除」ボタンを追加した。編集は新規 `TourFormView`（ツアー名 + アーティスト名の2項目のみを持つ専用シート）を `AppSheet.editTour(id:)` 経由で開く。`ApplicationFormView`（S9）は流用しない（ツアー名欄の意味が異なるため）。
+
+| 対象 | 編集の導線 | 削除の導線 |
+|---|---|---|
+| ツアー | `TourGroupView` ヘッダーの「編集」→ `TourFormView(mode: .edit)` でツアー名・アーティスト名を編集 | ヘッダーの「削除」+ `confirmationDialog`（配下の公演N件・申込M件の実数を文言に含め、共有中なら警告行を追加） |
+
+書き込み経路は編集・削除とも既存のローカルSSoT + `POST /v1/sync/push`のみ。REST `PATCH/DELETE /v1/tours/:id` は使わない（BE契約は変更しない。BE の `DELETE` は配下へ連鎖しない実装のままで、iOS側の実効挙動と意味が異なる点は `docs/plans/backend-domain-modules/api-contract.md` §5 のR-1注記を参照）。
+
+ツアー削除の連鎖・表示規則:
+- `SwiftDataCatalogRepository.deleteTour(id:)` が同一 `ModelContext` の1セーブで、tour → 配下の未削除 events → 各eventの未削除 applications → 各applicationの未削除 companions、までソフトデリートを連鎖させる。それぞれ outbox へ enqueue し（`tours`/`events`/`applications`/`application_companions` の4コレクション経由）で同期する。
+- **identity（名義）・membership（会員情報）は連鎖削除の対象外**。ツアー配下の申込が参照していた代表者・同行者の名義・会員情報はそのまま残る。
+- 削除・編集は楽観更新しない（`await`して成功したら反映、失敗したら画面は閉じずエラー表示）。
 - 削除成功後は `notificationBridge.rescheduleIfAuthorized()` を呼び、更新期限・当落発表通知を再スケジュールする。
 
 > **復元・取り消しUIは未実装**（2026-08-20）。`deleted_at` によるソフトデリートのみで、削除を取り消す画面・操作は無い。[01-product-overview.md](./01-product-overview.md) の「復元可能期間30日」との既知の乖離（`docs/plans/delete-ui/plan.md` リスク R-1）。

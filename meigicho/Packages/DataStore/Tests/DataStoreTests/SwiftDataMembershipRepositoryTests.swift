@@ -18,7 +18,7 @@ final class SwiftDataMembershipRepositoryTests: XCTestCase {
         let repository = SwiftDataMembershipRepository(container: container)
 
         let created = try await repository.create(
-            Membership(identityID: identity.id, fanClubNameRaw: "FC A", memberNoLast4: "1234", feeYen: 4400)
+            Membership(identityID: identity.id, fanClubNameRaw: "FC A", memberNo: "1234", feeYen: 4400)
         )
         let listed = try await repository.list()
         XCTAssertEqual(listed.count, 1)
@@ -60,7 +60,7 @@ final class SwiftDataMembershipRepositoryTests: XCTestCase {
             id: UUID(),
             identityID: UUID(),
             fanClubNameRaw: "FC A",
-            memberNoLast4: nil,
+            memberNo: nil,
             rank: nil,
             renewalOn: nil,
             feeYen: nil,
@@ -71,7 +71,7 @@ final class SwiftDataMembershipRepositoryTests: XCTestCase {
         XCTAssertEqual(payload["fan_club_name_raw"], .string("FC A"))
         XCTAssertEqual(payload["auto_renew"], .bool(true))
         // 未設定は「送らない」ではなく明示的 null（サーバー mapper が `?? null` で受ける）
-        XCTAssertEqual(payload["member_no_last4"], .null)
+        XCTAssertEqual(payload["member_no"], .null)
         XCTAssertEqual(payload["renewal_on"], .null)
         XCTAssertEqual(payload["fee_yen"], .null)
         XCTAssertEqual(payload["note"], .null)

@@ -58,7 +58,7 @@ create table users (
 | P3 | `updated_at` は**サーバーの `now()`** で確定する（トリガ） | 端末時計のずれによる LWW の誤判定を防ぐ |
 | P4 | ユーザーデータのテーブルは `owner_id` を**非正規に持つ** | RLS が親テーブルを毎回JOINせずに判定でき、ポリシーが単純かつ高速になる |
 | P5 | 全テーブルで RLS を有効化する。例外を作らない | 有効化漏れが即データ漏洩になるため、CI で検査する |
-| P6 | 機微情報（FC会員番号）は暗号化して保存し、表示用に下4桁のみ平文で持つ | [08-compliance-risk.md](./08-compliance-risk.md) |
+| P6 | ~~機微情報（FC会員番号）は暗号化して保存し、表示用に下4桁のみ平文で持つ~~ **2026-08-20 撤回**。会員番号は全桁を平文で保存・表示する | [08-compliance-risk.md](./08-compliance-risk.md) |
 | P7 | 集計はビューで定義し、クライアントで再実装しない | 集計ロジックの二重管理を避ける |
 | P8 | 命名は `snake_case`、テーブル名は複数形、真偽値は `is_` / `has_` を付けない（`history_visible` 等の形容詞形を許容） | 一貫性 |
 
@@ -130,8 +130,7 @@ erDiagram
         uuid owner_id FK
         uuid identity_id FK
         uuid fan_club_id FK
-        bytea member_no_cipher
-        text member_no_last4
+        text member_no
         date renewal_on
         int fee_yen
     }
@@ -339,8 +338,7 @@ create table memberships (
   identity_id        uuid not null references identities(id) on delete cascade,
   fan_club_id        uuid references fan_clubs(id) on delete set null,
   fan_club_name_raw  text not null,               -- 入力揺らぎ保持・マスタ未紐付け時の表示名
-  member_no_cipher   bytea,                       -- 会員番号（暗号化）
-  member_no_last4    text check (member_no_last4 is null or length(member_no_last4) <= 4),
+  member_no          text,                        -- 会員番号（全桁・平文。2026-08-20 暗号化・下4桁表示を撤回）
   rank               text,                        -- 会員種別（プレミアム等）
   renewal_on         date,                        -- 次回更新日
   fee_yen            integer check (fee_yen is null or fee_yen between 0 and 1000000),
@@ -365,12 +363,16 @@ create trigger memberships_set_updated_at
   for each row execute function set_updated_at();
 ```
 
-**会員番号の扱い（重要）**
+**会員番号の扱い（重要・2026-08-20 撤回済み）**
 
-- `member_no_cipher`: クライアント側で暗号化した bytea。**サーバーは復号できない**（Q1 で (a) を採る場合）
-- `member_no_last4`: 一覧表示用。モックは `No. STL-04821` と全桁表示していますが、
-  設計では既定を下4桁表示（`No. ****4821`）に変更します（[01-product-overview.md](./01-product-overview.md) C3）
-- そもそも**入力を任意**とし、「会員番号を保存しない」選択ができるようにします
+- 当初設計は `member_no_cipher`（クライアント側暗号化 bytea・サーバー復号不可）+ `member_no_last4`（下4桁表示）の
+  2 列構成だったが、**2026-08-20 にユーザー判断で撤回**した。理由は「利用者が自分の会員番号を確認できない」こと。
+- 現行仕様は `member_no`（全桁・平文）1 列のみ。モックの `No. STL-04821` 全桁表示が実装どおりの最終形になった
+  （[01-product-overview.md](./01-product-overview.md) C3 は撤回として記録）
+- 残存リスク（端末紛失時の閲覧・スクリーンショット等）は撤回を前提に受容する（[08-compliance-risk.md](./08-compliance-risk.md) R20）
+- **W11 撤回**: 旧文面「そもそも入力を任意とし、『会員番号を保存しない』選択ができるようにします」は、
+  暗号化設計とセットの低減策として書かれていた記述として撤回する。ただし機能としての**任意入力自体は撤回対象ではない**
+  （FR-MN-7）。未入力なら `null` を保存し、表示行自体を出さない現状の挙動をそのまま維持する。
 
 `memberships_renewal_idx` は部分インデックスです。
 更新期限の照会（J1）が最頻のクエリなので、`deleted_at is null and renewal_on is not null` で絞った専用インデックスを持ちます。

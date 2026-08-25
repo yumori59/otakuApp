@@ -16,7 +16,7 @@ function membershipRow(overrides: Record<string, unknown> = {}) {
     ownerId: USER_ID,
     identityId: IDENTITY_ID,
     fanClubNameRaw: 'STELLARIS OFFICIAL FAN CLUB',
-    memberNoLast4: '4821',
+    memberNo: 'STL-04821',
     rank: 'プレミアム',
     renewalOn: null,
     feeYen: 5500,
@@ -165,6 +165,42 @@ describe('MembershipsService', () => {
         }),
       );
     });
+
+    it('AC-MN-01 member_no の全桁がそのまま保存され、レスポンスに全桁が返る', async () => {
+      prisma.membership.create.mockResolvedValue(
+        membershipRow({ memberNo: 'STL-04821' }),
+      );
+
+      const result = await service.create(USER_ID, {
+        id: MEMBERSHIP_ID,
+        identity_id: IDENTITY_ID,
+        fan_club_name_raw: 'FC',
+        member_no: 'STL-04821',
+      });
+
+      expect(prisma.membership.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ memberNo: 'STL-04821' }),
+        }),
+      );
+      expect(result.member_no).toBe('STL-04821');
+    });
+
+    it('AC-MN-05 member_no 省略時は null で保存される', async () => {
+      prisma.membership.create.mockResolvedValue(membershipRow({ memberNo: null }));
+
+      await service.create(USER_ID, {
+        id: MEMBERSHIP_ID,
+        identity_id: IDENTITY_ID,
+        fan_club_name_raw: 'FC',
+      });
+
+      expect(prisma.membership.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ memberNo: null }),
+        }),
+      );
+    });
   });
 
   describe('list', () => {
@@ -237,6 +273,36 @@ describe('MembershipsService', () => {
         service.remove(OTHER_USER_ID, MEMBERSHIP_ID),
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
       expect(prisma.membership.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update: member_no', () => {
+    it('AC-MN-05 member_no: null で PATCH するとクリアされる', async () => {
+      prisma.membership.findFirst.mockResolvedValue(membershipRow());
+      prisma.membership.update.mockResolvedValue(membershipRow({ memberNo: null }));
+
+      await service.update(USER_ID, MEMBERSHIP_ID, { member_no: null });
+
+      expect(prisma.membership.update).toHaveBeenCalledWith({
+        where: { id: MEMBERSHIP_ID },
+        data: { memberNo: null },
+      });
+    });
+
+    it('AC-MN-06 member_no のみを PATCH すると他フィールドは data に含まれない', async () => {
+      prisma.membership.findFirst.mockResolvedValue(membershipRow());
+      prisma.membership.update.mockResolvedValue(
+        membershipRow({ memberNo: 'STL-04821-NEW' }),
+      );
+
+      await service.update(USER_ID, MEMBERSHIP_ID, {
+        member_no: 'STL-04821-NEW',
+      });
+
+      expect(prisma.membership.update).toHaveBeenCalledWith({
+        where: { id: MEMBERSHIP_ID },
+        data: { memberNo: 'STL-04821-NEW' },
+      });
     });
   });
 

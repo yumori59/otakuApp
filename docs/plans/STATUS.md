@@ -16,6 +16,7 @@
 | 2026-08-07 | **共有はアカウント招待制に完全移行する。公開トークン経路は廃止** | `GET/PATCH /public/shares/:token` を削除し、受け取りは Bearer 必須の受信箱（`/v1/shares/received/*`）に一本化。`share_recipients` が ACL の実体。`docs/10` §3 の「Phase 2 で再決定」に対する決定。計画は `docs/plans/share-account-invites/`。**副作用: `docs/09` の KPI「共有リンク経由の新規インストール比率 ≥ 10%」は達成不能になるため要再設定（未起票）** |
 | 2026-08-08 | 共有アカウント招待制化（BE/iOS）完了。レビューで重大1件（受信箱の未読が消えないバグ）検出→修正→重大ゼロ。main マージ済み | BE 884テスト・iOS Domain 207/Network 165全緑。§9 参照 |
 | 2026-08-09 | 全`review.md`を横断調査し、過去レビューで発見済みだが「重大ゼロ」基準未達のため未修正のまま残っていたバグ3件を修正。main マージ済み（`docs/plans/bugfix-batch1/review.md`） | ①ログアウト直後のトークンrefresh競合でユーザーが黙って復帰 ②アカウント削除シートがApple再認可の無応答で操作不能に固定 ③受信箱の未読フラグが他の招待者の閲覧で誤って戻る。**レビューで各修正自体が生んだ新たな重大バグ2件も発見・修正**（サインイン直後のサイレントログアウト／「閉じる」後もアカウント削除が裏で進行）。`feedback_review_patterns.md`にIOS-13追記 |
+| 2026-08-20 | 会員番号の暗号化保存・下4桁表示を撤回。共有マスキングは維持 | 会員番号は全桁を平文で保存・表示する（`docs/08-compliance-risk.md` §2.3）。計画は `docs/plans/membership-full-number/` |
 
 ---
 
@@ -370,12 +371,18 @@ Apple / Google サインイン（証明書・クライアント ID 未設定）�
 
 本機能の実装中（T7の調査、および設計上の懸念検証）で、`POST /v1/sync/push`に実DBで確認できるデータ消失・認可の穴を発見し、本機能より先に修正・マージした。詳細は本ファイル §12 および `docs/plans/STATUS.md`内の同期push関連の既存エントリを参照。
 
-## 14. 入力履歴サジェスト拡張 — `docs/plans/input-history-suggestions/`（実装済み・レビュー前）
+## 14. ツアー編集・削除機能 — `docs/plans/tour-edit-and-delete/`（レビュー済み・main マージ済み）
+
+ツアー表ヘッダーからのツアー編集（アーティスト名・ツアー名）・削除（配下 event/application/companion を連鎖ソフトデリート）。DB/BE 製品コード変更ゼロ、iOS のみ（`docs/plans/tour-edit-and-delete/plan.md` D-1〜D-8）。
+
+`code-reviewer`によるレビューで重大0件・中5件・軽微6件を検出（詳細は`docs/plans/tour-edit-and-delete/review.md`）。中5件（#1 Store側連鎖のキー不一致・#2 FR-TE-14文言・#3 テスト検出力・#4 destructiveスタイリング・#5 計画産物配置）は全て修正済み。検証ゲート: `sync.service.spec.ts`21件・`Packages/DataStore`63件・`Packages/Domain`286件全緑、`xcodebuild`BUILD SUCCEEDED。[#17](https://github.com/yumori59/otakuApp/pull/17)としてmainマージ済み。
+
+## 15. 入力履歴サジェスト拡張 — `docs/plans/input-history-suggestions/`（レビュー済み・PR作成済み）
 
 申込フォームのアーティスト名・会場名にも既存ツアー名と同じサジェストを拡張し、会員情報フォームのFC名にも新規追加（Q7-B確定）。
 候補計算は `InputSuggestion`（Domain の純粋関数、部分一致・大小無視・完全一致除外・上限5件）に一本化し、
 既存のツアー名候補（`filteredTours`）もこの関数経由に置き換えた。ツアー候補タップ時はアーティスト欄を自動補完する。
-API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。roadmap 0-11c として追加、0-7（FC名サジェスト）を実装済みに更新。
+API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。roadmap 0-11d として追加（0-11cは#17のツアー編集・削除と番号が競合したためリナンバー）、0-7（FC名サジェスト）を実装済みに更新。
 
 | タスク | 内容 | 状態 |
 |---|---|---|
@@ -385,7 +392,8 @@ API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。r
 | T5 | `IdentityStore.existingFanClubNames` + `MembershipFormView` FC名欄への配線 | ✅ |
 | T4 | docs追従（`01-product-overview.md`/`05-ios-client.md`/`09-roadmap.md`/本ファイル） | ✅ |
 
-**未実施**: `code-reviewer`（別セッション）、`swift test --package-path meigicho/Packages/Domain` と `xcodebuild` の実行確認。
+`code-reviewer`によるレビューで重大0件・中0件（`docs/plans/input-history-suggestions/review.md`）。検証ゲート: `swift test --package-path meigicho/Packages/Domain`287件全緑、`xcodebuild`BUILD SUCCEEDED。[#19](https://github.com/yumori59/otakuApp/pull/19)としてPR作成済み（mainの#17/#18とのコンフリクト解消済み）。
+**未実施**: 実機/シミュレータでの手動確認（AC-SG-09〜18-M）。
 
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 

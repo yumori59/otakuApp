@@ -505,6 +505,203 @@ final class ApplicationStoreNetworkTests: XCTestCase {
         XCTAssertTrue(store.applications.isEmpty)
     }
 
+    // MARK: - T4: updateTour / deleteTour（`docs/plans/tour-edit-and-delete/plan.md` T4）
+
+    /// AC-TE-06: 更新成功で `tours` が差し替わり `tourName(for:)` が新名を返す
+    func testUpdateTourSuccessReplacesTourAndResolvesNewName() async {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "旧アーティスト", updatedAt: today)
+        let catalog = FakeCatalogRepository(tours: [oldTour], events: [])
+        await catalog.setUpdateTourResult { [today] id, patch in
+            Tour(
+                id: id,
+                name: patch.name.applied(to: "旧ツアー") ?? "旧ツアー",
+                artistNameRaw: patch.artistNameRaw.applied(to: "旧アーティスト") ?? "",
+                updatedAt: today
+            )
+        }
+        let store = ApplicationStore(catalogRepository: catalog, now: { [today] in today })
+        store.tours = [oldTour]
+        let app = entry(id: UUID(), eventID: event1)
+        store.applications = [app]
+
+        let updated = await store.updateTour(id: tour1, name: "新ツアー", artistName: "新アーティスト")
+
+        XCTAssertEqual(updated?.name, "新ツアー")
+        XCTAssertEqual(store.tours.count, 1, "差し替えであり増えない")
+        XCTAssertEqual(store.tourName(for: app), "新ツアー")
+        XCTAssertEqual(store.tour(for: tour1)?.artistNameRaw, "新アーティスト")
+        XCTAssertNil(store.writeError)
+        XCTAssertFalse(store.isSaving)
+        let calls = await catalog.updateTourCalls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls[0].id, tour1)
+    }
+
+    /// Repository が投げると `tours` は変わらず `writeError` が立つ（AC-TE-12 の更新側）
+    func testUpdateTourFailureKeepsToursUnchangedAndSetsWriteError() async {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "旧アーティスト", updatedAt: today)
+        let catalog = FakeCatalogRepository(tours: [oldTour], events: [])
+        await catalog.setUpdateTourFailure(.offline)
+        let store = ApplicationStore(catalogRepository: catalog, now: { [today] in today })
+        store.tours = [oldTour]
+
+        let updated = await store.updateTour(id: tour1, name: "新ツアー", artistName: "新アーティスト")
+
+        XCTAssertNil(updated)
+        XCTAssertEqual(store.tours, [oldTour], "失敗時は書き換えない（楽観更新しない・D-6）")
+        XCTAssertEqual(store.writeError, .offline)
+    }
+
+    /// repository なし（Preview / テスト）のローカル編集経路
+    func testUpdateTourWithoutRepositoryUpdatesLocally() async {
+        let oldTour = Tour(id: tour1, name: "旧ツアー", artistNameRaw: "旧アーティスト", updatedAt: today)
+        let store = ApplicationStore(now: { [today] in today }) // catalogRepository なし = ローカル経路
+        store.tours = [oldTour]
+
+        let updated = await store.updateTour(id: tour1, name: "新ツアー", artistName: nil)
+
+        XCTAssertEqual(updated?.name, "新ツアー")
+        XCTAssertEqual(updated?.artistNameRaw, "", "null は空文字に落ちる（artistNameRaw は非 optional）")
+        XCTAssertEqual(store.tour(for: tour1)?.name, "新ツアー")
+    }
+
+    /// AC-TE-11: 削除成功で `tours` / `events` / `applications` の 3 配列から該当分が消え `writeError == nil`
+    func testDeleteTourSuccessRemovesFromAllThreeArrays() async {
+        let targetTour = Tour(id: tour1, name: "削除対象", updatedAt: today)
+        let otherTourID = UUID(uuidString: "00000000-0000-7000-8000-000000000102")!
+        let otherTour = Tour(id: otherTourID, name: "他のツアー", updatedAt: today)
+        let otherEventID = UUID(uuidString: "00000000-0000-7000-8000-000000000203")!
+        let otherEvent = EventEntity(id: otherEventID, tourID: otherTourID, name: "他の公演", updatedAt: today)
+        let targetEvent = EventEntity(id: event1, tourID: tour1, name: "公演A", updatedAt: today)
+        let secondTargetEvent = EventEntity(id: event2, tourID: tour1, name: "公演B", updatedAt: today)
+
+        let catalog = FakeCatalogRepository(tours: [targetTour, otherTour], events: [targetEvent, secondTargetEvent, otherEvent])
+        let store = ApplicationStore(catalogRepository: catalog, now: { [today] in today })
+        store.tours = [targetTour, otherTour]
+        store.events = [targetEvent, secondTargetEvent, otherEvent]
+        let targetApp1 = entry(id: UUID(), eventID: event1)
+        let targetApp2 = entry(id: UUID(), eventID: event2)
+        let otherApp = ApplicationEntry(id: UUID(), tourID: otherTourID, eventID: otherEventID, repIdentityID: identityA, updatedAt: today)
+        store.applications = [targetApp1, targetApp2, otherApp]
+
+        let result = await store.deleteTour(id: tour1)
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(store.tours.map(\.id), [otherTourID])
+        XCTAssertEqual(store.events.map(\.id), [otherEventID])
+        XCTAssertEqual(store.applications.map(\.id), [otherApp.id])
+        XCTAssertNil(store.writeError)
+        let calls = await catalog.deleteTourCalls
+        XCTAssertEqual(calls, [tour1])
+    }
+
+    /// FR-TE-12/AC-TE-11 回帰ガード（2026-08-21 レビュー指摘）: `applications` は手元に event が
+    /// 無い申込を許容する設計（`fillMissingEvents`/`ensureEvent`）のため、`eventID` 一致だけで
+    /// 絞ると「event が無い申込」がツアー削除後もローカルに残ってしまう。`tourID` 一致でも
+    /// 連鎖削除の対象になることを確認する。
+    func testDeleteTourSuccessRemovesApplicationWithMatchingTourIDButNoLocalEvent() async {
+        let targetTour = Tour(id: tour1, name: "削除対象", updatedAt: today)
+        let missingEventID = UUID(uuidString: "00000000-0000-7000-8000-000000000999")!
+
+        let catalog = FakeCatalogRepository(tours: [targetTour], events: [])
+        let store = ApplicationStore(catalogRepository: catalog, now: { [today] in today })
+        store.tours = [targetTour]
+        store.events = [] // 対象ツアーの event を手元に持たない申込のケース
+        let orphanApp = ApplicationEntry(
+            id: UUID(), tourID: tour1, eventID: missingEventID, repIdentityID: identityA, updatedAt: today
+        )
+        store.applications = [orphanApp]
+
+        let result = await store.deleteTour(id: tour1)
+
+        XCTAssertTrue(result)
+        XCTAssertTrue(
+            store.applications.isEmpty,
+            "eventID がローカルの events に無くても tourID 一致で削除連鎖の対象にする"
+        )
+    }
+
+    /// AC-TE-12: Repository が throw すると 3 配列が変わらず `writeError` が立つ
+    func testDeleteTourFailureKeepsAllThreeArraysUnchangedAndSetsWriteError() async {
+        let targetTour = Tour(id: tour1, name: "削除対象", updatedAt: today)
+        let targetEvent = EventEntity(id: event1, tourID: tour1, name: "公演A", updatedAt: today)
+        let targetApp = entry(id: UUID(), eventID: event1)
+
+        let catalog = FakeCatalogRepository(tours: [targetTour], events: [targetEvent])
+        await catalog.setDeleteTourFailure(.offline)
+        let store = ApplicationStore(catalogRepository: catalog, now: { [today] in today })
+        store.tours = [targetTour]
+        store.events = [targetEvent]
+        store.applications = [targetApp]
+
+        let result = await store.deleteTour(id: tour1)
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(store.tours, [targetTour], "失敗時は削除しない（楽観更新しない）")
+        XCTAssertEqual(store.events, [targetEvent])
+        XCTAssertEqual(store.applications.map(\.id), [targetApp.id])
+        XCTAssertEqual(store.writeError, .offline)
+    }
+
+    func testDeleteTourWithoutRepositoryRemovesLocally() async {
+        let targetTour = Tour(id: tour1, name: "削除対象", updatedAt: today)
+        let targetEvent = EventEntity(id: event1, tourID: tour1, name: "公演A", updatedAt: today)
+        let store = ApplicationStore(now: { [today] in today }) // catalogRepository なし = ローカル経路
+        store.tours = [targetTour]
+        store.events = [targetEvent]
+        store.applications = [entry(id: UUID(), eventID: event1)]
+
+        let result = await store.deleteTour(id: tour1)
+
+        XCTAssertTrue(result)
+        XCTAssertTrue(store.tours.isEmpty)
+        XCTAssertTrue(store.events.isEmpty)
+        XCTAssertTrue(store.applications.isEmpty)
+    }
+
+    /// 削除確認ダイアログ用の件数算出（Store 側で数える）
+    func testTourDeletionImpactCountsEventsAndApplicationsUnderTour() {
+        let targetTour = Tour(id: tour1, name: "対象ツアー", updatedAt: today)
+        let otherTourID = UUID(uuidString: "00000000-0000-7000-8000-000000000102")!
+        let otherEventID = UUID(uuidString: "00000000-0000-7000-8000-000000000203")!
+        let store = ApplicationStore(now: { [today] in today })
+        store.tours = [targetTour]
+        store.events = [
+            EventEntity(id: event1, tourID: tour1, name: "公演A", updatedAt: today),
+            EventEntity(id: event2, tourID: tour1, name: "公演B", updatedAt: today),
+            EventEntity(id: otherEventID, tourID: otherTourID, name: "他の公演", updatedAt: today),
+        ]
+        store.applications = [
+            entry(id: UUID(), eventID: event1),
+            entry(id: UUID(), eventID: event1),
+            entry(id: UUID(), eventID: event2),
+            ApplicationEntry(id: UUID(), tourID: otherTourID, eventID: otherEventID, repIdentityID: identityA, updatedAt: today),
+        ]
+
+        let impact = store.tourDeletionImpact(tourID: tour1)
+
+        XCTAssertEqual(impact.eventCount, 2)
+        XCTAssertEqual(impact.applicationCount, 3)
+    }
+
+    /// FR-TE-12/AC-TE-11 回帰ガード（2026-08-21 レビュー指摘）: 削除確認ダイアログの件数算出
+    /// (`tourDeletionImpact`) も `removeTourCascade` と同じ tourID/eventID 両対応にする。
+    func testTourDeletionImpactCountsApplicationWithMatchingTourIDButNoLocalEvent() {
+        let targetTour = Tour(id: tour1, name: "対象ツアー", updatedAt: today)
+        let missingEventID = UUID(uuidString: "00000000-0000-7000-8000-000000000999")!
+        let store = ApplicationStore(now: { [today] in today })
+        store.tours = [targetTour]
+        store.events = []
+        store.applications = [
+            ApplicationEntry(id: UUID(), tourID: tour1, eventID: missingEventID, repIdentityID: identityA, updatedAt: today),
+        ]
+
+        let impact = store.tourDeletionImpact(tourID: tour1)
+
+        XCTAssertEqual(impact.eventCount, 0)
+        XCTAssertEqual(impact.applicationCount, 1, "eventID がローカルの events に無くても tourID 一致で件数に含める")
+    }
+
     // MARK: - ヘルパー
 
     private func makePage(count: Int, nextCursor: String?, hasMore: Bool) -> ApplicationPage {
@@ -619,12 +816,23 @@ actor FakeCatalogRepository: CatalogRepository {
     private let events: [EventEntity]
     private let fetchable: [UUID: EventEntity]
     private(set) var fetchEventCount = 0
+    private(set) var updateTourCalls: [(id: UUID, patch: TourPatch)] = []
+    private(set) var deleteTourCalls: [UUID] = []
+    private var updateTourResult: (@Sendable (UUID, TourPatch) -> Tour)?
+    private var updateTourFailure: AppError?
+    private var deleteTourFailure: AppError?
 
     init(tours: [Tour], events: [EventEntity], fetchable: [UUID: EventEntity] = [:]) {
         self.tours = tours
         self.events = events
         self.fetchable = fetchable
     }
+
+    func setUpdateTourResult(_ handler: @escaping @Sendable (UUID, TourPatch) -> Tour) {
+        updateTourResult = handler
+    }
+    func setUpdateTourFailure(_ error: AppError) { updateTourFailure = error }
+    func setDeleteTourFailure(_ error: AppError) { deleteTourFailure = error }
 
     func listTours() async throws -> [Tour] { tours }
     func listEvents() async throws -> [EventEntity] { events }
@@ -635,6 +843,17 @@ actor FakeCatalogRepository: CatalogRepository {
         return event
     }
 
-    func updateTour(id: UUID, _ patch: TourPatch) async throws -> Tour { throw AppError.notFound }
+    func updateTour(id: UUID, _ patch: TourPatch) async throws -> Tour {
+        updateTourCalls.append((id: id, patch: patch))
+        if let updateTourFailure { throw updateTourFailure }
+        if let updateTourResult { return updateTourResult(id, patch) }
+        throw AppError.notFound
+    }
+
     func updateEvent(id: UUID, _ patch: EventPatch) async throws -> EventEntity { throw AppError.notFound }
+
+    func deleteTour(id: UUID) async throws {
+        deleteTourCalls.append(id)
+        if let deleteTourFailure { throw deleteTourFailure }
+    }
 }

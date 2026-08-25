@@ -8,7 +8,7 @@ struct RemoteMembership {
     var id: UUID
     var identityID: UUID
     var fanClubNameRaw: String
-    var memberNoLast4: String?
+    var memberNo: String?
     var rank: String?
     var renewalOn: Date?
     var feeYen: Int?
@@ -29,7 +29,7 @@ extension MembershipRecord: SyncableRecord {
         [
             "identity_id": .string(identityID.uuidString),
             "fan_club_name_raw": .string(fanClubNameRaw),
-            "member_no_last4": SyncPayloadBuilder.optionalString(memberNoLast4),
+            "member_no": SyncPayloadBuilder.optionalString(memberNo),
             "rank": SyncPayloadBuilder.optionalString(rank),
             "renewal_on": SyncPayloadBuilder.optionalDateOnly(renewalOn),
             "fee_yen": SyncPayloadBuilder.optionalInt(feeYen),
@@ -50,7 +50,7 @@ extension MembershipRecord: SyncableRecord {
             id: id,
             identityID: identityID,
             fanClubNameRaw: fanClubNameRaw,
-            memberNoLast4: SyncField.string(object, "member_no_last4"),
+            memberNo: SyncField.string(object, "member_no"),
             rank: SyncField.string(object, "rank"),
             renewalOn: SyncField.dateOnly(object, "renewal_on"),
             feeYen: SyncField.int(object, "fee_yen"),
@@ -101,7 +101,7 @@ extension MembershipRecord: SyncableRecord {
                     id: remote.id,
                     identityID: remote.identityID,
                     fanClubNameRaw: remote.fanClubNameRaw,
-                    memberNoLast4: remote.memberNoLast4,
+                    memberNo: remote.memberNo,
                     rank: remote.rank,
                     renewalOn: remote.renewalOn,
                     feeYen: remote.feeYen,

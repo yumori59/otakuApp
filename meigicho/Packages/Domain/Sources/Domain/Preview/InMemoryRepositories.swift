@@ -73,7 +73,7 @@ public actor InMemoryMembershipRepository: MembershipRepository {
         var item = items[index]
         item.identityID = patch.identityID.applied(to: item.identityID) ?? item.identityID
         item.fanClubNameRaw = patch.fanClubNameRaw.applied(to: item.fanClubNameRaw) ?? item.fanClubNameRaw
-        item.memberNoLast4 = patch.memberNoLast4.applied(to: item.memberNoLast4)
+        item.memberNo = patch.memberNo.applied(to: item.memberNo)
         item.rank = patch.rank.applied(to: item.rank)
         item.renewalOn = patch.renewalOn.applied(to: item.renewalOn)
         item.feeYen = patch.feeYen.applied(to: item.feeYen)
@@ -132,6 +132,13 @@ public actor InMemoryCatalogRepository: CatalogRepository {
         item.startsAt = patch.startsAt.applied(to: item.startsAt)
         events[index] = item
         return item
+    }
+
+    /// Preview 用の単純な削除。連鎖セマンティクス（配下 event/application/companion）の再現は
+    /// 本番実装（`SwiftDataCatalogRepository.deleteTour`）の責務で、このフェイクは tour 本体のみ消す。
+    public func deleteTour(id: UUID) async throws {
+        guard tours.contains(where: { $0.id == id }) else { throw AppError.notFound }
+        tours.removeAll { $0.id == id }
     }
 }
 
