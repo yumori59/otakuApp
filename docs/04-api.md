@@ -217,7 +217,7 @@ async create(userId: string, dto: CreateIdentityDto) {
   "id": "018f3c2a-bbbb-7c90-9d2a-000000000001",
   "identity_id": "018f3c2a-aaaa-7c90-9d2a-000000000001",
   "fan_club_name_raw": "STELLARIS OFFICIAL FAN CLUB",
-  "member_no_last4": "4821",
+  "member_no": "STL-04821",
   "rank": "プレミアム",
   "renewal_on": "2026-09-15",
   "fee_yen": 5500,
@@ -226,7 +226,7 @@ async create(userId: string, dto: CreateIdentityDto) {
 }
 ```
 
-親identityの所有者検証必須。**`fan_club_id`・`member_no_cipher`は受理しない**（マスタ表・暗号化列はPhase 1で未実装。D7）。`member_no_last4`は1〜4文字の英数のみ。
+親identityの所有者検証必須。**`fan_club_id`・`member_no_cipher`・`member_no_last4`は受理しない**（`fan_club_id`はマスタ表がPhase 1で未実装。D7。`member_no_cipher`は暗号化保存が2026-08-20に撤回されたため実装しない。`member_no_last4`は旧フィールド名で受理しない）。`member_no`は1〜64文字・制御文字不可（2026-08-20 撤回前は1〜4文字の英数のみだった）。
 `PATCH`で`identity_id`を付け替えると、その membership を`rep_membership_id`として参照する未削除applicationは自動的に`rep_membership_id:null`にクリアされる（`DELETE`でも同様）。
 
 ### 3.4 Applications（tour/event find-or-create）
@@ -464,6 +464,7 @@ identities〜applications は通常 CRUD も提供。オフライン LWW 同期�
 - `url` は `meigicho://share/<token>` のカスタムスキーム。`https://share.example.com/...` は廃止（`/public/*` の廃止で開ける先が無いため）
 - 生 token は一度だけ返る。DB は `sha256` hex のみ保存
 - `expires_at` 省略で +30 日・上限 +365 日。Free は有効 1 本（`PLAN_LIMIT_SHARE` 403）。`write` は Free 公演 3 件まで（`PLAN_LIMIT_SHARE_WRITE` 403）
+- `mask_member_no`: board ペイロードに会員番号が含まれないため、現状このフラグは board の内容に影響しない
 
 判定順序（変えない）: ① DTO 検証 → ② self 判定（`SHARE_RECIPIENT_SELF` 400）→ ③ 実在確認（`SHARE_RECIPIENT_UNKNOWN` 400 + `details.unknown_account_ids`）→ ④ `PLAN_LIMIT_SHARE` → ⑤ `PLAN_LIMIT_SHARE_WRITE` → ⑥ 作成（`share_links` + `share_recipients` を 1 トランザクション）。
 重複要素は 400 にせず重複排除して処理する。

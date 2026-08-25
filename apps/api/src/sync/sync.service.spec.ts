@@ -92,6 +92,38 @@ describe('SyncService', () => {
     expect(result.has_more).toBe(false);
   });
 
+  it('AC-MN-08 pull — memberships の要素に member_no が含まれ、member_no_last4 は含まれない', async () => {
+    prisma.membership.findMany.mockResolvedValue([
+      {
+        id: '018f3c2a-9999-7c90-9d2a-000000000007',
+        ownerId: USER_ID,
+        identityId: IDENTITY_ID,
+        fanClubNameRaw: 'STELLARIS OFFICIAL FAN CLUB',
+        memberNo: 'STL-04821',
+        rank: null,
+        renewalOn: null,
+        feeYen: null,
+        autoRenew: false,
+        note: null,
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-20T10:00:00.000Z'),
+        deletedAt: null,
+      },
+    ]);
+
+    const result = await service.pull(USER_ID, '2026-07-30T00:00:00.000Z', [
+      'memberships',
+    ]);
+
+    expect(result.changes.memberships).toHaveLength(1);
+    expect(result.changes.memberships[0]).toMatchObject({
+      member_no: 'STL-04821',
+    });
+    expect(result.changes.memberships[0]).not.toHaveProperty(
+      'member_no_last4',
+    );
+  });
+
   it('push — サーバーが新しければ SYNC_LWW_REJECT', async () => {
     tx.identity.findUnique.mockResolvedValue({
       ownerId: USER_ID,
@@ -606,6 +638,36 @@ describe('SyncService', () => {
 
     expect(result.rejected).toEqual([]);
     expect(result.accepted).toEqual([MEMBERSHIP_ID]);
+  });
+
+  it('AC-MN-07 push — memberships: payload の member_no が memberNo として DB に保存される', async () => {
+    tx.membership.findUnique.mockResolvedValue(null);
+    tx.identity.findUnique.mockResolvedValue({ ownerId: USER_ID });
+
+    const result = await service.push(USER_ID, {
+      mutations: [
+        {
+          collection: 'memberships',
+          op: 'upsert',
+          id: MEMBERSHIP_ID,
+          updated_at: '2026-08-20T10:00:00.000Z',
+          payload: {
+            identity_id: IDENTITY_ID,
+            fan_club_name_raw: 'STELLARIS OFFICIAL FAN CLUB',
+            member_no: 'STL-04821',
+          },
+        },
+      ],
+    });
+
+    expect(result.rejected).toEqual([]);
+    expect(result.accepted).toEqual([MEMBERSHIP_ID]);
+    expect(tx.membership.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ memberNo: 'STL-04821' }),
+        update: expect.objectContaining({ memberNo: 'STL-04821' }),
+      }),
+    );
   });
 
   it(

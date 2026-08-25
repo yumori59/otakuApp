@@ -10,7 +10,7 @@ final class MembershipEditPlannerTests: XCTestCase {
 
     private func makeCurrent(
         fanClubNameRaw: String = "STELLARIS OFFICIAL FAN CLUB",
-        memberNoLast4: String? = "4821",
+        memberNo: String? = "4821",
         rank: String? = "プラチナ",
         renewalOn: Date? = nil,
         feeYen: Int? = 4000,
@@ -21,7 +21,7 @@ final class MembershipEditPlannerTests: XCTestCase {
             id: membershipID,
             identityID: identityID,
             fanClubNameRaw: fanClubNameRaw,
-            memberNoLast4: memberNoLast4,
+            memberNo: memberNo,
             rank: rank,
             renewalOn: renewalOn,
             feeYen: feeYen,
@@ -34,7 +34,7 @@ final class MembershipEditPlannerTests: XCTestCase {
     private func unchangedInput(current: Membership) -> MembershipEditFormInput {
         MembershipEditFormInput(
             fanClubNameRaw: current.fanClubNameRaw,
-            memberNoLast4Raw: current.memberNoLast4 ?? "",
+            memberNoRaw: current.memberNo ?? "",
             renewalOn: current.renewalOn,
             feeYen: current.feeYen
         )
@@ -63,7 +63,7 @@ final class MembershipEditPlannerTests: XCTestCase {
         XCTAssertEqual(patch.rank, .unchanged)
         XCTAssertEqual(patch.autoRenew, .unchanged)
         XCTAssertEqual(patch.note, .unchanged)
-        XCTAssertEqual(patch.memberNoLast4, .unchanged)
+        XCTAssertEqual(patch.memberNo, .unchanged)
         XCTAssertEqual(patch.renewalOn, .unchanged)
         XCTAssertEqual(patch.feeYen, .unchanged)
     }
@@ -102,26 +102,26 @@ final class MembershipEditPlannerTests: XCTestCase {
         XCTAssertEqual(patch.renewalOn, .set(newDate))
     }
 
-    // MARK: - AC-IE-23 / C5: 会員番号下 4 桁は trim。空にすると .set(nil)
+    // MARK: - AC-IE-23: 会員番号は trim。空にすると .set(nil)
 
-    func testMemberNoLast4IsTrimmedAndEmptyBecomesNil() {
-        let current = makeCurrent(memberNoLast4: "4821")
+    func testMemberNoIsTrimmedAndEmptyBecomesNil() {
+        let current = makeCurrent(memberNo: "4821")
         var input = unchangedInput(current: current)
-        input.memberNoLast4Raw = "  "
+        input.memberNoRaw = "  "
 
         let patch = MembershipEditPlanner.makePatch(current: current, input: input)
 
-        XCTAssertEqual(patch.memberNoLast4, .set(nil))
+        XCTAssertEqual(patch.memberNo, .set(nil))
     }
 
-    func testMemberNoLast4TrimmedValueEqualToCurrentStaysUnchanged() {
-        let current = makeCurrent(memberNoLast4: "4821")
+    func testMemberNoTrimmedValueEqualToCurrentStaysUnchanged() {
+        let current = makeCurrent(memberNo: "4821")
         var input = unchangedInput(current: current)
-        input.memberNoLast4Raw = "  4821  "
+        input.memberNoRaw = "  4821  "
 
         let patch = MembershipEditPlanner.makePatch(current: current, input: input)
 
-        XCTAssertEqual(patch.memberNoLast4, .unchanged)
+        XCTAssertEqual(patch.memberNo, .unchanged)
     }
 
     // MARK: - feeYen を未設定へ変更 → .set(nil)

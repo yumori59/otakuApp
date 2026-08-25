@@ -14,7 +14,7 @@ final class MembershipDTOTests: XCTestCase {
           "id": "018f3c2a-7b1e-7c90-9d2a-2222222222aa",
           "identity_id": "018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f",
           "fan_club_name_raw": "STELLARIS OFFICIAL FAN CLUB",
-          "member_no_last4": "4821",
+          "member_no": "STL-04821",
           "rank": "プレミアム",
           "renewal_on": null,
           "fee_yen": null,
@@ -29,7 +29,7 @@ final class MembershipDTOTests: XCTestCase {
         let membership = response.toDomain()
         XCTAssertNil(membership.renewalOn)
         XCTAssertNil(membership.feeYen)
-        XCTAssertEqual(membership.memberNoLast4, "4821")
+        XCTAssertEqual(membership.memberNo, "STL-04821")
         XCTAssertEqual(membership.rank, "プレミアム")
         XCTAssertEqual(membership.note, "")
         XCTAssertFalse(membership.autoRenew)
@@ -43,7 +43,7 @@ final class MembershipDTOTests: XCTestCase {
           "id": "018f3c2a-7b1e-7c90-9d2a-2222222222bb",
           "identity_id": "018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f",
           "fan_club_name_raw": "FC",
-          "member_no_last4": null,
+          "member_no": null,
           "rank": null,
           "renewal_on": "2026-09-15",
           "fee_yen": 4000,
@@ -61,14 +61,14 @@ final class MembershipDTOTests: XCTestCase {
         XCTAssertEqual(membership.note, "メモ")
     }
 
-    /// `member_no` / `member_no_cipher` は型として定義しない（送ると 400 = C5）
-    func testCreateRequestHasNoMemberNoField() throws {
-        let membership = Membership(identityID: UUID(), fanClubNameRaw: "FC", memberNoLast4: "1234")
+    /// AC-MN-10: `member_no` は全桁で送られる。`member_no_last4` / `member_no_cipher` は型として定義しない（送ると 400）
+    func testCreateRequestSendsFullMemberNo() throws {
+        let membership = Membership(identityID: UUID(), fanClubNameRaw: "FC", memberNo: "STL-04821")
         let data = try JSONEncoder().encode(membership.toCreateRequest())
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertNil(object["member_no"])
+        XCTAssertEqual(object["member_no"] as? String, "STL-04821")
+        XCTAssertNil(object["member_no_last4"])
         XCTAssertNil(object["member_no_cipher"])
-        XCTAssertEqual(object["member_no_last4"] as? String, "1234")
         XCTAssertEqual(object["auto_renew"] as? Bool, false)
     }
 

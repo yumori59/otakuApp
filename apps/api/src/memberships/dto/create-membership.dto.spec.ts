@@ -22,9 +22,12 @@ describe('CreateMembershipDto', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('AC-MB-03 member_no を含むボディは forbidNonWhitelisted で拒否される', async () => {
-    const errors = await validateBody({ ...VALID_BODY, member_no: '1234567890' });
+  it('AC-MN-02 member_no_last4 を含むボディは forbidNonWhitelisted で拒否される', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no_last4: '4821' });
     expect(errors.length).toBeGreaterThan(0);
+    expect(
+      errors.some((e) => e.property === 'member_no_last4'),
+    ).toBe(true);
   });
 
   it('AC-MB-03 member_no_cipher を含むボディは forbidNonWhitelisted で拒否される', async () => {
@@ -43,19 +46,34 @@ describe('CreateMembershipDto', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  it('AC-MB-04 member_no_last4 が 5 文字なら 400 相当のエラー', async () => {
-    const errors = await validateBody({ ...VALID_BODY, member_no_last4: '12345' });
-    expect(errors.some((e) => e.property === 'member_no_last4')).toBe(true);
-  });
-
-  it('AC-MB-04 member_no_last4 が 4 文字英数なら通る', async () => {
-    const errors = await validateBody({ ...VALID_BODY, member_no_last4: '4821' });
+  it('AC-MN-01 member_no は全桁・記号混じりでも通る', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no: 'STL-04821' });
     expect(errors).toHaveLength(0);
   });
 
-  it('AC-MB-04 member_no_last4 に記号を含むと 400 相当のエラー', async () => {
-    const errors = await validateBody({ ...VALID_BODY, member_no_last4: '48-1' });
-    expect(errors.some((e) => e.property === 'member_no_last4')).toBe(true);
+  it('AC-MN-01 member_no は全角文字でも通る（文字種を絞らない・D-2）', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no: '会員番号４８２１' });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('AC-MN-03 member_no が 65 文字なら 400 相当のエラー', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no: 'a'.repeat(65) });
+    expect(errors.some((e) => e.property === 'member_no')).toBe(true);
+  });
+
+  it('member_no が 64 文字は境界として通る', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no: 'a'.repeat(64) });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('member_no が空文字なら 400 相当のエラー', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no: '' });
+    expect(errors.some((e) => e.property === 'member_no')).toBe(true);
+  });
+
+  it('AC-MN-04 member_no に制御文字（改行）を含むと 400 相当のエラー', async () => {
+    const errors = await validateBody({ ...VALID_BODY, member_no: 'STL-048\n21' });
+    expect(errors.some((e) => e.property === 'member_no')).toBe(true);
   });
 
   it('AC-MB-05 fee_yen: -1 は 400 相当のエラー', async () => {

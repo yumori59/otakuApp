@@ -201,7 +201,7 @@ struct IdentityDetailView: View {
                 } label: {
                     MembershipCard(
                         fcName: m.fanClubNameRaw,
-                        memberNoLast4: m.memberNoLast4,
+                        memberNo: m.memberNo,
                         renewalOn: m.renewalOn,
                         feeYen: m.feeYen,
                         today: identityStore.today

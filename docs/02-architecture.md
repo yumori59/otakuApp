@@ -348,7 +348,7 @@ Cloud Run / Supabase Postgres を契約する前に、SwiftData のみで PMF �
 
 | # | 論点 | 選択肢 | 決定期限 |
 |---|------|--------|---------|
-| Q1 | 会員番号の暗号化鍵 | 端末Keychainのみ / サーバー側も保持 | Phase 1 |
+| Q1 | ~~会員番号の暗号化鍵~~ | **2026-08-20 撤回**（`docs/08-compliance-risk.md` §2.3）。会員番号は暗号化せず全桁を平文で保存するため本論点自体が消滅 | — |
 | Q2 | Phase 1 直後のDB | **Supabase Free（推奨）** / Neon Free / 本番安定時は Supabase Pro or Cloud SQL | Phase 1 着手時 |
 | Q3 | ORM | Prisma（推奨）/ TypeORM | Phase 1 着手時 |
 | Q4 | refresh token 保存 | **決定済み**: `refresh_tokens` DBテーブル + 回転式 opaque token（`sha256`ハッシュのみ保存、生値は発行時のみ返す）。実装済み（`apps/api/src/auth/`） | Phase 1 |

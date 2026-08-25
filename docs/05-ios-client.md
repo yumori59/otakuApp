@@ -175,8 +175,7 @@ public final class Membership: SyncableModel {
     @Attribute(.unique) public var id: UUID
     public var identity: Identity?
     public var fanClubID: UUID?, fanClubNameRaw: String
-    public var memberNoCipher: Data?       // 平文は持たない。Keychain の鍵で暗号化（03 の member_no_cipher）
-    public var memberNoLast4: String?, rank: String?
+    public var memberNo: String?, rank: String?   // 全桁・平文（2026-08-20 暗号化・下4桁表示を撤回）
     public var renewalOn: Date?, feeYen: Int?, autoRenew: Bool = false, note: String = ""
 }
 @Model
@@ -337,7 +336,7 @@ public enum MeigichoMigrationPlan: SchemaMigrationPlan {
 | 対象 | 編集の導線 | 削除の導線 |
 |---|---|---|
 | 名義 | `IdentityDetailView` の `topBarTrailing`「編集」→ `IdentityFormView(mode: .edit)` で表示名・続柄・色・入会日・メモを編集 | 詳細本文最下部の destructive ボタン + `confirmationDialog`（実データ件数を文言に含める） |
-| 会員情報 | 名義詳細の会員情報カードをタップ → `MembershipFormView(mode: .edit)` で FC名・会員番号下4桁・更新日・年会費を編集（`MembershipCard` の API は変えず `Button` + `.contentShape` で包む） | 編集シート最下部の destructive ボタン（会員情報には詳細画面が無いため） |
+| 会員情報 | 名義詳細の会員情報カードをタップ → `MembershipFormView(mode: .edit)` で FC名・会員番号・更新日・年会費を編集（`MembershipCard` の API は変えず `Button` + `.contentShape` で包む） | 編集シート最下部の destructive ボタン（会員情報には詳細画面が無いため） |
 | 申込 | S5 ツールバー「編集」（既存） | 詳細本文最下部の destructive ボタン + `confirmationDialog` |
 
 書き込み経路は編集・削除とも既存のローカルSSoT + `POST /v1/sync/push`のみ。REST `PATCH/DELETE /v1/identities|memberships|applications/:id` は使わない（BE契約は変更しない）。
