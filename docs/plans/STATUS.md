@@ -371,11 +371,29 @@ Apple / Google サインイン（証明書・クライアント ID 未設定）�
 
 本機能の実装中（T7の調査、および設計上の懸念検証）で、`POST /v1/sync/push`に実DBで確認できるデータ消失・認可の穴を発見し、本機能より先に修正・マージした。詳細は本ファイル §12 および `docs/plans/STATUS.md`内の同期push関連の既存エントリを参照。
 
-## 14. ツアー編集・削除機能 — `docs/plans/tour-edit-and-delete/`（レビュー済み・中5件修正待ち）
+## 14. ツアー編集・削除機能 — `docs/plans/tour-edit-and-delete/`（レビュー済み・main マージ済み）
 
 ツアー表ヘッダーからのツアー編集（アーティスト名・ツアー名）・削除（配下 event/application/companion を連鎖ソフトデリート）。DB/BE 製品コード変更ゼロ、iOS のみ（`docs/plans/tour-edit-and-delete/plan.md` D-1〜D-8）。
 
-`code-reviewer`によるレビューで重大0件・中5件・軽微6件を検出（詳細は`docs/plans/tour-edit-and-delete/review.md`）。中5件のうち#1（Store側連鎖のキー不一致）・#2（FR-TE-14文言）はマージ前修正推奨。検証ゲート（レビュアーが独立再実行）: `sync.service.spec.ts`21件・`Packages/DataStore`63件・`Packages/Domain`284件全緑、`xcodebuild`BUILD SUCCEEDED。
+`code-reviewer`によるレビューで重大0件・中5件・軽微6件を検出（詳細は`docs/plans/tour-edit-and-delete/review.md`）。中5件（#1 Store側連鎖のキー不一致・#2 FR-TE-14文言・#3 テスト検出力・#4 destructiveスタイリング・#5 計画産物配置）は全て修正済み。検証ゲート: `sync.service.spec.ts`21件・`Packages/DataStore`63件・`Packages/Domain`286件全緑、`xcodebuild`BUILD SUCCEEDED。[#17](https://github.com/yumori59/otakuApp/pull/17)としてmainマージ済み。
+
+## 15. 入力履歴サジェスト拡張 — `docs/plans/input-history-suggestions/`（レビュー済み・PR作成済み）
+
+申込フォームのアーティスト名・会場名にも既存ツアー名と同じサジェストを拡張し、会員情報フォームのFC名にも新規追加（Q7-B確定）。
+候補計算は `InputSuggestion`（Domain の純粋関数、部分一致・大小無視・完全一致除外・上限5件）に一本化し、
+既存のツアー名候補（`filteredTours`）もこの関数経由に置き換えた。ツアー候補タップ時はアーティスト欄を自動補完する。
+API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。roadmap 0-11d として追加（0-11cは#17のツアー編集・削除と番号が競合したためリナンバー）、0-7（FC名サジェスト）を実装済みに更新。
+
+| タスク | 内容 | 状態 |
+|---|---|---|
+| T1 | `InputSuggestion`（Domain）+ `ApplicationStore` に `existingArtistNames`/`existingVenueNames`/`artistName(forTourNamed:)` | ✅ |
+| T2 | `FormSuggestionList`（DesignSystem 共通候補行、44pt） | ✅ |
+| T3 | `ApplicationFormView` 配線（3フィールド + オートフィル + 死にコード `showTourSuggestions` 削除） | ✅ |
+| T5 | `IdentityStore.existingFanClubNames` + `MembershipFormView` FC名欄への配線 | ✅ |
+| T4 | docs追従（`01-product-overview.md`/`05-ios-client.md`/`09-roadmap.md`/本ファイル） | ✅ |
+
+`code-reviewer`によるレビューで重大0件・中0件（`docs/plans/input-history-suggestions/review.md`）。検証ゲート: `swift test --package-path meigicho/Packages/Domain`287件全緑、`xcodebuild`BUILD SUCCEEDED。[#19](https://github.com/yumori59/otakuApp/pull/19)としてPR作成済み（mainの#17/#18とのコンフリクト解消済み）。
+**未実施**: 実機/シミュレータでの手動確認（AC-SG-09〜18-M）。
 
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
