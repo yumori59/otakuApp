@@ -183,7 +183,7 @@ sequenceDiagram
     participant App as アプリ
     U->>App: 申込タブ → ＋
     U->>App: 公演名/ツアー名/アーティスト/会場/公演日を入力
-    Note over App: ツアー名・アーティスト名・会場名は既存候補をサジェスト（datalist相当）
+    Note over App: 公演名・ツアー名・アーティスト名・会場名は既存候補をサジェスト（datalist相当）
     U->>App: 代表者=自分、同行者=妹 を選択
     U->>App: 申込日/当落発表日を入力、ステータス=申込中
     App->>App: tour/event を find-or-create、application と companions を保存
