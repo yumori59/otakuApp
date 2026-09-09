@@ -494,7 +494,10 @@ S8=FC名・更新日、S9=公演名・代表者・公演日（モックの各 `s
 閉じるアニメーションと push が衝突するため `dismiss()` の後に一拍置きます（`Task { try? await Task.sleep(for: .milliseconds(250));
 path.append(.identity(newID)) }`）。ツアー名サジェストはモックが `<datalist>` でしたが SwiftUI に等価物が無いため、入力中に
 既存候補を**部分一致**（大小文字無視・完全一致は除外、`InputSuggestion.match`）で引いて候補行（各44pt、`FormSuggestionList`）を
-出す方式に置き換えます。対象は**ツアー名・アーティスト名・会場名の3項目**（`docs/plans/input-history-suggestions/`）。保存時は
+出す方式に置き換えます。対象は**公演名・ツアー名・アーティスト名・会場名の4項目**（`docs/plans/input-history-suggestions/`、公演名は
+`docs/plans/event-name-suggestion/`）。**公演名だけ並び順が異なり**、他3項目が昇順（trim・空除去・重複除去後の
+辞書順）なのに対し、公演名候補は**公演日の新しい順**（`eventDate` 降順、`nil` は最後）で表示します
+（ツアー名で共通接頭辞が長くなりやすく、辞書順だと古い年のツアーの公演名が上限5件を占有してしまうため）。保存時は
 **find-or-create**（同名 `Tour` があれば再利用、無ければ `UUIDv7` で新規）とします。空欄なら公演名をツアー名にする
 （モック `tour = ... || event`）挙動は維持します。
 

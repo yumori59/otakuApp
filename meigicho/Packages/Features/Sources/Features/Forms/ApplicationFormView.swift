@@ -61,6 +61,10 @@ struct ApplicationFormView: View {
                             FormHint("この公演を参照する他 \(count) 件にも反映されます。")
                                 .padding(.top, 6)
                         }
+                        FormSuggestionList(items: filteredEventNames) { name in
+                            eventName = name
+                            applyEventAutofill(for: name)
+                        }
                     }
                     FormRow("ツアー名（同じツアーの公演をまとめて表で見る際に使用）") {
                         FormTextField("例）STELLARIS ARENA TOUR 2026", text: $tourName)
@@ -246,6 +250,25 @@ struct ApplicationFormView: View {
 
     private var filteredVenueNames: [String] {
         InputSuggestion.match(applicationStore.existingVenueNames, query: venueName)
+    }
+
+    private var filteredEventNames: [String] {
+        InputSuggestion.match(applicationStore.existingEventNames, query: eventName)
+    }
+
+    /// 公演名候補タップ時のオートフィル（D-3・FR-ES-5）。**空の欄だけ**補完する。
+    /// `eventOn`（公演日）は絶対に触らない。
+    private func applyEventAutofill(for name: String) {
+        guard let autofill = applicationStore.eventAutofill(forEventNamed: name) else { return }
+        if let tour = autofill.tourName, tourName.trimmingCharacters(in: .whitespaces).isEmpty {
+            tourName = tour
+        }
+        if let artist = autofill.artistNameRaw, artistName.trimmingCharacters(in: .whitespaces).isEmpty {
+            artistName = artist
+        }
+        if let venue = autofill.venueNameRaw, venueName.trimmingCharacters(in: .whitespaces).isEmpty {
+            venueName = venue
+        }
     }
 
     // MARK: - 同行者入力の共通変換

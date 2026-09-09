@@ -15,6 +15,22 @@ public enum InputSuggestion {
         return Array(Set(nonEmpty)).sorted()
     }
 
+    /// 呼び出し側が決めた並び順を保持したまま候補一覧を作る:
+    /// trim → 空除去 → 重複除去（先勝ち）→ 入力順を保持
+    /// （`docs/plans/event-name-suggestion/plan.md` D-2。公演名サジェストのように
+    /// 昇順以外の並びが必要な候補ソース向け。`candidates(from:)` とは並びの決め方だけが異なる）。
+    public static func candidates(fromOrdered values: [String]) -> [String] {
+        let trimmed = values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in trimmed where !value.isEmpty {
+            if seen.insert(value).inserted {
+                result.append(value)
+            }
+        }
+        return result
+    }
+
     /// クエリにマッチする候補を返す: 部分一致・大小無視・完全一致（大小無視）は除外（FR-5）。
     /// クエリが空 / 空白のみなら空配列（FR-5）。上限 `limit` 件まで（FR-7）。
     public static func match(_ candidates: [String], query: String, limit: Int = maxSuggestions) -> [String] {

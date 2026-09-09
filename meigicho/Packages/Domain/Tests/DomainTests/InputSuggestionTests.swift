@@ -88,4 +88,169 @@ final class InputSuggestionTests: XCTestCase {
         XCTAssertEqual(result, legacy)
         XCTAssertFalse(result.isEmpty)
     }
+
+    // MARK: - 公演名サジェスト（`docs/plans/event-name-suggestion/plan.md`、AC-ES-01〜05-T）
+
+    // MARK: InputSuggestion.candidates(fromOrdered:)（AC-ES-01-T）
+
+    func test_candidatesFromOrdered_preservesInputOrder_dedupesFirstWins_excludesBlank() {
+        let result = InputSuggestion.candidates(fromOrdered: ["B", "", "  ", "A", "B"])
+
+        XCTAssertEqual(result, ["B", "A"])
+    }
+
+    // MARK: ApplicationStore.existingEventNames（AC-ES-02〜03-T）
+
+    func test_existingEventNames_ordersByEventDateDescending_nilLast() {
+        let store = ApplicationStore()
+        let tourID = UUID()
+        let older = EventEntity(
+            tourID: tourID, name: "08-01公演", venueNameRaw: "",
+            eventDate: Date(timeIntervalSince1970: 1_754_000_000)
+        )
+        let newer = EventEntity(
+            tourID: tourID, name: "10-05公演", venueNameRaw: "",
+            eventDate: Date(timeIntervalSince1970: 1_759_600_000)
+        )
+        let noDate = EventEntity(tourID: tourID, name: "nil公演", venueNameRaw: "", eventDate: nil)
+        // 配列順はバラバラに積む（並び順は store 側の責務であることを検証する）
+        store.events = [older, noDate, newer]
+
+        XCTAssertEqual(store.existingEventNames, ["10-05公演", "08-01公演", "nil公演"])
+    }
+
+    func test_existingEventNames_dedupesSameName_keepsOneEntry() {
+        let store = ApplicationStore()
+        let tourID = UUID()
+        store.events = [
+            EventEntity(
+                tourID: tourID, name: "X 福岡公演", venueNameRaw: "",
+                eventDate: Date(timeIntervalSince1970: 1_754_000_000)
+            ),
+            EventEntity(
+                tourID: tourID, name: "X 福岡公演", venueNameRaw: "",
+                eventDate: Date(timeIntervalSince1970: 1_759_600_000)
+            )
+        ]
+
+        XCTAssertEqual(store.existingEventNames.filter { $0 == "X 福岡公演" }.count, 1)
+    }
+
+    // MARK: ApplicationStore.eventAutofill(forEventNamed:)（AC-ES-04-T）
+
+    func test_eventAutofill_returnsTourArtistVenue_forMostRecentMatch() {
+        let store = ApplicationStore()
+        let tour = Tour(name: "T", artistNameRaw: "A")
+        store.tours = [tour]
+        let older = EventEntity(
+            tourID: tour.id, name: "X 福岡公演", venueNameRaw: "旧会場",
+            eventDate: Date(timeIntervalSince1970: 1_754_000_000)
+        )
+        let newer = EventEntity(
+            tourID: tour.id, name: "X 福岡公演", venueNameRaw: "マリンメッセ福岡",
+            eventDate: Date(timeIntervalSince1970: 1_759_600_000)
+        )
+        store.events = [older, newer]
+
+        let result = store.eventAutofill(forEventNamed: "X 福岡公演")
+
+        XCTAssertEqual(result, EventNameAutofill(tourName: "T", artistNameRaw: "A", venueNameRaw: "マリンメッセ福岡"))
+    }
+
+    func test_eventAutofill_emptyVenue_returnsNilForVenueOnly() {
+        let store = ApplicationStore()
+        let tour = Tour(name: "T", artistNameRaw: "A")
+        store.tours = [tour]
+        store.events = [EventEntity(tourID: tour.id, name: "空欄会場公演", venueNameRaw: "")]
+
+        let result = store.eventAutofill(forEventNamed: "空欄会場公演")
+
+        XCTAssertEqual(result, EventNameAutofill(tourName: "T", artistNameRaw: "A", venueNameRaw: nil))
+    }
+
+    func test_eventAutofill_emptyArtistName_returnsNilArtistOnly() {
+        let store = ApplicationStore()
+        let tour = Tour(name: "T2", artistNameRaw: "")
+        store.tours = [tour]
+        store.events = [EventEntity(tourID: tour.id, name: "公演Z", venueNameRaw: "会場Z")]
+
+        let result = store.eventAutofill(forEventNamed: "公演Z")
+
+        XCTAssertEqual(result, EventNameAutofill(tourName: "T2", artistNameRaw: nil, venueNameRaw: "会場Z"))
+    }
+
+    func test_eventAutofill_missingTour_returnsVenueOnly() {
+        let store = ApplicationStore()
+        let missingTourID = UUID()
+        store.tours = []
+        store.events = [EventEntity(tourID: missingTourID, name: "未紐付け公演", venueNameRaw: "会場X")]
+
+        let result = store.eventAutofill(forEventNamed: "未紐付け公演")
+
+        XCTAssertEqual(result, EventNameAutofill(tourName: nil, artistNameRaw: nil, venueNameRaw: "会場X"))
+    }
+
+    func test_eventAutofill_unknownName_returnsNil() {
+        let store = ApplicationStore()
+        store.tours = [Tour(name: "T", artistNameRaw: "A")]
+        store.events = [EventEntity(tourID: UUID(), name: "既知の公演", venueNameRaw: "会場")]
+
+        XCTAssertNil(store.eventAutofill(forEventNamed: "存在しない公演"))
+    }
+
+    func test_eventAutofill_trimsBothSidesBeforeComparing() {
+        let store = ApplicationStore()
+        let tour = Tour(name: "T", artistNameRaw: "A")
+        store.tours = [tour]
+        store.events = [EventEntity(tourID: tour.id, name: "  空白付き公演  ", venueNameRaw: "会場Y")]
+
+        let byTrimmedQuery = store.eventAutofill(forEventNamed: "空白付き公演")
+        let byUntrimmedQuery = store.eventAutofill(forEventNamed: "  空白付き公演  ")
+
+        XCTAssertEqual(byTrimmedQuery, EventNameAutofill(tourName: "T", artistNameRaw: "A", venueNameRaw: "会場Y"))
+        XCTAssertEqual(byUntrimmedQuery, byTrimmedQuery)
+    }
+
+    // MARK: existingEventNames + InputSuggestion.match（AC-ES-05-T）
+
+    func test_existingEventNamesWithMatch_partialCaseInsensitive() {
+        let store = ApplicationStore()
+        store.events = [EventEntity(tourID: UUID(), name: "STELLARIS ARENA TOUR 2026 -福岡公演-", venueNameRaw: "")]
+
+        XCTAssertEqual(
+            InputSuggestion.match(store.existingEventNames, query: "福岡"),
+            ["STELLARIS ARENA TOUR 2026 -福岡公演-"]
+        )
+    }
+
+    func test_existingEventNamesWithMatch_emptyQuery_returnsEmpty() {
+        let store = ApplicationStore()
+        store.events = [EventEntity(tourID: UUID(), name: "公演A", venueNameRaw: "")]
+
+        XCTAssertEqual(InputSuggestion.match(store.existingEventNames, query: ""), [])
+    }
+
+    func test_existingEventNamesWithMatch_excludesExactMatch() {
+        let store = ApplicationStore()
+        store.events = [EventEntity(tourID: UUID(), name: "公演A", venueNameRaw: "")]
+
+        XCTAssertEqual(InputSuggestion.match(store.existingEventNames, query: "公演A"), [])
+    }
+
+    func test_existingEventNamesWithMatch_limitsToNewestFive() {
+        let store = ApplicationStore()
+        let tourID = UUID()
+        let events = (0..<6).map { index in
+            EventEntity(
+                tourID: tourID, name: "福岡公演\(index)", venueNameRaw: "",
+                eventDate: Date(timeIntervalSince1970: 1_750_000_000 + Double(index) * 100_000)
+            )
+        }
+        // 配列順はバラバラに積む（新しい順への並び替えは store 側の責務）
+        store.events = events.reversed()
+
+        let result = InputSuggestion.match(store.existingEventNames, query: "福岡")
+
+        XCTAssertEqual(result, ["福岡公演5", "福岡公演4", "福岡公演3", "福岡公演2", "福岡公演1"])
+    }
 }

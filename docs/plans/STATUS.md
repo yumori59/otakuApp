@@ -395,6 +395,10 @@ API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。r
 `code-reviewer`によるレビューで重大0件・中0件（`docs/plans/input-history-suggestions/review.md`）。検証ゲート: `swift test --package-path meigicho/Packages/Domain`287件全緑、`xcodebuild`BUILD SUCCEEDED。[#19](https://github.com/yumori59/otakuApp/pull/19)としてPR作成済み（mainの#17/#18とのコンフリクト解消済み）。
 **未実施**: 実機/シミュレータでの手動確認（AC-SG-09〜18-M）。
 
+## 16. 公演名サジェスト — `docs/plans/event-name-suggestion/`（実装中）
+
+`input-history-suggestions`（0-11d）で唯一未対応だった申込フォームの**公演名**欄にサジェストを追加。候補は自分の全公演名（`InputSuggestion.candidates(fromOrdered:)`を新設し公演日の新しい順を維持）、タップ時は空欄のツアー名・アーティスト・会場のみ補完。DB/BE/API契約変更ゼロ、iOSのみ。roadmap 0-11e として追加。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。

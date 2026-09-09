@@ -323,6 +323,54 @@ public final class ApplicationStore {
         return tour.artistNameRaw
     }
 
+    /// 公演名サジェストの並び順の実体（`docs/plans/event-name-suggestion/plan.md` D-4・FR-ES-4）。
+    /// `eventDate` 降順・`nil` は最後・同値は `updatedAt` 降順。
+    /// `existingEventNames` と `eventAutofill(forEventNamed:)` の両方がこの並びを使うことで、
+    /// 「同名の公演のうち最も新しい 1 件」の定義が 2 箇所でズレない。
+    private var eventsByRecency: [EventEntity] {
+        events.sorted { lhs, rhs in
+            switch (lhs.eventDate, rhs.eventDate) {
+            case let (l?, r?):
+                if l != r { return l > r }
+                return lhs.updatedAt > rhs.updatedAt
+            case (nil, _?):
+                return false
+            case (_?, nil):
+                return true
+            case (nil, nil):
+                return lhs.updatedAt > rhs.updatedAt
+            }
+        }
+    }
+
+    /// 公演名サジェストの候補ソース（D-2・FR-ES-2/4）。
+    /// 全公演の `name` を対象にツアー / アーティストで絞り込まない。
+    /// 並び順は**公演日の新しい順**（他 4 フィールドの昇順とは異なる）。
+    public var existingEventNames: [String] {
+        InputSuggestion.candidates(fromOrdered: eventsByRecency.map(\.name))
+    }
+
+    /// 公演名候補タップ時のオートフィル用（D-3・FR-ES-5/6）。
+    /// 名前を両辺 trim して完全一致させ、`eventsByRecency` の先頭（＝最も新しい公演）を採用する。
+    /// 属するツアーの `name` / `artistNameRaw`、公演の `venueNameRaw` を返す（空文字は `nil`）。
+    /// ツアーが解決できないときはツアー名 / アーティストを `nil` にして会場のみ返す（E-6）。
+    /// 一致なしは戻り値ごと `nil`。
+    public func eventAutofill(forEventNamed name: String) -> EventNameAutofill? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty,
+              let matched = eventsByRecency.first(where: {
+                  $0.name.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedName
+              })
+        else { return nil }
+
+        let matchedTour = tour(for: matched.tourID)
+        return EventNameAutofill(
+            tourName: matchedTour.flatMap { $0.name.isEmpty ? nil : $0.name },
+            artistNameRaw: matchedTour.flatMap { $0.artistNameRaw.isEmpty ? nil : $0.artistNameRaw },
+            venueNameRaw: matched.venueNameRaw.isEmpty ? nil : matched.venueNameRaw
+        )
+    }
+
     private func groupApplications(_ apps: [ApplicationEntry]) -> [TourGroup] {
         var map: [UUID: [ApplicationEntry]] = [:]
         for app in apps {
@@ -803,5 +851,19 @@ public struct ApplicationDisplay: Equatable, Sendable {
         self.artistName = artistName
         self.tourName = tourName
         self.eventDate = eventDate
+    }
+}
+
+/// 公演名候補タップ時のオートフィル結果（`docs/plans/event-name-suggestion/plan.md` D-3）。
+/// 各値は補完元が空文字なら `nil`（空文字で上書きしない）。
+public struct EventNameAutofill: Equatable, Sendable {
+    public let tourName: String?
+    public let artistNameRaw: String?
+    public let venueNameRaw: String?
+
+    public init(tourName: String?, artistNameRaw: String?, venueNameRaw: String?) {
+        self.tourName = tourName
+        self.artistNameRaw = artistNameRaw
+        self.venueNameRaw = venueNameRaw
     }
 }
