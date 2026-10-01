@@ -188,6 +188,9 @@ model Application {
   eventId         String    @map("event_id") @db.Uuid
   repIdentityId   String    @map("rep_identity_id") @db.Uuid
   repMembershipId String?   @map("rep_membership_id") @db.Uuid
+  // 申込の立場: representative(名義本人) | companion(同行。representativeName に誰の申込かを持つ)
+  identityRole       String  @default("representative") @map("identity_role")
+  representativeName String? @map("representative_name")
   roundName       String?   @map("round_name")
   appliedOn       DateTime? @map("applied_on") @db.Date
   resultOn        DateTime? @map("result_on") @db.Date

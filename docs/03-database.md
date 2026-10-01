@@ -140,6 +140,8 @@ erDiagram
         uuid event_id FK
         uuid rep_identity_id FK
         uuid rep_membership_id FK
+        text identity_role
+        text representative_name
         text round_name
         date applied_on
         date result_on
@@ -443,11 +445,17 @@ create table applications (
   event_id           uuid not null references events(id) on delete cascade,
   rep_identity_id    uuid not null references identities(id) on delete restrict,
   rep_membership_id  uuid references memberships(id) on delete set null,
+  identity_role      text not null default 'representative'
+                       check (identity_role in ('representative','companion')),
+                                               -- 申込の立場。companion のとき representative_name に「誰の申込か」
+  representative_name text check (representative_name is null or length(representative_name) <= 100),
+                                               -- identity_role='representative' のとき常に null（BE が正規化）
   round_name         text,                       -- FC1次 / FC2次 / 一般先行 等
   applied_on         date,
   result_on          date,
   status             text not null default 'applied'
-                       check (status in ('draft','applied','won','lost','cancelled')),
+                       check (status in ('draft','applied','won','won_unpaid','lost','cancelled')),
+                                               -- won_unpaid = 当選・未入金（当選として集計）
   seat_raw           text,                       -- 自由入力（例: アリーナ8列15番）
   seat_block         text,                       -- 任意の構造化（将来の統計用）
   seat_row           text,
@@ -906,12 +914,12 @@ select
   identity_id,
   owner_id,
   count(*)                                              as application_count,
-  count(*) filter (where status = 'won')                as won_count,
+  count(*) filter (where status in ('won','won_unpaid')) as won_count,
   count(*) filter (where status = 'lost')               as lost_count,
   count(*) filter (where status = 'applied')            as pending_count,
   round(
-    count(*) filter (where status = 'won')::numeric
-    / nullif(count(*) filter (where status in ('won','lost')), 0) * 100, 1
+    count(*) filter (where status in ('won','won_unpaid'))::numeric
+    / nullif(count(*) filter (where status in ('won','won_unpaid','lost')), 0) * 100, 1
   )                                                      as win_rate_percent
 from involved
 group by identity_id, owner_id;

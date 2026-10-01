@@ -16,6 +16,8 @@ export interface ApplicationResponse {
   event_id: string;
   rep_identity_id: string;
   rep_membership_id: string | null;
+  identity_role: string;
+  representative_name: string | null;
   round_name: string | null;
   applied_on: string | null;
   result_on: string | null;
@@ -52,6 +54,8 @@ export function toApplicationResponse(
     event_id: row.eventId,
     rep_identity_id: row.repIdentityId,
     rep_membership_id: row.repMembershipId,
+    identity_role: row.identityRole,
+    representative_name: row.representativeName,
     round_name: row.roundName,
     applied_on: fromDateOnly(row.appliedOn),
     result_on: fromDateOnly(row.resultOn),

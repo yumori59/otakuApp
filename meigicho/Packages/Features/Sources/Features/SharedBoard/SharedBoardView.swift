@@ -335,6 +335,7 @@ public struct SharedBoardView: View {
 
     private func stampColor(_ status: ApplicationStatus) -> Color {
         switch status {
+        case .wonUnpaid: DS.Blue.b900
         case .won: DS.success
         case .lost, .cancelled: DS.Gray.g600
         case .draft: DS.Gray.g500
@@ -344,6 +345,7 @@ public struct SharedBoardView: View {
 
     private func stampBG(_ status: ApplicationStatus) -> Color {
         switch status {
+        case .wonUnpaid: DS.Blue.b50
         case .won: DS.successBG
         case .lost, .cancelled, .draft: DS.Gray.g100
         case .applied: DS.warningBG

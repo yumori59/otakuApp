@@ -13,6 +13,7 @@ import {
 import {
   isDeletedPayload,
   payloadToPrismaData,
+  validateApplicationRolePayload,
 } from './sync-payload.mapper';
 import { serializeSyncRecord } from './sync-serialize';
 
@@ -146,6 +147,19 @@ export class SyncService {
               mutation.id,
               tx,
             );
+          }
+
+          if (collection === 'applications') {
+            // 未知 role は黙って representative に落とさず reject する（BE-2）
+            const roleError = validateApplicationRolePayload(mutation.payload);
+            if (roleError) {
+              rejected.push({
+                id: mutation.id,
+                code: 'SYNC_APPLY_FAILED',
+                message: roleError,
+              });
+              continue;
+            }
           }
 
           const data = payloadToPrismaData(collection, mutation.payload);

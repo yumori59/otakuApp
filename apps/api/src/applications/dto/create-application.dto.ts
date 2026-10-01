@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -22,6 +22,11 @@ import {
 } from 'class-validator';
 import { APPLICATION_STATUSES } from './application-status';
 import type { ApplicationStatus } from './application-status';
+import {
+  IDENTITY_ROLES,
+  MAX_REPRESENTATIVE_NAME_LENGTH,
+} from './identity-role';
+import type { IdentityRole } from './identity-role';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -134,6 +139,19 @@ export class CreateApplicationDto {
   @IsOptional()
   @IsUUID()
   rep_membership_id?: string | null;
+
+  @IsOptional()
+  @IsIn(IDENTITY_ROLES)
+  identity_role?: IdentityRole;
+
+  /** 前後空白は除去して最大 100 文字（空文字は Service で null に正規化）。 */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(MAX_REPRESENTATIVE_NAME_LENGTH)
+  representative_name?: string | null;
 
   @IsOptional()
   @IsString()

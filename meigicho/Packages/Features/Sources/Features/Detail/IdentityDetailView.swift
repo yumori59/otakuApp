@@ -28,11 +28,13 @@ struct IdentityDetailView: View {
                     if let error = identityStore.actionError {
                         ErrorBar(error.userMessage) { identityStore.actionError = nil }
                     }
+                    // #23: プロフィール → 申込履歴 → 名義カラー → 備考 → 共有設定 → 会員情報
                     profileCard(identity)
+                    applicationsSection(identity)
+                    colorSection(identity)
                     noteSection(identity)
                     shareSection(identity)
                     membershipsSection(identity)
-                    applicationsSection(identity)
                     deleteButton()
                 }
                 .padding(16)
@@ -120,14 +122,17 @@ struct IdentityDetailView: View {
     }
 
     private func profileCard(_ identity: Identity) -> some View {
+        ProfileCard(
+            initial: identity.displayName,
+            colorHex: identity.colorHex,
+            name: identity.displayName,
+            tag: identity.relation.label,
+            stats: "入会 \(DateFormatting.formatDate(identity.joinedOn, withWeekday: false)) ・ 当選 \(statsStore.winCount(for: identity.id, fallback: applicationStore.winCount(for: identity.id)))回"
+        )
+    }
+
+    private func colorSection(_ identity: Identity) -> some View {
         VStack(spacing: 12) {
-            ProfileCard(
-                initial: identity.displayName,
-                colorHex: identity.colorHex,
-                name: identity.displayName,
-                tag: identity.relation.label,
-                stats: "入会 \(DateFormatting.formatDate(identity.joinedOn, withWeekday: false)) ・ 当選 \(statsStore.winCount(for: identity.id, fallback: applicationStore.winCount(for: identity.id)))回"
-            )
             HStack {
                 Text("名義カラー").font(DSFont.caption).foregroundStyle(DS.Gray.g600)
                 Spacer()

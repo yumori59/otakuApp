@@ -167,6 +167,8 @@ public actor InMemoryApplicationRepository: ApplicationRepository {
             eventID: draft.event.id,
             repIdentityID: draft.repIdentityID,
             repMembershipID: draft.repMembershipID,
+            identityRole: draft.identityRole,
+            representativeName: draft.representativeName,
             roundName: draft.roundName,
             appliedOn: draft.appliedOn,
             resultOn: draft.resultOn,
@@ -186,6 +188,8 @@ public actor InMemoryApplicationRepository: ApplicationRepository {
         var item = items[index]
         item.repIdentityID = patch.repIdentityID.applied(to: item.repIdentityID) ?? item.repIdentityID
         item.repMembershipID = patch.repMembershipID.applied(to: item.repMembershipID)
+        item.identityRole = patch.identityRole.applied(to: item.identityRole) ?? item.identityRole
+        item.representativeName = patch.representativeName.applied(to: item.representativeName)
         item.roundName = patch.roundName.applied(to: item.roundName)
         item.appliedOn = patch.appliedOn.applied(to: item.appliedOn)
         item.resultOn = patch.resultOn.applied(to: item.resultOn)
@@ -438,7 +442,7 @@ public actor InMemoryStatsRepository: StatsRepository {
             let isNew = entry.appIDs.insert(appID).inserted
             guard isNew else { return }
             switch status {
-            case .won: entry.won += 1
+            case .won, .wonUnpaid: entry.won += 1
             case .lost: entry.lost += 1
             case .applied: entry.pending += 1
             default: break

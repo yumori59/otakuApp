@@ -9,6 +9,10 @@ extension ApplicationRecord {
             eventID: eventID,
             repIdentityID: draft.repIdentityID,
             repMembershipID: draft.repMembershipID,
+            identityRoleRaw: draft.identityRole.rawValue,
+            representativeName: ApplicationRole.normalizedRepresentativeName(
+                draft.representativeName, role: draft.identityRole
+            ),
             roundName: draft.roundName,
             appliedOn: draft.appliedOn,
             resultOn: draft.resultOn,
@@ -30,6 +34,8 @@ extension ApplicationRecord {
             eventID: eventID,
             repIdentityID: repIdentityID,
             repMembershipID: repMembershipID,
+            identityRole: identityRole,
+            representativeName: representativeName,
             roundName: roundName,
             appliedOn: appliedOn,
             resultOn: resultOn,
@@ -47,6 +53,11 @@ extension ApplicationRecord {
     public func apply(patch: ApplicationPatch, now: Date = Date()) {
         repIdentityID = patch.repIdentityID.applied(to: repIdentityID) ?? repIdentityID
         repMembershipID = patch.repMembershipID.applied(to: repMembershipID)
+        identityRole = patch.identityRole.applied(to: identityRole) ?? identityRole
+        // representative_name は companion のときだけ保持する（BE と同じ不変条件）
+        representativeName = ApplicationRole.normalizedRepresentativeName(
+            patch.representativeName.applied(to: representativeName), role: identityRole
+        )
         roundName = patch.roundName.applied(to: roundName)
         appliedOn = patch.appliedOn.applied(to: appliedOn)
         resultOn = patch.resultOn.applied(to: resultOn)
@@ -62,6 +73,8 @@ extension ApplicationRecord {
         eventID = remote.eventID
         repIdentityID = remote.repIdentityID
         repMembershipID = remote.repMembershipID
+        identityRoleRaw = remote.identityRoleRaw
+        representativeName = remote.representativeName
         roundName = remote.roundName
         appliedOn = remote.appliedOn
         resultOn = remote.resultOn

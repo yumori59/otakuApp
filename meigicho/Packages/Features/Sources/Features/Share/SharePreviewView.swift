@@ -75,7 +75,7 @@ struct SharePreviewView: View {
                 CardList {
                     ForEach(identityStore.identities) { identity in
                         let apps = applicationStore.applications(for: identity.id)
-                        let wins = apps.filter { $0.status == .won }.count
+                        let wins = apps.filter { $0.status.isWon }.count
                         VStack(alignment: .leading, spacing: 4) {
                             Text(identity.displayName)
                                 .font(DSFont.bodyBold)

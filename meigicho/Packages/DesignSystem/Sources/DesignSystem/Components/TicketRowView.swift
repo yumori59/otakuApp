@@ -2,19 +2,29 @@ import SwiftUI
 
 public struct StampView: View {
     public enum Status {
-        case draft, applied, won, lost
+        case draft, applied, wonUnpaid, won, lost
 
         public var label: String {
             switch self {
             case .draft: "下書き"
             case .applied: "申込中"
+            case .wonUnpaid: "当選/未入金"
             case .won: "当選"
             case .lost: "落選"
             }
         }
 
+        /// スタンプ上の表示。92pt 幅の列に収まらない `wonUnpaid` だけ 2 行にする（読み上げは `label`）
+        var displayText: String {
+            switch self {
+            case .wonUnpaid: "当選\n未入金"
+            default: label
+            }
+        }
+
         var foreground: Color {
             switch self {
+            case .wonUnpaid: DS.Blue.b900
             case .won: DS.success
             case .lost: DS.Gray.g600
             case .draft: DS.Gray.g500
@@ -24,6 +34,7 @@ public struct StampView: View {
 
         var background: Color {
             switch self {
+            case .wonUnpaid: DS.Blue.b50
             case .won: DS.successBG
             case .lost: DS.Gray.g100
             case .draft: DS.Gray.g100
@@ -39,8 +50,9 @@ public struct StampView: View {
     }
 
     public var body: some View {
-        Text(status.label)
+        Text(status.displayText)
             .font(DSFont.captionBold)
+            .multilineTextAlignment(.center)
             .foregroundStyle(status.foreground)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)

@@ -62,4 +62,23 @@ describe('StatsService', () => {
       win_rate_percent: 100,
     });
   });
+
+  it('issue #21 won_unpaid は当選として won_count / 当選率の decided に含み、pending には含めない', async () => {
+    prisma.application.findMany.mockResolvedValue([
+      { id: 'a1', status: 'won_unpaid', repIdentityId: 'id-a', companions: [] },
+      { id: 'a2', status: 'won', repIdentityId: 'id-a', companions: [] },
+      { id: 'a3', status: 'lost', repIdentityId: 'id-a', companions: [] },
+      { id: 'a4', status: 'applied', repIdentityId: 'id-a', companions: [] },
+    ]);
+
+    const result = await service.getIdentityStats(USER_ID);
+
+    expect(result.items[0]).toMatchObject({
+      application_count: 4,
+      won_count: 2,
+      lost_count: 1,
+      pending_count: 1,
+      win_rate_percent: 66.7,
+    });
+  });
 });

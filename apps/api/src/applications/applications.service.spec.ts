@@ -18,6 +18,8 @@ function applicationRow(overrides: Record<string, unknown> = {}) {
     eventId: EVENT_ID,
     repIdentityId: IDENTITY_ID,
     repMembershipId: null,
+    identityRole: 'representative',
+    representativeName: null,
     roundName: 'FC1次',
     appliedOn: new Date('2026-07-01T00:00:00.000Z'),
     resultOn: null,
@@ -246,6 +248,8 @@ describe('ApplicationsService', () => {
         event_id: EVENT_ID,
         rep_identity_id: IDENTITY_ID,
         rep_membership_id: null,
+        identity_role: 'representative',
+        representative_name: null,
         round_name: 'FC1次',
         applied_on: '2026-07-01',
         result_on: null,
@@ -265,6 +269,24 @@ describe('ApplicationsService', () => {
         created_at: NOW.toISOString(),
         updated_at: NOW.toISOString(),
         deleted_at: null,
+      });
+    });
+  });
+
+  describe('presenter: identity_role / representative_name (issue #22)', () => {
+    it('companion の申込は identity_role / representative_name をそのまま返す', async () => {
+      prisma.application.findMany.mockResolvedValue([
+        applicationRow({
+          identityRole: 'companion',
+          representativeName: '山田花子',
+        }),
+      ]);
+
+      const result = await service.list(USER_ID, query());
+
+      expect(result.items[0]).toMatchObject({
+        identity_role: 'companion',
+        representative_name: '山田花子',
       });
     });
   });

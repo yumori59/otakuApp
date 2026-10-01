@@ -36,6 +36,9 @@ struct ApplicationFormView: View {
     // 作成モードは populateInitialValues で必ず today を代入するのでこの区別は生じない。
     @State private var eventOn: Date?
     @State private var repIdentityID: UUID?
+    /// #22: `repIdentityID` の立場。`representativeName` は `.companion` のときだけ入力・送信する
+    @State private var identityRole: ApplicationRole = .representative
+    @State private var representativeName = ""
     @State private var companionSelections: [UUID?] = [nil, nil, nil]
     @State private var companionNames: [String] = ["", "", ""]
     @State private var appliedOn: Date?
@@ -97,8 +100,8 @@ struct ApplicationFormView: View {
 
                 FormSectionLabel("申込内容")
                 FormCard {
-                    FormRow("代表者（FC名義で申し込む人）") {
-                        Picker("代表者", selection: Binding(
+                    FormRow("名義（あなたのFC名義）") {
+                        Picker("名義", selection: Binding(
                             get: { repIdentityID ?? identityStore.identities.first?.id ?? UUID() },
                             set: { repIdentityID = $0 }
                         )) {
@@ -108,8 +111,27 @@ struct ApplicationFormView: View {
                         }
                         .pickerStyle(.menu)
                     }
+                    FormRow("立場") {
+                        Picker("立場", selection: $identityRole) {
+                            ForEach(ApplicationRole.allCases, id: \.self) { role in
+                                Text(role.label).tag(role)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    // 同行者を選んだときだけ、実際に申し込んだ代表者の氏名（任意）を聞く
+                    if identityRole == .companion {
+                        FormRow("代表者の氏名（任意）") {
+                            FormTextField("実際に申し込んだ人の氏名", text: $representativeName)
+                                .onChange(of: representativeName) { _, new in
+                                    if new.count > ApplicationRole.maxRepresentativeNameLength {
+                                        representativeName = String(new.prefix(ApplicationRole.maxRepresentativeNameLength))
+                                    }
+                                }
+                        }
+                    }
                     ForEach(0..<3, id: \.self) { n in
-                        FormRow("同行者\(n + 1)（任意）") {
+                        FormRow("ほかの同行者\(n + 1)（任意）") {
                             Picker("名義", selection: $companionSelections[n]) {
                                 Text("指定しない").tag(UUID?.none)
                                 ForEach(identityStore.identities) { identity in
@@ -121,7 +143,7 @@ struct ApplicationFormView: View {
                                 .padding(.top, 8)
                         }
                     }
-                    FormHint("同行者は最大3人まで追加できます。代表者と同じ人は選べません。")
+                    FormHint("ほかの同行者は最大3人まで追加できます。上で選んだ名義と同じ人は選べません。")
                         .padding(.horizontal, 14)
                         .padding(.bottom, 8)
                     FormRow("申込日") {
@@ -132,8 +154,9 @@ struct ApplicationFormView: View {
                     }
                     FormRow("ステータス") {
                         Picker("ステータス", selection: $status) {
-                            ForEach([ApplicationStatus.draft, .applied, .won, .lost], id: \.self) { s in
-                                Text(s.label).tag(s)
+                            ForEach([ApplicationStatus.draft, .applied, .wonUnpaid, .won, .lost], id: \.self) { s in
+                                // 5 セグメントに収まるよう `wonUnpaid` は短いラベル（「未入金」= 当選/未入金）
+                                Text(s.shortLabel).tag(s)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -205,6 +228,8 @@ struct ApplicationFormView: View {
             // 修正1: nil のまま保持する（DatePicker は触られない限り nil を維持する計算 Binding 経由でのみ表示）
             eventOn = event.eventDate
             repIdentityID = current.repIdentityID
+            identityRole = current.identityRole
+            representativeName = current.representativeName ?? ""
             // FR-AE-5: 既存同行者との対応はインデックス（= position）
             let sortedCompanions = current.companions.sorted { $0.position < $1.position }
             for n in 0..<3 {
@@ -300,6 +325,8 @@ struct ApplicationFormView: View {
             venueNameRaw: venueName.trimmingCharacters(in: .whitespaces),
             eventDate: eventOn,
             repIdentityID: repID,
+            identityRole: identityRole,
+            representativeName: representativeName,
             companions: companionInputs,
             appliedOn: appliedOn,
             resultOn: resultOn,
@@ -369,6 +396,8 @@ struct ApplicationFormView: View {
             repIdentityID: repID,
             // FR-AP-7: rep_membership_id は当面送らない
             repMembershipID: nil,
+            identityRole: identityRole,
+            representativeName: representativeName,
             appliedOn: appliedOn,
             resultOn: resultOn,
             status: status,

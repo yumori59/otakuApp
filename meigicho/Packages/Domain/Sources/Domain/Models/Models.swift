@@ -146,6 +146,10 @@ public struct ApplicationEntry: Identifiable, Equatable, Sendable {
     public var repIdentityID: UUID
     /// FR-AP-7: 当面は常に nil を送る
     public var repMembershipID: UUID?
+    /// この申込での `repIdentityID` の立場（#22）。既存データ / 省略は `.representative`
+    public var identityRole: ApplicationRole
+    /// `identityRole == .companion` のときの実際の代表者の氏名（任意）
+    public var representativeName: String?
     public var roundName: String?
     public var appliedOn: Date?
     public var resultOn: Date?
@@ -163,6 +167,8 @@ public struct ApplicationEntry: Identifiable, Equatable, Sendable {
         eventID: UUID,
         repIdentityID: UUID,
         repMembershipID: UUID? = nil,
+        identityRole: ApplicationRole = .representative,
+        representativeName: String? = nil,
         roundName: String? = nil,
         appliedOn: Date? = nil,
         resultOn: Date? = nil,
@@ -179,6 +185,8 @@ public struct ApplicationEntry: Identifiable, Equatable, Sendable {
         self.eventID = eventID
         self.repIdentityID = repIdentityID
         self.repMembershipID = repMembershipID
+        self.identityRole = identityRole
+        self.representativeName = representativeName
         self.roundName = roundName
         self.appliedOn = appliedOn
         self.resultOn = resultOn
@@ -189,5 +197,16 @@ public struct ApplicationEntry: Identifiable, Equatable, Sendable {
         self.companions = companions
         self.note = note
         self.updatedAt = updatedAt
+    }
+}
+
+extension ApplicationEntry {
+    /// 名義 `identityID` から見たこの申込での立場。無関係な名義なら nil。
+    /// 代表名義（`repIdentityID`）なら `identityRole`、`companions` 経由でのみ関わるなら `.companion`。
+    /// 名義詳細の申込履歴バッジ用の純粋関数。
+    public func role(for identityID: UUID) -> ApplicationRole? {
+        if repIdentityID == identityID { return identityRole }
+        if companions.contains(where: { $0.identityID == identityID }) { return .companion }
+        return nil
     }
 }

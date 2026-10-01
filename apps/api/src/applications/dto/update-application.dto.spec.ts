@@ -96,4 +96,44 @@ describe('UpdateApplicationDto', () => {
     const { errors } = validateBody({ rep_membership_id: null });
     expect(errors).toHaveLength(0);
   });
+  describe('identity_role / representative_name (issue #22)', () => {
+    it('identity_role / representative_name は変更可能キー（whitelist 付き BE-8）', () => {
+      const { errors } = validateBody({
+        identity_role: 'companion',
+        representative_name: '山田花子',
+      });
+      expect(errors).toHaveLength(0);
+    });
+
+    it('representative_name: null で消去できる', () => {
+      expect(validateBody({ representative_name: null }).errors).toHaveLength(0);
+    });
+
+    it('identity_role: null / status: null は 400（NOT NULL 列に null が渡り 500 になるのを防ぐ）', () => {
+      expect(
+        validateBody({ identity_role: null }).errors.map((e) => e.property),
+      ).toContain('identity_role');
+      expect(
+        validateBody({ status: null }).errors.map((e) => e.property),
+      ).toContain('status');
+    });
+
+    it('未知の identity_role は 400（BE-2）', () => {
+      const { errors } = validateBody({ identity_role: 'owner' });
+      expect(errors.map((e) => e.property)).toContain('identity_role');
+    });
+
+    it('representative_name は trim 後 100 文字を超えると 400', () => {
+      expect(
+        validateBody({ representative_name: 'あ'.repeat(101) }).errors.length,
+      ).toBeGreaterThan(0);
+      expect(
+        validateBody({ representative_name: ` ${'あ'.repeat(100)} ` }).errors,
+      ).toHaveLength(0);
+    });
+
+    it('status: won_unpaid を受理する（issue #21）', () => {
+      expect(validateBody({ status: 'won_unpaid' }).errors).toHaveLength(0);
+    });
+  });
 });

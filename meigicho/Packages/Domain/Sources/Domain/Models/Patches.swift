@@ -29,6 +29,8 @@ public struct MembershipPatch: Equatable, Sendable {
 public struct ApplicationPatch: Equatable, Sendable {
     public var repIdentityID: Patchable<UUID> = .unchanged
     public var repMembershipID: Patchable<UUID> = .unchanged
+    public var identityRole: Patchable<ApplicationRole> = .unchanged
+    public var representativeName: Patchable<String> = .unchanged
     public var roundName: Patchable<String> = .unchanged
     public var appliedOn: Patchable<Date> = .unchanged
     public var resultOn: Patchable<Date> = .unchanged

@@ -10,6 +10,9 @@ public struct ApplicationDraft: Equatable, Sendable {
     public var repIdentityID: UUID
     /// FR-AP-7: 当面は常に nil
     public var repMembershipID: UUID?
+    public var identityRole: ApplicationRole
+    /// `identityRole == .companion` のときだけ意味を持つ（`ApplicationStore.normalizedDraft` で正規化）
+    public var representativeName: String?
     public var roundName: String?
     public var appliedOn: Date?
     public var resultOn: Date?
@@ -27,6 +30,8 @@ public struct ApplicationDraft: Equatable, Sendable {
         event: EventDraft,
         repIdentityID: UUID,
         repMembershipID: UUID? = nil,
+        identityRole: ApplicationRole = .representative,
+        representativeName: String? = nil,
         roundName: String? = nil,
         appliedOn: Date? = nil,
         resultOn: Date? = nil,
@@ -42,6 +47,8 @@ public struct ApplicationDraft: Equatable, Sendable {
         self.event = event
         self.repIdentityID = repIdentityID
         self.repMembershipID = repMembershipID
+        self.identityRole = identityRole
+        self.representativeName = representativeName
         self.roundName = roundName
         self.appliedOn = appliedOn
         self.resultOn = resultOn

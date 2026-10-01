@@ -64,6 +64,8 @@ function applicationRow(overrides: Record<string, unknown> = {}) {
     eventId: EVENT_ID,
     repIdentityId: IDENTITY_ID,
     repMembershipId: null,
+    identityRole: 'representative',
+    representativeName: null,
     roundName: 'FC1次',
     appliedOn: new Date('2026-07-01T00:00:00.000Z'),
     resultOn: null,
@@ -472,5 +474,80 @@ describe('CreateApplicationUseCase', () => {
         }),
       }),
     );
+  });
+  describe('identity_role / representative_name (issue #22)', () => {
+    it('省略時は representative / name null で保存する', async () => {
+      mockFinalRead();
+
+      await useCase.execute(USER_ID, validDto());
+
+      expect(tx.application.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identityRole: 'representative',
+          representativeName: null,
+        }),
+      });
+    });
+
+    it('companion + 前後空白付き name は trim して保存する', async () => {
+      mockFinalRead(
+        applicationRow({
+          identityRole: 'companion',
+          representativeName: '山田花子',
+        }),
+      );
+
+      const result = await useCase.execute(
+        USER_ID,
+        validDto({
+          identity_role: 'companion',
+          representative_name: '  山田花子  ',
+        }),
+      );
+
+      expect(tx.application.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identityRole: 'companion',
+          representativeName: '山田花子',
+        }),
+      });
+      expect(result.identity_role).toBe('companion');
+      expect(result.representative_name).toBe('山田花子');
+    });
+
+    it('representative のとき name は null に正規化する', async () => {
+      mockFinalRead();
+
+      await useCase.execute(
+        USER_ID,
+        validDto({
+          identity_role: 'representative',
+          representative_name: '山田花子',
+        }),
+      );
+
+      expect(tx.application.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identityRole: 'representative',
+          representativeName: null,
+        }),
+      });
+    });
+
+    it('companion + 空文字 name は null で保存する', async () => {
+      mockFinalRead();
+
+      await useCase.execute(
+        USER_ID,
+        validDto({ identity_role: 'companion', representative_name: '  ' }),
+      );
+
+      expect(tx.application.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          identityRole: 'companion',
+          representativeName: null,
+        }),
+      });
+    });
   });
 });
