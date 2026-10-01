@@ -133,7 +133,7 @@ struct ApplicationDetailView: View {
 
     private func statusChanger(_ app: ApplicationEntry) -> some View {
         HStack(spacing: 6) {
-            ForEach([ApplicationStatus.draft, .applied, .won, .lost], id: \.self) { status in
+            ForEach([ApplicationStatus.draft, .applied, .wonUnpaid, .won, .lost], id: \.self) { status in
                 Button {
                     // 当落が動いた瞬間から 60 秒は全広告を止める（F4-5 / AC-AD-39）。
                     // **この画面自体は広告禁止面**（F3）なので広告枠は置かない。記録だけ行う
@@ -141,8 +141,11 @@ struct ApplicationDetailView: View {
                     // `status` だけを PATCH する（落選に戻しても座席は消さない = R3-3）
                     Task { await applicationStore.updateApplicationStatus(app.id, status: status) }
                 } label: {
-                    Text(status.label)
+                    // 5 つ並べるので `wonUnpaid` だけ短いラベル（「未入金」）。現在値の全文は右上スタンプに出る
+                    Text(status.shortLabel)
                         .font(DSFont.caption)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .foregroundStyle(app.status == status ? statusColor(status) : DS.Gray.g600)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
@@ -160,15 +163,22 @@ struct ApplicationDetailView: View {
         return CardList {
             // FR-DEL-13: 代表者名義が削除済み（ローカルに存在しない）場合は行き止まりリンクにしない
             if let rep {
-                infoLinkRow("代表者（FC名義）", value: rep.displayName) {
+                infoLinkRow("FC名義", value: rep.displayName) {
                     path.append(AppRoute.identity(app.repIdentityID))
                 }
             } else {
-                deletedIdentityRow("代表者（FC名義）")
+                deletedIdentityRow("FC名義")
+            }
+            Divider()
+            infoRow("立場", value: app.identityRole.label)
+            if app.identityRole == .companion, let name = app.representativeName, !name.isEmpty {
+                Divider()
+                infoRow("代表者の氏名", value: name)
             }
             Divider()
             VStack(alignment: .leading, spacing: 6) {
-                Text("同行者").font(DSFont.caption).foregroundStyle(DS.Gray.g500)
+                Text(app.identityRole == .companion ? "ほかの同行者" : "同行者")
+                    .font(DSFont.caption).foregroundStyle(DS.Gray.g500)
                 if app.companions.isEmpty {
                     Text("なし").font(DSFont.body).foregroundStyle(DS.Gray.g400)
                 } else {
@@ -284,6 +294,7 @@ struct ApplicationDetailView: View {
         switch status {
         case .draft: .draft
         case .applied: .applied
+        case .wonUnpaid: .wonUnpaid
         case .won: .won
         case .lost, .cancelled: .lost
         }
@@ -291,6 +302,7 @@ struct ApplicationDetailView: View {
 
     private func statusColor(_ status: ApplicationStatus) -> Color {
         switch status {
+        case .wonUnpaid: DS.Blue.b900
         case .won: DS.success
         case .lost: DS.Gray.g600
         case .draft: DS.Gray.g500
@@ -301,6 +313,7 @@ struct ApplicationDetailView: View {
 
     private func statusBG(_ status: ApplicationStatus) -> Color {
         switch status {
+        case .wonUnpaid: DS.Blue.b50
         case .won: DS.successBG
         case .lost, .draft, .cancelled: DS.Gray.g100
         case .applied: DS.warningBG

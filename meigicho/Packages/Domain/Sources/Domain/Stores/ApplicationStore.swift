@@ -203,13 +203,13 @@ public final class ApplicationStore {
     }
 
     public func winCount(for identityID: UUID) -> Int {
-        applications(for: identityID).filter { $0.status == .won }.count
+        applications(for: identityID).filter { $0.status.isWon }.count
     }
 
     /// 名義 ID → 当選数。`IdentityStore.sortedIdentities(by:winCounts:)` に渡す。
     public func winCounts() -> [UUID: Int] {
         var result: [UUID: Int] = [:]
-        for app in applications where app.status == .won {
+        for app in applications where app.status.isWon {
             result[app.repIdentityID, default: 0] += 1
             for companion in app.companions {
                 if let id = companion.identityID {
@@ -229,7 +229,7 @@ public final class ApplicationStore {
         let today = now()
         return applications
             .filter { app in
-                guard app.status == .won, let date = eventDate(for: app) else { return false }
+                guard app.status.isWon, let date = eventDate(for: app) else { return false }
                 return DateFormatting.daysUntil(from: today, to: date) >= 0
             }
             .sorted { (eventDate(for: $0) ?? .distantFuture) < (eventDate(for: $1) ?? .distantFuture) }
@@ -252,6 +252,7 @@ public final class ApplicationStore {
         case .all: break
         case .draft: result = result.filter { $0.status == .draft }
         case .applied: result = result.filter { $0.status == .applied }
+        case .wonUnpaid: result = result.filter { $0.status == .wonUnpaid }
         case .won: result = result.filter { $0.status == .won }
         case .lost: result = result.filter { $0.status == .lost }
         }
@@ -635,6 +636,9 @@ public final class ApplicationStore {
     public static func normalizedDraft(_ draft: ApplicationDraft) -> ApplicationDraft {
         var result = draft
         result.companions = normalizedCompanions(draft.companions)
+        result.representativeName = ApplicationRole.normalizedRepresentativeName(
+            draft.representativeName, role: draft.identityRole
+        )
         // FR-AP-7 / AC-AP-12: 会員情報連携は今回スコープ外。**常に nil**
         result.repMembershipID = nil
         return result
@@ -723,6 +727,8 @@ public final class ApplicationStore {
         let patch = plan.applicationPatch
         entry.repIdentityID = patch.repIdentityID.applied(to: entry.repIdentityID) ?? entry.repIdentityID
         entry.repMembershipID = patch.repMembershipID.applied(to: entry.repMembershipID)
+        entry.identityRole = patch.identityRole.applied(to: entry.identityRole) ?? entry.identityRole
+        entry.representativeName = patch.representativeName.applied(to: entry.representativeName)
         entry.roundName = patch.roundName.applied(to: entry.roundName)
         entry.appliedOn = patch.appliedOn.applied(to: entry.appliedOn)
         entry.resultOn = patch.resultOn.applied(to: entry.resultOn)
@@ -807,6 +813,8 @@ public final class ApplicationStore {
             eventID: event.id,
             repIdentityID: draft.repIdentityID,
             repMembershipID: draft.repMembershipID,
+            identityRole: draft.identityRole,
+            representativeName: draft.representativeName,
             roundName: draft.roundName,
             appliedOn: draft.appliedOn,
             resultOn: draft.resultOn,

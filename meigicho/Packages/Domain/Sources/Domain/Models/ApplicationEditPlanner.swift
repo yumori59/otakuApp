@@ -28,6 +28,9 @@ public struct ApplicationEditFormInput: Equatable, Sendable {
     public var venueNameRaw: String
     public var eventDate: Date?
     public var repIdentityID: UUID
+    /// 立場（#22）。`representativeName` は `.companion` のときだけ意味を持つ
+    public var identityRole: ApplicationRole
+    public var representativeName: String
     /// 同行者スロット。既存同行者との対応は**インデックス（= `position`）**で取る（FR-AE-5）
     public var companions: [CompanionInput]
     public var appliedOn: Date?
@@ -43,6 +46,8 @@ public struct ApplicationEditFormInput: Equatable, Sendable {
         venueNameRaw: String = "",
         eventDate: Date? = nil,
         repIdentityID: UUID,
+        identityRole: ApplicationRole = .representative,
+        representativeName: String = "",
         companions: [CompanionInput] = [],
         appliedOn: Date? = nil,
         resultOn: Date? = nil,
@@ -56,6 +61,8 @@ public struct ApplicationEditFormInput: Equatable, Sendable {
         self.venueNameRaw = venueNameRaw
         self.eventDate = eventDate
         self.repIdentityID = repIdentityID
+        self.identityRole = identityRole
+        self.representativeName = representativeName
         self.companions = companions
         self.appliedOn = appliedOn
         self.resultOn = resultOn
@@ -99,6 +106,19 @@ public enum ApplicationEditPlanner {
 
         if input.repIdentityID != current.repIdentityID {
             patch.repIdentityID = .set(input.repIdentityID)
+        }
+        if input.identityRole != current.identityRole {
+            patch.identityRole = .set(input.identityRole)
+        }
+        // representative_name は companion のときだけ意味を持つ。representative へ戻すときは null で消す
+        let nextRepresentativeName = ApplicationRole.normalizedRepresentativeName(
+            input.representativeName, role: input.identityRole
+        )
+        let currentRepresentativeName = ApplicationRole.normalizedRepresentativeName(
+            current.representativeName, role: current.identityRole
+        )
+        if nextRepresentativeName != currentRepresentativeName {
+            patch.representativeName = .set(nextRepresentativeName)
         }
         if input.appliedOn != current.appliedOn {
             patch.appliedOn = .set(input.appliedOn)

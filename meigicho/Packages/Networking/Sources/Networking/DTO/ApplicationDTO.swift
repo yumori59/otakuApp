@@ -58,6 +58,9 @@ struct ApplicationResponse: Decodable, Sendable {
     let eventID: UUID
     let repIdentityID: UUID
     let repMembershipID: UUID?
+    /// 省略 / null は representative（旧 BE・既存データ）。未知値は `.representative` に落としログに残す
+    let identityRole: String?
+    let representativeName: String?
     let roundName: String?
     let appliedOn: String?
     let resultOn: String?
@@ -77,6 +80,8 @@ struct ApplicationResponse: Decodable, Sendable {
         case eventID = "event_id"
         case repIdentityID = "rep_identity_id"
         case repMembershipID = "rep_membership_id"
+        case identityRole = "identity_role"
+        case representativeName = "representative_name"
         case roundName = "round_name"
         case appliedOn = "applied_on"
         case resultOn = "result_on"
@@ -163,6 +168,8 @@ struct CreateApplicationRequest: Encodable, Sendable {
         case event
         case repIdentityID = "rep_identity_id"
         case repMembershipID = "rep_membership_id"
+        case identityRole = "identity_role"
+        case representativeName = "representative_name"
         case roundName = "round_name"
         case appliedOn = "applied_on"
         case resultOn = "result_on"
@@ -226,6 +233,12 @@ struct CreateApplicationRequest: Encodable, Sendable {
         try container.encode(draft.repIdentityID, forKey: .repIdentityID)
         // FR-AP-7 / AC-AP-12: 会員情報連携は今回スコープ外。**常に null を送る**（値を入れる経路を持たない）
         try container.encodeNil(forKey: .repMembershipID)
+        try container.encode(draft.identityRole.rawValue, forKey: .identityRole)
+        // representative のときは送らない（BE は null に正規化する）。companion でも空なら送らない
+        try container.encodeIfPresent(
+            ApplicationRole.normalizedRepresentativeName(draft.representativeName, role: draft.identityRole),
+            forKey: .representativeName
+        )
         try container.encodeIfPresent(Self.nullIfEmpty(draft.roundName), forKey: .roundName)
         try container.encodeIfPresent(
             draft.appliedOn.map(APIDateFormat.dateOnlyString(from:)), forKey: .appliedOn
@@ -257,6 +270,8 @@ struct UpdateApplicationRequest: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case repIdentityID = "rep_identity_id"
         case repMembershipID = "rep_membership_id"
+        case identityRole = "identity_role"
+        case representativeName = "representative_name"
         case roundName = "round_name"
         case appliedOn = "applied_on"
         case resultOn = "result_on"
@@ -272,6 +287,8 @@ struct UpdateApplicationRequest: Encodable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodePatch(patch.repIdentityID, forKey: .repIdentityID)
         try container.encodePatch(patch.repMembershipID, forKey: .repMembershipID)
+        try container.encodePatch(patch.identityRole, forKey: .identityRole) { $0.rawValue }
+        try container.encodePatch(patch.representativeName, forKey: .representativeName)
         try container.encodePatch(patch.roundName, forKey: .roundName)
         try container.encodePatch(patch.appliedOn, forKey: .appliedOn) {
             APIDateFormat.dateOnlyString(from: $0)
@@ -311,12 +328,19 @@ extension ApplicationResponse {
             // 未知値を黙って落とさない（BE-2 の iOS 版）。値そのものはコードなのでログに出してよい
             AppLogger(category: "applications").unknownValue(field: "status", rawValue: decodedStatus.rawValue)
         }
+        let decodedRole = identityRole.map(ApplicationRole.decoded)
+        if let decodedRole, decodedRole.didFallback {
+            AppLogger(category: "applications").unknownValue(field: "identity_role", rawValue: decodedRole.rawValue)
+        }
+        let role = decodedRole?.value ?? .representative
         return ApplicationEntry(
             id: id,
             tourID: tourID,
             eventID: eventID,
             repIdentityID: repIdentityID,
             repMembershipID: repMembershipID,
+            identityRole: role,
+            representativeName: ApplicationRole.normalizedRepresentativeName(representativeName, role: role),
             roundName: roundName,
             appliedOn: try ApplicationsAPIDates.dateOnly(appliedOn, field: "application.applied_on"),
             resultOn: try ApplicationsAPIDates.dateOnly(resultOn, field: "application.result_on"),

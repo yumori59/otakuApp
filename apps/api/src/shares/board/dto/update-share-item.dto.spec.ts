@@ -16,6 +16,11 @@ describe('UpdateShareItemDto', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('issue #21 status: won_unpaid は通る', async () => {
+    const { errors } = await validateBody({ rev: REV, status: 'won_unpaid' });
+    expect(errors).toHaveLength(0);
+  });
+
   it('rev + seat は通る', async () => {
     const { errors } = await validateBody({ rev: REV, seat: '1F A列 12番' });
     expect(errors).toHaveLength(0);

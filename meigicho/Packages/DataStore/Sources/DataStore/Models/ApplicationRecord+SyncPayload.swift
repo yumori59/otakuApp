@@ -9,6 +9,9 @@ struct RemoteApplication {
     var eventID: UUID
     var repIdentityID: UUID
     var repMembershipID: UUID?
+    /// pull に無い（旧 BE）/ null は representative
+    var identityRoleRaw: String
+    var representativeName: String?
     var roundName: String?
     var appliedOn: Date?
     var resultOn: Date?
@@ -43,6 +46,8 @@ extension ApplicationRecord: SyncableRecord {
             "event_id": .string(eventID.uuidString),
             "rep_identity_id": .string(repIdentityID.uuidString),
             "rep_membership_id": SyncPayloadBuilder.optionalUUID(repMembershipID),
+            "identity_role": .string(identityRoleRaw),
+            "representative_name": SyncPayloadBuilder.optionalString(representativeName),
             "round_name": SyncPayloadBuilder.optionalString(roundName),
             "applied_on": SyncPayloadBuilder.optionalDateOnly(appliedOn),
             "result_on": SyncPayloadBuilder.optionalDateOnly(resultOn),
@@ -68,6 +73,8 @@ extension ApplicationRecord: SyncableRecord {
             eventID: eventID,
             repIdentityID: repIdentityID,
             repMembershipID: SyncField.uuid(object, "rep_membership_id"),
+            identityRoleRaw: SyncField.string(object, "identity_role") ?? ApplicationRole.representative.rawValue,
+            representativeName: SyncField.string(object, "representative_name"),
             roundName: SyncField.string(object, "round_name"),
             appliedOn: SyncField.dateOnly(object, "applied_on"),
             resultOn: SyncField.dateOnly(object, "result_on"),
@@ -122,6 +129,8 @@ extension ApplicationRecord: SyncableRecord {
                     eventID: remote.eventID,
                     repIdentityID: remote.repIdentityID,
                     repMembershipID: remote.repMembershipID,
+                    identityRoleRaw: remote.identityRoleRaw,
+                    representativeName: remote.representativeName,
                     roundName: remote.roundName,
                     appliedOn: remote.appliedOn,
                     resultOn: remote.resultOn,

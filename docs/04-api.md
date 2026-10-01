@@ -251,6 +251,8 @@ async create(userId: string, dto: CreateIdentityDto) {
   },
   "rep_identity_id": "018f3c2a-aaaa-7c90-9d2a-000000000001",
   "rep_membership_id": "018f3c2a-bbbb-7c90-9d2a-000000000001",
+  "identity_role": "representative",
+  "representative_name": null,
   "round_name": "FC1次",
   "applied_on": "2026-07-01",
   "result_on": "2026-07-20",
@@ -275,6 +277,8 @@ async create(userId: string, dto: CreateIdentityDto) {
   "tour_id": "018f3c2a-dddd-7c90-9d2a-000000000001",
   "rep_identity_id": "018f3c2a-aaaa-7c90-9d2a-000000000001",
   "rep_membership_id": "018f3c2a-bbbb-7c90-9d2a-000000000001",
+  "identity_role": "representative",
+  "representative_name": null,
   "round_name": "FC1次",
   "status": "applied",
   "ticket_count": 2,
@@ -324,7 +328,9 @@ async create(userId: string, dto: CreateApplicationDto) {
 }
 ```
 
-`status`: `draft|applied|won|lost|cancelled`。
+`status`: `draft|applied|won|won_unpaid|lost|cancelled`（`won_unpaid`=当選・未入金。**当選として集計**する: `stats/identities` の `won_count`・`win_rate_percent`、共有 `identity_summary` の `won_count`。`pending`/発表待ちは `applied` のみ。未知値は400）。
+
+`identity_role`（申込の立場）: `representative`（名義本人・既定）| `companion`（同行。`representative_name`に「誰の申込か」を入れる）。POSTは両方任意（省略時は`representative`/`null`）、PATCHは渡したキーだけ変更。`representative_name`は前後空白をtrimして最大100文字、空文字は`null`。**`identity_role`が`representative`のとき`representative_name`はBEが`null`に正規化**する（PATCHで`representative`に変えたら名前も`null`、`representative`のまま名前だけ送っても`null`）。未知の`identity_role`は400（`sync/push`では`SYNC_APPLY_FAILED`でreject）。`sync/pull`・`sync/push`の`applications`レコードも同じ`identity_role`/`representative_name`キーを持つ（push で省略した場合は`representative`扱い）。共有ボード（`shares/received/*`）のレスポンスには露出しない。
 併せて `GET/PATCH/DELETE /v1/applications/:id`。
 
 ### 3.5 集約・統計・マトリクス

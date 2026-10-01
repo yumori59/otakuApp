@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IdentitiesService } from '../../identities/identities.service';
+import { isWonStatus } from '../../applications/dto/application-status';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -13,8 +14,6 @@ export interface IdentitySummaryRow {
   wonCount: number;
 }
 
-/** 当選扱いにする application.status（api-contract.md §0 enum）。 */
-const WON_STATUS = 'won';
 
 /**
  * identity_summary 共有の集計 (D10)。
@@ -52,7 +51,7 @@ export class IdentitySummaryService {
         group.repIdentityId,
         (total.get(group.repIdentityId) ?? 0) + count,
       );
-      if (group.status === WON_STATUS) {
+      if (isWonStatus(group.status)) {
         won.set(
           group.repIdentityId,
           (won.get(group.repIdentityId) ?? 0) + count,

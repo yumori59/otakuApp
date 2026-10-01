@@ -1,4 +1,9 @@
 import { toDateOnly } from '../common/util/date.util';
+import {
+  IDENTITY_ROLES,
+  MAX_REPRESENTATIVE_NAME_LENGTH,
+  normalizeRepresentativeName,
+} from '../applications/dto/identity-role';
 import { SyncCollection } from './sync-collections';
 
 function parseDeletedAt(value: unknown): Date | null {
@@ -69,6 +74,7 @@ export function payloadToPrismaData(
         eventId: payload.event_id,
         repIdentityId: payload.rep_identity_id,
         repMembershipId: payload.rep_membership_id ?? null,
+        ...applicationRoleData(payload),
         roundName: payload.round_name ?? null,
         appliedOn: parseDateOnly(payload.applied_on),
         resultOn: parseDateOnly(payload.result_on),
@@ -90,6 +96,62 @@ export function payloadToPrismaData(
     default:
       return payload;
   }
+}
+
+/**
+ * applications payload の立場フィールド。role 省略 = フィールドを返さない（create は既定の representative、update は既存値を保持）。
+ * representative のとき representative_name は常に null。
+ * 未知 role / 不正な name は `validateApplicationRolePayload` が事前に reject する
+ * ため、ここでは黙ってフォールバックしない（未知値は検証済みの前提で素通し）。
+ */
+function applicationRoleData(payload: Record<string, unknown>): {
+  identityRole?: unknown;
+  representativeName?: string | null;
+} {
+  // キー自体が無い旧クライアントの push は、既存行の立場を上書きしない
+  // （update に値を入れない）。create は Prisma の @default("representative") に任せる。
+  if (payload.identity_role === undefined || payload.identity_role === null) {
+    return {};
+  }
+  const identityRole = payload.identity_role;
+  const name =
+    typeof payload.representative_name === 'string'
+      ? payload.representative_name
+      : null;
+  return {
+    identityRole,
+    representativeName:
+      identityRole === 'representative'
+        ? null
+        : normalizeRepresentativeName(name),
+  };
+}
+
+/**
+ * applications payload の identity_role / representative_name を検証する。
+ * 不正なら reject 理由、問題なければ null（sync push の SYNC_APPLY_FAILED 用）。
+ */
+export function validateApplicationRolePayload(
+  payload: Record<string, unknown>,
+): string | null {
+  const role = payload.identity_role;
+  if (
+    role !== undefined &&
+    role !== null &&
+    !(IDENTITY_ROLES as readonly unknown[]).includes(role)
+  ) {
+    return `identity_role must be one of: ${IDENTITY_ROLES.join(', ')}`;
+  }
+  const name = payload.representative_name;
+  if (name !== undefined && name !== null) {
+    if (typeof name !== 'string') {
+      return 'representative_name must be a string';
+    }
+    if (name.trim().length > MAX_REPRESENTATIVE_NAME_LENGTH) {
+      return `representative_name must be at most ${MAX_REPRESENTATIVE_NAME_LENGTH} characters`;
+    }
+  }
+  return null;
 }
 
 export function isDeletedPayload(payload: Record<string, unknown>): boolean {

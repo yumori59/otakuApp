@@ -207,4 +207,65 @@ describe('CreateApplicationDto', () => {
       validateBody({ ...VALID_BODY, event_id: EVENT_ID }).errors.length,
     ).toBeGreaterThan(0);
   });
+  describe('identity_role / representative_name (issue #22)', () => {
+    it('両方省略可（既存クライアント互換）', () => {
+      expect(validateBody(VALID_BODY).errors).toHaveLength(0);
+    });
+
+    it('identity_role: companion + representative_name は通る（whitelist 付き BE-8）', () => {
+      const { errors } = validateBody({
+        ...VALID_BODY,
+        identity_role: 'companion',
+        representative_name: '山田花子',
+      });
+      expect(errors).toHaveLength(0);
+    });
+
+    it('representative_name: null は通る', () => {
+      const { errors } = validateBody({
+        ...VALID_BODY,
+        identity_role: 'representative',
+        representative_name: null,
+      });
+      expect(errors).toHaveLength(0);
+    });
+
+    it('未知の identity_role は 400（BE-2）', () => {
+      const { errors } = validateBody({ ...VALID_BODY, identity_role: 'owner' });
+      expect(errorProperties(errors)).toContain('identity_role');
+    });
+
+    it('representative_name は trim 後 100 文字まで', () => {
+      expect(
+        validateBody({
+          ...VALID_BODY,
+          identity_role: 'companion',
+          representative_name: `  ${'あ'.repeat(100)}  `,
+        }).errors,
+      ).toHaveLength(0);
+      expect(
+        errorProperties(
+          validateBody({
+            ...VALID_BODY,
+            identity_role: 'companion',
+            representative_name: 'あ'.repeat(101),
+          }).errors,
+        ),
+      ).toContain('representative_name');
+    });
+
+    it('representative_name が文字列でなければ 400', () => {
+      const { errors } = validateBody({
+        ...VALID_BODY,
+        representative_name: 123,
+      });
+      expect(errorProperties(errors)).toContain('representative_name');
+    });
+
+    it('status: won_unpaid を受理する（issue #21）', () => {
+      expect(
+        validateBody({ ...VALID_BODY, status: 'won_unpaid' }).errors,
+      ).toHaveLength(0);
+    });
+  });
 });

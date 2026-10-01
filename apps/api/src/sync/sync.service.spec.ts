@@ -549,6 +549,168 @@ describe('SyncService', () => {
     expect(result.accepted).toEqual([APPLICATION_ID]);
   });
 
+  describe('issue #21/#22 identity_role / representative_name / won_unpaid', () => {
+    function appMutation(payload: Record<string, unknown>) {
+      return {
+        collection: 'applications' as const,
+        op: 'upsert' as const,
+        id: APPLICATION_ID,
+        updated_at: '2026-07-31T10:00:00.000Z',
+        payload: {
+          event_id: EVENT_ID,
+          rep_identity_id: IDENTITY_ID,
+          rep_membership_id: null,
+          status: 'applied',
+          ...payload,
+        },
+      };
+    }
+
+    beforeEach(() => {
+      tx.application.findUnique.mockResolvedValue(null);
+      tx.event.findUnique.mockResolvedValue({ ownerId: USER_ID });
+      tx.identity.findUnique.mockResolvedValue({ ownerId: USER_ID });
+    });
+
+    function upsertedData() {
+      const args = tx.application.upsert.mock.calls[0][0] as {
+        create: Record<string, unknown>;
+        update: Record<string, unknown>;
+      };
+      return args;
+    }
+
+    it('push — companion + representative_name は trim して保存される', async () => {
+      const result = await service.push(USER_ID, {
+        mutations: [
+          appMutation({
+            status: 'won_unpaid',
+            identity_role: 'companion',
+            representative_name: '  山田花子 ',
+          }),
+        ],
+      });
+
+      expect(result.rejected).toEqual([]);
+      expect(result.accepted).toEqual([APPLICATION_ID]);
+      const { create, update } = upsertedData();
+      for (const data of [create, update]) {
+        expect(data).toMatchObject({
+          status: 'won_unpaid',
+          identityRole: 'companion',
+          representativeName: '山田花子',
+        });
+      }
+    });
+
+    it('push — role 省略は立場フィールドを update にも create にも入れない（旧クライアントが既存の立場を上書きしない。create は Prisma 既定の representative）', async () => {
+      const result = await service.push(USER_ID, {
+        mutations: [appMutation({})],
+      });
+
+      expect(result.accepted).toEqual([APPLICATION_ID]);
+      const { create, update } = upsertedData();
+      for (const data of [create, update]) {
+        expect(data).not.toHaveProperty('identityRole');
+        expect(data).not.toHaveProperty('representativeName');
+      }
+    });
+
+    it('push — representative のとき representative_name は null に正規化', async () => {
+      await service.push(USER_ID, {
+        mutations: [
+          appMutation({
+            identity_role: 'representative',
+            representative_name: '山田花子',
+          }),
+        ],
+      });
+
+      expect(upsertedData().create).toMatchObject({
+        identityRole: 'representative',
+        representativeName: null,
+      });
+    });
+
+    it('push — 未知の identity_role は SYNC_APPLY_FAILED で reject（黙ってフォールバックしない）', async () => {
+      const result = await service.push(USER_ID, {
+        mutations: [appMutation({ identity_role: 'owner' })],
+      });
+
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected[0]).toMatchObject({
+        id: APPLICATION_ID,
+        code: 'SYNC_APPLY_FAILED',
+      });
+      expect(result.rejected[0].message).toMatch(/identity_role/);
+      expect(tx.application.upsert).not.toHaveBeenCalled();
+    });
+
+    it('push — 100 文字超の representative_name は reject', async () => {
+      const result = await service.push(USER_ID, {
+        mutations: [
+          appMutation({
+            identity_role: 'companion',
+            representative_name: 'あ'.repeat(101),
+          }),
+        ],
+      });
+
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected[0]).toMatchObject({ code: 'SYNC_APPLY_FAILED' });
+      expect(result.rejected[0].message).toMatch(/representative_name/);
+      expect(tx.application.upsert).not.toHaveBeenCalled();
+    });
+
+    it('push — 不正 role の mutation があっても同一バッチの正常な mutation は accepted', async () => {
+      const OK_ID = '018f3c2a-dddd-7c90-9d2a-000000000097';
+      const result = await service.push(USER_ID, {
+        mutations: [
+          appMutation({ identity_role: 'owner' }),
+          { ...appMutation({ identity_role: 'companion' }), id: OK_ID },
+        ],
+      });
+
+      expect(result.accepted).toEqual([OK_ID]);
+      expect(result.rejected.map((r) => r.id)).toEqual([APPLICATION_ID]);
+    });
+
+    it('pull — applications に identity_role / representative_name / status が含まれる', async () => {
+      prisma.application.findMany.mockResolvedValue([
+        {
+          id: APPLICATION_ID,
+          ownerId: USER_ID,
+          eventId: EVENT_ID,
+          repIdentityId: IDENTITY_ID,
+          repMembershipId: null,
+          identityRole: 'companion',
+          representativeName: '山田花子',
+          roundName: null,
+          appliedOn: null,
+          resultOn: null,
+          status: 'won_unpaid',
+          seatRaw: null,
+          ticketCount: 1,
+          priceYen: null,
+          note: null,
+          createdAt: new Date('2026-08-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-20T10:00:00.000Z'),
+          deletedAt: null,
+        },
+      ]);
+
+      const result = await service.pull(USER_ID, '2026-07-30T00:00:00.000Z', [
+        'applications',
+      ]);
+
+      expect(result.changes.applications[0]).toMatchObject({
+        status: 'won_unpaid',
+        identity_role: 'companion',
+        representative_name: '山田花子',
+      });
+    });
+  });
+
   it('AC-10 push — identities: tombstone (deleted_at 付き) upsert は ensureWithinLimit を呼ばずに accepted される', async () => {
     tx.identity.findUnique.mockResolvedValue({
       ownerId: USER_ID,

@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -12,10 +12,16 @@ import {
   MaxLength,
   Min,
   Validate,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { APPLICATION_STATUSES } from './application-status';
 import type { ApplicationStatus } from './application-status';
+import {
+  IDENTITY_ROLES,
+  MAX_REPRESENTATIVE_NAME_LENGTH,
+} from './identity-role';
+import type { IdentityRole } from './identity-role';
 import {
   ApplicationCompanionDto,
   MAX_COMPANIONS,
@@ -39,6 +45,20 @@ export class UpdateApplicationDto {
   @IsUUID()
   rep_membership_id?: string | null;
 
+  // null は 400（NOT NULL 列に null が渡って 500 になるのを防ぐ）
+  @ValidateIf((_, value) => value !== undefined)
+  @IsIn(IDENTITY_ROLES)
+  identity_role?: IdentityRole;
+
+  /** 前後空白は除去して最大 100 文字（空文字は Service で null に正規化）。 */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(MAX_REPRESENTATIVE_NAME_LENGTH)
+  representative_name?: string | null;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -52,7 +72,7 @@ export class UpdateApplicationDto {
   @Matches(DATE_ONLY_RE, { message: 'result_on must be YYYY-MM-DD' })
   result_on?: string | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(APPLICATION_STATUSES)
   status?: ApplicationStatus;
 

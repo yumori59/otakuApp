@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isWonStatus } from '../applications/dto/application-status';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface IdentityStatsItem {
@@ -56,7 +57,7 @@ export class StatsService {
     const items: IdentityStatsItem[] = [...byIdentity.entries()]
       .map(([identityId, appsById]) => {
         const statuses = [...appsById.values()];
-        const won = statuses.filter((s) => s === 'won').length;
+        const won = statuses.filter((s) => isWonStatus(s)).length;
         const lost = statuses.filter((s) => s === 'lost').length;
         const pending = statuses.filter((s) => s === 'applied').length;
         const decided = won + lost;

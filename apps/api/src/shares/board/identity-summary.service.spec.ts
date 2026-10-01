@@ -123,4 +123,17 @@ describe('IdentitySummaryService', () => {
     expect(JSON.stringify(rows)).not.toContain(IDENTITY_A);
     expect(JSON.stringify(rows)).not.toContain(USER_ID);
   });
+
+  it('issue #21 won_count は won と won_unpaid の合計', async () => {
+    identities.list.mockResolvedValue([identityResponse(IDENTITY_A)]);
+    prisma.application.groupBy.mockResolvedValue([
+      { repIdentityId: IDENTITY_A, status: 'won', _count: { _all: 2 } },
+      { repIdentityId: IDENTITY_A, status: 'won_unpaid', _count: { _all: 3 } },
+      { repIdentityId: IDENTITY_A, status: 'applied', _count: { _all: 1 } },
+    ]);
+
+    const rows = await service.build(USER_ID);
+
+    expect(rows[0]).toMatchObject({ applicationCount: 6, wonCount: 5 });
+  });
 });

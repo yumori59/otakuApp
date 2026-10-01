@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { IdentitiesService } from '../../identities/identities.service';
 import { ApplicationResponse } from '../applications.presenter';
 import { ApplicationsService } from '../applications.service';
+import { resolveRoleOnUpdate } from '../dto/identity-role';
 import { UpdateApplicationDto } from '../dto/update-application.dto';
 
 /**
@@ -55,6 +56,18 @@ export class UpdateApplicationUseCase {
         if (!stillOwned) {
           effectiveDto = { ...dto, rep_membership_id: null };
         }
+      }
+
+      // 立場の不変条件: representative のとき representative_name は null（現在値も踏まえて正規化）
+      const role = resolveRoleOnUpdate(dto, current.identityRole);
+      if (role.identityRole !== undefined) {
+        effectiveDto = { ...effectiveDto, identity_role: role.identityRole };
+      }
+      if (role.representativeName !== undefined) {
+        effectiveDto = {
+          ...effectiveDto,
+          representative_name: role.representativeName,
+        };
       }
 
       for (const companion of dto.companions ?? []) {

@@ -71,6 +71,8 @@ export function serializeSyncRecord(
         event_id: row.eventId,
         rep_identity_id: row.repIdentityId,
         rep_membership_id: row.repMembershipId,
+        identity_role: row.identityRole,
+        representative_name: row.representativeName,
         round_name: row.roundName,
         applied_on: fromDateOnly(row.appliedOn as Date | null),
         result_on: fromDateOnly(row.resultOn as Date | null),

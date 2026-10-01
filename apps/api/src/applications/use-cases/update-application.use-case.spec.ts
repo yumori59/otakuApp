@@ -41,6 +41,8 @@ function applicationRow(overrides: Record<string, unknown> = {}) {
     eventId: EVENT_ID,
     repIdentityId: IDENTITY_ID,
     repMembershipId: null,
+    identityRole: 'representative',
+    representativeName: null,
     roundName: 'FC1次',
     appliedOn: null,
     resultOn: null,
@@ -435,5 +437,81 @@ describe('UpdateApplicationUseCase', () => {
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.application.update).not.toHaveBeenCalled();
+  });
+  describe('identity_role / representative_name (issue #22)', () => {
+    it('渡していなければ identity_role / representative_name に触れない', async () => {
+      await useCase.execute(USER_ID, APP_ID, dto({ round_name: 'FC2次' }));
+
+      expect(tx.application.update).toHaveBeenCalledWith({
+        where: { id: APP_ID },
+        data: { roundName: 'FC2次' },
+      });
+    });
+
+    it('representative → companion + name は trim して保存', async () => {
+      await useCase.execute(
+        USER_ID,
+        APP_ID,
+        dto({ identity_role: 'companion', representative_name: ' 山田花子 ' }),
+      );
+
+      expect(tx.application.update).toHaveBeenCalledWith({
+        where: { id: APP_ID },
+        data: { identityRole: 'companion', representativeName: '山田花子' },
+      });
+    });
+
+    it('companion → representative に変えたら name も null（name を同時に送っても）', async () => {
+      tx.application.findFirst.mockResolvedValue(
+        applicationRow({
+          identityRole: 'companion',
+          representativeName: '山田花子',
+        }),
+      );
+
+      await useCase.execute(
+        USER_ID,
+        APP_ID,
+        dto({ identity_role: 'representative', representative_name: '誰か' }),
+      );
+
+      expect(tx.application.update).toHaveBeenCalledWith({
+        where: { id: APP_ID },
+        data: { identityRole: 'representative', representativeName: null },
+      });
+    });
+
+    it('現在 companion で name のみ変更 → name だけ更新（空文字は null）', async () => {
+      tx.application.findFirst.mockResolvedValue(
+        applicationRow({
+          identityRole: 'companion',
+          representativeName: '山田花子',
+        }),
+      );
+
+      await useCase.execute(
+        USER_ID,
+        APP_ID,
+        dto({ representative_name: '' }),
+      );
+
+      expect(tx.application.update).toHaveBeenCalledWith({
+        where: { id: APP_ID },
+        data: { representativeName: null },
+      });
+    });
+
+    it('現在 representative で name のみ送られても null に正規化（不変条件）', async () => {
+      await useCase.execute(
+        USER_ID,
+        APP_ID,
+        dto({ representative_name: '山田花子' }),
+      );
+
+      expect(tx.application.update).toHaveBeenCalledWith({
+        where: { id: APP_ID },
+        data: { representativeName: null },
+      });
+    });
   });
 });

@@ -11,6 +11,10 @@ import {
 } from './applications.presenter';
 import { DEFAULT_APPLICATION_STATUS } from './dto/application-status';
 import {
+  normalizeRepresentativeName,
+  resolveRoleOnCreate,
+} from './dto/identity-role';
+import {
   ApplicationCompanionDto,
   CreateApplicationDto,
 } from './dto/create-application.dto';
@@ -201,6 +205,7 @@ export class ApplicationsService {
     tx: Prisma.TransactionClient,
   ): Promise<ApplicationResponse> {
     const id = dto.id ?? randomUUID();
+    const role = resolveRoleOnCreate(dto.identity_role, dto.representative_name);
 
     await tx.application.create({
       data: {
@@ -209,6 +214,8 @@ export class ApplicationsService {
         eventId,
         repIdentityId: dto.rep_identity_id,
         repMembershipId: dto.rep_membership_id ?? null,
+        identityRole: role.identityRole,
+        representativeName: role.representativeName,
         roundName: dto.round_name ?? null,
         appliedOn: dto.applied_on ? toDateOnly(dto.applied_on) : null,
         resultOn: dto.result_on ? toDateOnly(dto.result_on) : null,
@@ -253,6 +260,17 @@ export class ApplicationsService {
     }
     if (dto.rep_membership_id !== undefined) {
       data.repMembershipId = dto.rep_membership_id;
+    }
+    // use-case が current の role を踏まえて正規化済みの dto を渡す。
+    // ここでも representative → name null / trim を強制する（直接呼び出し対策）。
+    if (dto.identity_role !== undefined) data.identityRole = dto.identity_role;
+    if (dto.representative_name !== undefined) {
+      data.representativeName =
+        dto.identity_role === 'representative'
+          ? null
+          : normalizeRepresentativeName(dto.representative_name);
+    } else if (dto.identity_role === 'representative') {
+      data.representativeName = null;
     }
     if (dto.round_name !== undefined) data.roundName = dto.round_name;
     if (dto.applied_on !== undefined) {

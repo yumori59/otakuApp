@@ -431,4 +431,105 @@ final class SwiftDataApplicationRepositoryTests: XCTestCase {
         XCTAssertEqual(payload["ticket_count"], .number(2))
         XCTAssertEqual(payload["rep_membership_id"], .null)
     }
+
+    // MARK: - #21 won_unpaid / #22 立場
+
+    func testCreatePersistsRoleAndNameAndPayloadCarriesThem() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        let identity = try await makeIdentity(container)
+        let applications = SwiftDataApplicationRepository(container: container)
+        var d = draft(repIdentityID: identity.id)
+        d.identityRole = .companion
+        d.representativeName = "山田"
+        d.status = .wonUnpaid
+        let created = try await applications.create(d)
+
+        XCTAssertEqual(created.identityRole, .companion)
+        XCTAssertEqual(created.representativeName, "山田")
+        XCTAssertEqual(created.status, .wonUnpaid)
+
+        let context = ModelContext(container)
+        let record = try XCTUnwrap(try ApplicationRecord.fetchRecord(id: created.id, in: context))
+        let payload = record.syncPayload()
+        XCTAssertEqual(payload["identity_role"], .string("companion"))
+        XCTAssertEqual(payload["representative_name"], .string("山田"))
+        XCTAssertEqual(payload["status"], .string("won_unpaid"))
+    }
+
+    func testDefaultRecordIsRepresentativeAndPayloadSendsNullName() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        let identity = try await makeIdentity(container)
+        let applications = SwiftDataApplicationRepository(container: container)
+        let created = try await applications.create(draft(repIdentityID: identity.id))
+        XCTAssertEqual(created.identityRole, .representative)
+        XCTAssertNil(created.representativeName)
+
+        let context = ModelContext(container)
+        let record = try XCTUnwrap(try ApplicationRecord.fetchRecord(id: created.id, in: context))
+        XCTAssertEqual(record.syncPayload()["identity_role"], .string("representative"))
+        XCTAssertEqual(record.syncPayload()["representative_name"], .null)
+    }
+
+    func testUpdateRoleSwitchClearsRepresentativeName() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        let identity = try await makeIdentity(container)
+        let applications = SwiftDataApplicationRepository(container: container)
+        var d = draft(repIdentityID: identity.id)
+        d.identityRole = .companion
+        d.representativeName = "山田"
+        let created = try await applications.create(d)
+
+        var toRepresentative = ApplicationPatch()
+        toRepresentative.identityRole = .set(.representative)
+        let updated = try await applications.update(id: created.id, toRepresentative)
+        XCTAssertEqual(updated.identityRole, .representative)
+        XCTAssertNil(updated.representativeName, "representative では名前を保持しない")
+
+        var toCompanion = ApplicationPatch()
+        toCompanion.identityRole = .set(.companion)
+        toCompanion.representativeName = .set(" 佐藤 ")
+        let again = try await applications.update(id: created.id, toCompanion)
+        XCTAssertEqual(again.identityRole, .companion)
+        XCTAssertEqual(again.representativeName, "佐藤")
+    }
+
+    func testPullWithoutRoleFieldsDefaultsToRepresentativeAndPullAppliesRole() async throws {
+        let container = try ModelContainerFactory.makeInMemory()
+        let identity = try await makeIdentity(container)
+        let tourID = UUID()
+        let eventID = UUID()
+        let appID = UUID()
+        let context = ModelContext(container)
+        let now = "2026-07-31T12:05:00.000Z"
+        try TourRecord.upsertRemote([
+            "id": .string(tourID.uuidString), "name": .string("T"), "updated_at": .string(now),
+        ], in: context)
+        try EventRecord.upsertRemote([
+            "id": .string(eventID.uuidString), "tour_id": .string(tourID.uuidString),
+            "name": .string("E"), "updated_at": .string(now),
+        ], in: context)
+        // 旧 BE（identity_role なし）
+        try ApplicationRecord.upsertRemote([
+            "id": .string(appID.uuidString), "event_id": .string(eventID.uuidString),
+            "rep_identity_id": .string(identity.id.uuidString),
+            "status": .string("won_unpaid"), "updated_at": .string(now),
+        ], in: context)
+        try context.save()
+        var record = try XCTUnwrap(try ApplicationRecord.fetchRecord(id: appID, in: context))
+        XCTAssertEqual(record.identityRole, .representative)
+        XCTAssertNil(record.representativeName)
+        XCTAssertEqual(record.status, .wonUnpaid)
+
+        // 新 BE（立場あり・より新しい updated_at）
+        try ApplicationRecord.upsertRemote([
+            "id": .string(appID.uuidString), "event_id": .string(eventID.uuidString),
+            "rep_identity_id": .string(identity.id.uuidString),
+            "identity_role": .string("companion"), "representative_name": .string("山田"),
+            "status": .string("won"), "updated_at": .string("2026-08-01T00:00:00.000Z"),
+        ], in: context)
+        try context.save()
+        record = try XCTUnwrap(try ApplicationRecord.fetchRecord(id: appID, in: context))
+        XCTAssertEqual(record.identityRole, .companion)
+        XCTAssertEqual(record.representativeName, "山田")
+    }
 }

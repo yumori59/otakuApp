@@ -255,23 +255,44 @@ struct ApplicationTicketRow: View {
     }
 
     private var stubText: String {
-        if app.status == .won, !app.seatRaw.isEmpty { return app.seatRaw }
+        if app.status.isWon, !app.seatRaw.isEmpty { return app.seatRaw }
         return "発表 \(DateFormatting.formatDateShort(app.resultOn))"
     }
 
+    /// 先頭に立場バッジ（代表 / 同行）、続けて名義・同行者の説明タグ。
+    /// 立場は名義詳細（`contextIdentityID` あり）ではその名義から見た立場、一覧では申込の `identityRole`。
     private func buildTags(repName: String) -> [TagView] {
         var tags: [TagView] = []
+        let role = contextIdentityID.flatMap { app.role(for: $0) } ?? app.identityRole
+        tags.append(TagView(role.badgeLabel, kind: role == .representative ? .rep : .companion))
+
+        let representativeName = app.representativeName.flatMap { $0.isEmpty ? nil : $0 }
         if let ctx = contextIdentityID {
             if ctx == app.repIdentityID {
-                tags.append(TagView("代表者として申込", kind: .rep))
-                if !app.companions.isEmpty {
-                    tags.append(TagView("同行者: \(companionNames)", kind: .companion))
+                switch app.identityRole {
+                case .representative:
+                    tags.append(TagView("代表者として申込", kind: .rep))
+                case .companion:
+                    tags.append(TagView("同行者として参加（代表: \(representativeName ?? "不明")）", kind: .companion))
                 }
-            } else {
+                if !app.companions.isEmpty {
+                    tags.append(TagView("ほかの同行者: \(companionNames)", kind: .companion))
+                }
+            } else if app.identityRole == .representative {
                 tags.append(TagView("同行者として参加（代表: \(repName)）", kind: .companion))
+            } else {
+                tags.append(TagView("同行者として参加（名義: \(repName)）", kind: .companion))
             }
         } else {
-            tags.append(TagView("代表: \(repName)", kind: .rep))
+            switch app.identityRole {
+            case .representative:
+                tags.append(TagView("代表: \(repName)", kind: .rep))
+            case .companion:
+                tags.append(TagView("名義: \(repName)", kind: .companion))
+                if let representativeName {
+                    tags.append(TagView("代表者: \(representativeName)", kind: .rep))
+                }
+            }
             if !app.companions.isEmpty {
                 tags.append(TagView("同行者: \(companionNames)", kind: .companion))
             }
@@ -287,6 +308,7 @@ struct ApplicationTicketRow: View {
         switch status {
         case .draft: .draft
         case .applied: .applied
+        case .wonUnpaid: .wonUnpaid
         case .won: .won
         case .lost, .cancelled: .lost
         }
@@ -368,10 +390,13 @@ struct TourGroupView: View {
     }
 
     private var countsLine: String {
-        let winN = group.items.filter { $0.status == .won }.count
+        let winN = group.items.filter { $0.status.isWon }.count
+        let unpaidN = group.items.filter { $0.status == .wonUnpaid }.count
         let pendN = group.items.filter { $0.status == .applied }.count
         let loseN = group.items.filter { $0.status == .lost }.count
-        return "全\(group.items.count)件・当選\(winN)／申込中\(pendN)／落選\(loseN)"
+        // 当選数には未入金も含める。未入金があるときだけ内訳を添える
+        let winText = unpaidN > 0 ? "当選\(winN)（未入金\(unpaidN)）" : "当選\(winN)"
+        return "全\(group.items.count)件・\(winText)／申込中\(pendN)／落選\(loseN)"
     }
 
     private var groupHasDuplicateEvents: Bool {
@@ -499,14 +524,14 @@ struct TourGroupView: View {
         .frame(minWidth: 560)
     }
 
-    /// タップで 下書き → 申込中 → 当選 → 落選 → 下書き。
+    /// タップで 下書き → 申込中 → 当選/未入金 → 当選 → 落選 → 下書き（巡回順は `ApplicationStatus.nextInTapCycle`）。
     /// **`status` だけを PATCH する**ので、落選に戻しても座席は消えない（AC-AP-08-M）。
     private func statusCell(_ app: ApplicationEntry) -> some View {
         Button {
             // 当落が動いた瞬間から 60 秒は全広告を止める（F4-5 / AC-AD-39）。
             // PATCH の成否を待たずタップ時点で記録する（喜び/落胆の瞬間に枠を出さないことが目的）
             adsStore.recordStatusChange()
-            Task { await applicationStore.updateApplicationStatus(app.id, status: Self.nextStatus(app.status)) }
+            Task { await applicationStore.updateApplicationStatus(app.id, status: app.status.nextInTapCycle) }
         } label: {
             Text(app.status.label).font(DSFont.captionBold)
                 .foregroundStyle(stampColor(app.status))
@@ -515,13 +540,6 @@ struct TourGroupView: View {
                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
         }
         .buttonStyle(.plain)
-    }
-
-    /// 巡回順。**`cancelled` は入れない**（取消は詳細画面から行う操作で、誤タップで入ると戻しにくい）。
-    static func nextStatus(_ current: ApplicationStatus) -> ApplicationStatus {
-        let order: [ApplicationStatus] = [.draft, .applied, .won, .lost]
-        guard let index = order.firstIndex(of: current) else { return .applied }
-        return order[(index + 1) % order.count]
     }
 
     @ViewBuilder
@@ -583,6 +601,7 @@ struct TourGroupView: View {
 
     private func stampColor(_ status: ApplicationStatus) -> Color {
         switch status {
+        case .wonUnpaid: DS.Blue.b900
         case .won: DS.success
         case .lost, .cancelled: DS.Gray.g600
         case .draft: DS.Gray.g500
@@ -592,6 +611,7 @@ struct TourGroupView: View {
 
     private func stampBG(_ status: ApplicationStatus) -> Color {
         switch status {
+        case .wonUnpaid: DS.Blue.b50
         case .won: DS.successBG
         case .lost, .cancelled, .draft: DS.Gray.g100
         case .applied: DS.warningBG

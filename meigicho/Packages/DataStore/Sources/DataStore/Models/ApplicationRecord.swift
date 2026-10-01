@@ -11,6 +11,9 @@ public final class ApplicationRecord {
     public var eventID: UUID
     public var repIdentityID: UUID
     public var repMembershipID: UUID?
+    /// #22: 立場。**プロパティ既定値**を持たせて SwiftData の軽量マイグレーションで既存行を representative にする
+    public var identityRoleRaw: String = ApplicationRole.representative.rawValue
+    public var representativeName: String? = nil
     public var roundName: String?
     public var appliedOn: Date?
     public var resultOn: Date?
@@ -30,6 +33,8 @@ public final class ApplicationRecord {
         eventID: UUID,
         repIdentityID: UUID,
         repMembershipID: UUID? = nil,
+        identityRoleRaw: String = ApplicationRole.representative.rawValue,
+        representativeName: String? = nil,
         roundName: String? = nil,
         appliedOn: Date? = nil,
         resultOn: Date? = nil,
@@ -48,6 +53,8 @@ public final class ApplicationRecord {
         self.eventID = eventID
         self.repIdentityID = repIdentityID
         self.repMembershipID = repMembershipID
+        self.identityRoleRaw = identityRoleRaw
+        self.representativeName = representativeName
         self.roundName = roundName
         self.appliedOn = appliedOn
         self.resultOn = resultOn
@@ -71,6 +78,12 @@ public final class ApplicationRecord {
     public var status: ApplicationStatus {
         get { ApplicationStatus.decoded(statusRaw).value }
         set { statusRaw = newValue.rawValue }
+    }
+
+    /// 未知の生値は `.representative` へ寄せる（`ApplicationRole.decoded` と同じ規則）。
+    public var identityRole: ApplicationRole {
+        get { ApplicationRole.decoded(identityRoleRaw).value }
+        set { identityRoleRaw = newValue.rawValue }
     }
 
     public func markDirty(now: Date = Date()) {

@@ -19,7 +19,7 @@ final class EnumFallbackTests: XCTestCase {
     }
 
     func testApplicationStatusKnownValues() {
-        for raw in ["draft", "applied", "won", "lost", "cancelled"] {
+        for raw in ["draft", "applied", "won_unpaid", "won", "lost", "cancelled"] {
             let decoded = ApplicationStatus.decoded(raw)
             XCTAssertEqual(decoded.value.rawValue, raw)
             XCTAssertFalse(decoded.didFallback)
@@ -31,6 +31,21 @@ final class EnumFallbackTests: XCTestCase {
         XCTAssertEqual(decoded.value, .applied)
         XCTAssertTrue(decoded.didFallback)
         XCTAssertEqual(decoded.rawValue, "waitlisted")
+    }
+
+    func testApplicationRoleKnownValues() {
+        for raw in ["representative", "companion"] {
+            let decoded = ApplicationRole.decoded(raw)
+            XCTAssertEqual(decoded.value.rawValue, raw)
+            XCTAssertFalse(decoded.didFallback)
+        }
+    }
+
+    func testApplicationRoleUnknownFallsBackToRepresentativeAndReportsIt() {
+        let decoded = ApplicationRole.decoded("guest")
+        XCTAssertEqual(decoded.value, .representative)
+        XCTAssertTrue(decoded.didFallback)
+        XCTAssertEqual(decoded.rawValue, "guest")
     }
 
     func testSharePermissionUnknownIsNotSilentlyDowngraded() {

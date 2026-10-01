@@ -210,6 +210,77 @@ final class ApplicationDTOTests: XCTestCase {
         XCTAssertNil(event["venue_name_raw"])
     }
 
+    // MARK: - #21 won_unpaid / #22 立場
+
+    private func decodeApplication(replacing target: String? = nil, with replacement: String = "") throws -> ApplicationEntry {
+        var text = String(decoding: Self.applicationJSON, as: UTF8.self)
+        if let target { text = text.replacingOccurrences(of: target, with: replacement) }
+        return try JSONDecoder().decode(ApplicationResponse.self, from: Data(text.utf8)).toDomain()
+    }
+
+    func testWonUnpaidStatusDecodes() throws {
+        let entry = try decodeApplication(replacing: "\"status\": \"applied\"", with: "\"status\": \"won_unpaid\"")
+        XCTAssertEqual(entry.status, .wonUnpaid)
+    }
+
+    func testMissingRoleFieldsDefaultToRepresentative() throws {
+        let entry = try decodeApplication()
+        XCTAssertEqual(entry.identityRole, .representative)
+        XCTAssertNil(entry.representativeName)
+    }
+
+    func testCompanionRoleAndRepresentativeNameDecode() throws {
+        let entry = try decodeApplication(
+            replacing: "\"rep_membership_id\": null,",
+            with: "\"rep_membership_id\": null, \"identity_role\": \"companion\", \"representative_name\": \"山田\","
+        )
+        XCTAssertEqual(entry.identityRole, .companion)
+        XCTAssertEqual(entry.representativeName, "山田")
+    }
+
+    func testUnknownRoleFallsBackToRepresentativeWithoutFailingDecode() throws {
+        let entry = try decodeApplication(
+            replacing: "\"rep_membership_id\": null,",
+            with: "\"rep_membership_id\": null, \"identity_role\": \"guest\", \"representative_name\": \"山田\","
+        )
+        XCTAssertEqual(entry.identityRole, .representative)
+        XCTAssertNil(entry.representativeName, "representative では名前を持たない")
+    }
+
+    func testCreateRequestSendsRoleAndNameForCompanion() throws {
+        let draft = ApplicationDraft(
+            tour: TourDraft(name: "TOUR"), event: EventDraft(name: "公演"), repIdentityID: identityB,
+            identityRole: .companion, representativeName: " 山田 ", status: .wonUnpaid
+        )
+        let body = try encodedCreateBody(draft)
+        XCTAssertEqual(body["identity_role"] as? String, "companion")
+        XCTAssertEqual(body["representative_name"] as? String, "山田")
+        XCTAssertEqual(body["status"] as? String, "won_unpaid")
+    }
+
+    func testCreateRequestOmitsNameForRepresentative() throws {
+        let draft = ApplicationDraft(
+            tour: TourDraft(name: "TOUR"), event: EventDraft(name: "公演"), repIdentityID: identityB,
+            identityRole: .representative, representativeName: "山田"
+        )
+        let body = try encodedCreateBody(draft)
+        XCTAssertEqual(body["identity_role"] as? String, "representative")
+        XCTAssertNil(body["representative_name"])
+    }
+
+    func testUpdateRequestRoleKeysFollowPatchSemantics() throws {
+        var patch = ApplicationPatch()
+        patch.identityRole = .set(.representative)
+        patch.representativeName = .set(nil)
+        let body = try encodedUpdateBody(patch)
+        XCTAssertEqual(body["identity_role"] as? String, "representative")
+        XCTAssertTrue(body["representative_name"] is NSNull, "representative へ戻すときは null で消す")
+
+        let untouched = try encodedUpdateBody(ApplicationPatch())
+        XCTAssertNil(untouched["identity_role"])
+        XCTAssertNil(untouched["representative_name"])
+    }
+
     // MARK: - PATCH（送らない / null を送る の区別）
 
     private func encodedUpdateBody(_ patch: ApplicationPatch) throws -> [String: Any] {
