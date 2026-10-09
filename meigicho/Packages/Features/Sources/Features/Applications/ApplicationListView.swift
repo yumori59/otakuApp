@@ -273,15 +273,16 @@ struct ApplicationTicketRow: View {
                 case .representative:
                     tags.append(TagView("代表者として申込", kind: .rep))
                 case .companion:
-                    tags.append(TagView("同行者として参加（代表: \(representativeName ?? "不明")）", kind: .companion))
+                    let suffix = representativeName.map { "（代表: \($0)）" } ?? ""
+                    tags.append(TagView("同行者として申込\(suffix)", kind: .companion))
                 }
                 if !app.companions.isEmpty {
                     tags.append(TagView("ほかの同行者: \(companionNames)", kind: .companion))
                 }
             } else if app.identityRole == .representative {
-                tags.append(TagView("同行者として参加（代表: \(repName)）", kind: .companion))
+                tags.append(TagView("同行者として申込（代表: \(repName)）", kind: .companion))
             } else {
-                tags.append(TagView("同行者として参加（名義: \(repName)）", kind: .companion))
+                tags.append(TagView("同行者として申込（名義: \(repName)）", kind: .companion))
             }
         } else {
             switch app.identityRole {
