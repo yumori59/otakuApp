@@ -101,6 +101,7 @@ public struct TagView: View {
 }
 
 public struct TicketRowView: View {
+    let artist: String?
     let event: String
     let meta: String
     let tags: [TagView]
@@ -109,6 +110,7 @@ public struct TicketRowView: View {
     let action: () -> Void
 
     public init(
+        artist: String? = nil,
         event: String,
         meta: String,
         tags: [TagView],
@@ -116,6 +118,7 @@ public struct TicketRowView: View {
         stubText: String,
         action: @escaping () -> Void
     ) {
+        self.artist = artist
         self.event = event
         self.meta = meta
         self.tags = tags
@@ -128,6 +131,11 @@ public struct TicketRowView: View {
         Button(action: action) {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 6) {
+                    if let artist, !artist.isEmpty {
+                        Text(artist)
+                            .font(DSFont.captionBold)
+                            .foregroundStyle(DS.Blue.b900)
+                    }
                     Text(event)
                         .font(DSFont.bodyBold)
                         .foregroundStyle(DS.Gray.g900)
