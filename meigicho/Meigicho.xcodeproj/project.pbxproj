@@ -27,6 +27,7 @@
 		CF74F980C4963F977AC0EBAD /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 8DC9D4487520D96A1A32CAA0 /* DesignSystem */; };
 		D16DB5F5DAD031FF154EF25A /* DisabledAdRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7193440DF8FF1849BD64DAAA /* DisabledAdRenderer.swift */; };
 		EAEC792A79B78E3D07583951 /* DataStore in Frameworks */ = {isa = PBXBuildFile; productRef = A954DD7CF6CC8D8602DA6DD1 /* DataStore */; };
+		F033828C73A4B8BB0AD2DD39 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DE3BDDD6A97C83C1F99AEAEB /* Assets.xcassets */; };
 		F96D3E010C675884BE8E95C3 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 795E74327B348E52EC471C5B /* Domain */; };
 /* End PBXBuildFile section */
 
@@ -51,7 +52,9 @@
 		89AC02614213E8D880DCCC16 /* DisabledPurchasesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledPurchasesService.swift; sourceTree = "<group>"; };
 		92EC29D32CBE59B60D9A0D65 /* BackgroundSyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncScheduler.swift; sourceTree = "<group>"; };
 		ADEECAFC5B7D9D09A95F7C5A /* DesignSystem */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignSystem; path = Packages/DesignSystem; sourceTree = SOURCE_ROOT; };
-		ED039E4F8E7B0A56C453A65A /* Meigicho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Meigicho.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C6B17860F1F7B4A76D548D82 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		DE3BDDD6A97C83C1F99AEAEB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		ED039E4F8E7B0A56C453A65A /* Meigicho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Meigicho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB42BB444579A2AA4E104444 /* DataStore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DataStore; path = Packages/DataStore; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -73,6 +76,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0EA267AE45275BE3E4E7A9E0 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				C6B17860F1F7B4A76D548D82 /* Debug.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		75CCEB70C4520B1309EB2044 /* Purchases */ = {
 			isa = PBXGroup;
 			children = (
@@ -119,6 +130,7 @@
 			isa = PBXGroup;
 			children = (
 				288FC8BAE02F849E8A4A3419 /* AppEnvironment.swift */,
+				DE3BDDD6A97C83C1F99AEAEB /* Assets.xcassets */,
 				92EC29D32CBE59B60D9A0D65 /* BackgroundSyncScheduler.swift */,
 				0CA2A1668140EF85E5E7A9F1 /* DeepLinkRouter.swift */,
 				564A8F8FBEC05DBBA6BA5D45 /* Info.plist */,
@@ -136,6 +148,7 @@
 			isa = PBXGroup;
 			children = (
 				9C8C8264B5AE41CD5C8C49CE /* App */,
+				0EA267AE45275BE3E4E7A9E0 /* Config */,
 				8A6AAFBCA5E4A95CD21ECFB8 /* Packages */,
 				8AA727F6092062428561EA02 /* Products */,
 			);
@@ -149,6 +162,7 @@
 			buildConfigurationList = AE8E965F52B23C963E39E9AF /* Build configuration list for PBXNativeTarget "Meigicho" */;
 			buildPhases = (
 				DE78C440B1F593FE1DEED956 /* Sources */,
+				9D21021AE878DC2CA37FC356 /* Resources */,
 				CFFAB3ED915FD27969D466A6 /* Frameworks */,
 			);
 			buildRules = (
@@ -179,7 +193,7 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					BF80C8CCA2BD3AB4F35EA840 = {
-						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -210,6 +224,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9D21021AE878DC2CA37FC356 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F033828C73A4B8BB0AD2DD39 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		DE78C440B1F593FE1DEED956 /* Sources */ = {
@@ -246,7 +271,7 @@
 				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
 				ADMOB_UNIT_TOURTABLE_BANNER = "";
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				API_BASE_URL = "https://api.meigicho.example";
+				API_BASE_URL = "https://meigicho-api-532843697738.asia-northeast1.run.app";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -308,7 +333,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = LK3WH7HBCH;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "参戦名義帳";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -317,8 +344,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.meigicho.app;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -328,7 +360,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = LK3WH7HBCH;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "参戦名義帳";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -337,14 +371,20 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.meigicho.app;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
 		DF11B9F13C4FA27ADDD08A0F /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C6B17860F1F7B4A76D548D82 /* Debug.xcconfig */;
 			buildSettings = {
 				ADMOB_APP_ID = "ca-app-pub-3940256099942544~1458002511";
 				ADMOB_UNIT_APPLICATIONS_NATIVE = "";
@@ -353,7 +393,6 @@
 				ADMOB_UNIT_IDENTITYDETAIL_BANNER = "";
 				ADMOB_UNIT_TOURTABLE_BANNER = "";
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				API_BASE_URL = "http://localhost:8080";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
