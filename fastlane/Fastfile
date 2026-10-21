@@ -34,21 +34,36 @@ platform :ios do
     )
 
     # コード署名の設定（match または manual）
+    # CI 環境用の一時キーチェーンを作成
+    keychain_name = "fastlane_tmp_keychain"
+    keychain_password = SecureRandom.uuid
+    
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      add_to_search_list: true
+    )
+
     # match を使う場合（推奨）:
     if ENV["MATCH_GIT_URL"]
       match(
         type: "appstore",
         git_url: ENV["MATCH_GIT_URL"],
         readonly: true,
-        api_key: api_key
+        api_key: api_key,
+        keychain_name: keychain_name,
+        keychain_password: keychain_password
       )
     else
       # Manual 署名（証明書とプロビジョニングプロファイルを GitHub Secrets から復元）
       import_certificate(
         certificate_path: "certificate.p12",
         certificate_password: ENV["CERT_PASSWORD"],
-        keychain_name: "fastlane_tmp_keychain",
-        keychain_password: ""
+        keychain_name: keychain_name,
+        keychain_password: keychain_password
       )
       
       install_provisioning_profile(
