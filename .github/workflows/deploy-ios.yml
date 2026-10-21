@@ -47,11 +47,6 @@ jobs:
           gem install fastlane
           fastlane --version
 
-      - name: Install XcodeGen
-        run: |
-          brew install xcodegen
-          xcodegen --version
-
       - name: Setup App Store Connect API Key
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
