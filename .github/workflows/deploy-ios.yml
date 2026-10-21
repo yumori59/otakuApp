@@ -5,7 +5,7 @@ name: Deploy iOS to TestFlight
 
 on:
   push:
-    branches: ["**"]  # すべてのブランチで一時的にトリガー（テスト用）
+    branches: [main]
     paths:
       - "meigicho/**"
       - "fastlane/**"
