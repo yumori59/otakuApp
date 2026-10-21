@@ -62,11 +62,11 @@ settings:
     ADMOB_UNIT_HOME_NATIVE: ""
     ADMOB_UNIT_APPLICATIONS_NATIVE: ""
   configs:
-    Debug:
-      API_BASE_URL: http://localhost:8080
     Release:
-      # TODO: Cloud Run の URL を設定する（.xcconfig による環境分離は docs/09 1-16）
-      API_BASE_URL: https://api.meigicho.example
+      API_BASE_URL: https://meigicho-api-532843697738.asia-northeast1.run.app
+
+configFiles:
+  Debug: Config/Debug.xcconfig
 
 targets:
   Meigicho:
@@ -81,7 +81,8 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: LK3WH7HBCH
+        CODE_SIGN_STYLE: Automatic
     dependencies:
       - package: Features
         product: Features

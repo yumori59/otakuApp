@@ -1,0 +1,4 @@
+// このファイルを Debug.local.xcconfig にコピーし、Mac の LAN IP に書き換える。
+// 確認コマンド: ipconfig getifaddr en0
+// xcconfig は // をコメント開始として扱うため、URL の // は $() で分割してエスケープする
+API_BASE_URL = http:/$()/192.168.x.x:8080

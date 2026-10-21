@@ -38,3 +38,4 @@ fastlane/test_output
 fastlane/README.md.bak
 *.ipa
 *.app.dSYM.zip
+meigicho/Config/Debug.local.xcconfig

@@ -237,6 +237,7 @@ struct ApplicationTicketRow: View {
         let rep = identityStore.identity(for: app.repIdentityID)
         let display = applicationStore.display(for: app)
         TicketRowView(
+            artist: display.artistName,
             event: display.eventName ?? "公演情報を読み込み中",
             meta: metaText(display),
             tags: buildTags(repName: rep?.displayName ?? "不明"),

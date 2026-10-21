@@ -1,0 +1,6 @@
+API_BASE_URL = http:/$()/localhost:8080
+
+// 実機デバッグ用の上書き。個人環境の LAN IP はコミットしないため
+// Debug.local.xcconfig（gitignore 済み）に書く。存在しなければこのファイルは無視され、
+// 上の localhost がそのまま使われる（シミュレータはこれで動く）。
+#include? "Debug.local.xcconfig"
