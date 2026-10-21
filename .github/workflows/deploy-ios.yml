@@ -23,6 +23,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: macos-latest
+    env:
+      # secrets を env にマップして if: 条件で使用できるようにする
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +65,7 @@ jobs:
           fi
 
       - name: Setup Code Signing (match)
-        if: ${{ secrets.MATCH_GIT_URL != '' }}
+        if: ${{ env.MATCH_GIT_URL != '' }}
         env:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
@@ -69,7 +74,7 @@ jobs:
           echo "match を使用したコード署名を設定します"
 
       - name: Setup Code Signing (manual)
-        if: ${{ secrets.MATCH_GIT_URL == '' }}
+        if: ${{ env.MATCH_GIT_URL == '' }}
         env:
           SIGNING_CERTIFICATE_P12_BASE64: ${{ secrets.SIGNING_CERTIFICATE_P12_BASE64 }}
           SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
