@@ -1,0 +1,105 @@
+name: Deploy iOS to TestFlight
+
+# main への meigicho/ 配下変更マージで自動デプロイ、または手動トリガー。
+# TestFlight へのアップロードのみ（App Store レビューへの自動提出は行わない）。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "meigicho/**"
+      - "fastlane/**"
+      - ".github/workflows/deploy-ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 連続マージ時に古いビルドが後勝ちしないよう直列化する。
+concurrency:
+  group: deploy-ios
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.0"
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: false
+
+      - name: Install fastlane
+        run: |
+          gem install fastlane
+          fastlane --version
+
+      - name: Install XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Setup App Store Connect API Key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+        run: |
+          # API キーの検証（実際の認証は fastlane が行う）
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_CONTENT" ]; then
+            echo "エラー: App Store Connect API キーの secrets が設定されていません"
+            exit 1
+          fi
+
+      - name: Setup Code Signing (match)
+        if: ${{ secrets.MATCH_GIT_URL != '' }}
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          echo "match を使用したコード署名を設定します"
+
+      - name: Setup Code Signing (manual)
+        if: ${{ secrets.MATCH_GIT_URL == '' }}
+        env:
+          SIGNING_CERTIFICATE_P12_BASE64: ${{ secrets.SIGNING_CERTIFICATE_P12_BASE64 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          # 証明書とプロビジョニングプロファイルの復元
+          if [ -z "$SIGNING_CERTIFICATE_P12_BASE64" ] || [ -z "$PROVISIONING_PROFILE_BASE64" ]; then
+            echo "エラー: コード署名の secrets が設定されていません"
+            echo "MATCH_GIT_URL または SIGNING_CERTIFICATE_P12_BASE64 + PROVISIONING_PROFILE_BASE64 が必要です"
+            exit 1
+          fi
+
+          echo "$SIGNING_CERTIFICATE_P12_BASE64" | base64 --decode > certificate.p12
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+
+      - name: Build and Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_SPECIFIER: ${{ secrets.PROVISIONING_PROFILE_SPECIFIER }}
+        run: |
+          fastlane beta
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f certificate.p12 profile.mobileprovision

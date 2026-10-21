@@ -29,3 +29,12 @@ xcuserdata/
 # Prisma / tooling
 apps/api/prisma/*.db
 *.log
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/README.md.bak
+*.ipa
+*.app.dSYM.zip

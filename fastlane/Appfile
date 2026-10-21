@@ -1,0 +1,10 @@
+# fastlane Appfile
+
+# App ID
+app_identifier "jp.meigicho.app"
+
+# Team ID は GitHub Secrets の APPLE_TEAM_ID から取得
+team_id ENV["APPLE_TEAM_ID"]
+
+# App Store Connect API Key（secrets から JSON として構築）
+# fastlane は FASTLANE_API_KEY_PATH または api_key_path を優先する
