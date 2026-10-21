@@ -57,6 +57,16 @@ platform :ios do
         keychain_name: keychain_name,
         keychain_password: keychain_password
       )
+      
+      # 署名設定を更新（自動署名を無効化し、match のプロファイルを使用）
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: project_path,
+        team_id: ENV["APPLE_TEAM_ID"],
+        bundle_identifier: "jp.meigicho.app",
+        profile_name: "match AppStore jp.meigicho.app",
+        code_sign_identity: "Apple Distribution"
+      )
     else
       # Manual 署名（証明書とプロビジョニングプロファイルを GitHub Secrets から復元）
       import_certificate(
