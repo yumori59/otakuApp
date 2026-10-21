@@ -63,11 +63,14 @@ platform :ios do
       scheme: "Meigicho",
       configuration: "Release",
       export_method: "app-store",
+      export_team_id: ENV["APPLE_TEAM_ID"],
       export_options: {
+        teamID: ENV["APPLE_TEAM_ID"],
         provisioningProfiles: {
           "jp.meigicho.app" => ENV["PROVISIONING_PROFILE_SPECIFIER"] || "match AppStore jp.meigicho.app"
         }
-      }
+      },
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}"
     )
 
     # TestFlight へアップロード（App Store レビューには送らない）
