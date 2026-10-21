@@ -1,0 +1,126 @@
+# fastlane Fastfile
+# 参戦名義帳 iOS アプリの TestFlight 自動デプロイ
+
+default_platform(:ios)
+
+platform :ios do
+  desc "TestFlight へビルドをアップロード"
+  lane :beta do
+    # App Store Connect API Key の設定（GitHub Secrets から環境変数経由）
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"],
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    # fastlane はリポジトリルートから実行されるようにする
+    repo_root = File.expand_path('..', __dir__)
+    UI.message("Current directory: #{Dir.pwd}")
+    UI.message("Repo root: #{repo_root}")
+    
+    project_path = File.join(repo_root, "meigicho", "Meigicho.xcodeproj")
+    UI.message("Project path: #{project_path}")
+    UI.message("Project exists: #{File.exist?(project_path)}")
+
+    # ビルド番号を自動インクリメント（TestFlight の最新ビルド番号 + 1）
+    increment_build_number(
+      build_number: latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: "jp.meigicho.app"
+      ) + 1,
+      xcodeproj: project_path
+    )
+
+    # コード署名の設定（match または manual）
+    # CI 環境用の一時キーチェーンを作成
+    keychain_name = "fastlane_tmp_keychain"
+    keychain_password = SecureRandom.uuid
+    
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      add_to_search_list: true
+    )
+
+    # match を使う場合（推奨）:
+    if ENV["MATCH_GIT_URL"]
+      match(
+        type: "appstore",
+        git_url: ENV["MATCH_GIT_URL"],
+        readonly: true,
+        api_key: api_key,
+        keychain_name: keychain_name,
+        keychain_password: keychain_password
+      )
+      
+      # 署名設定を更新（自動署名を無効化し、match のプロファイルを使用）
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: project_path,
+        team_id: ENV["APPLE_TEAM_ID"],
+        bundle_identifier: "jp.meigicho.app",
+        profile_name: "match AppStore jp.meigicho.app",
+        code_sign_identity: "Apple Distribution"
+      )
+    else
+      # Manual 署名（証明書とプロビジョニングプロファイルを GitHub Secrets から復元）
+      import_certificate(
+        certificate_path: "certificate.p12",
+        certificate_password: ENV["CERT_PASSWORD"],
+        keychain_name: keychain_name,
+        keychain_password: keychain_password
+      )
+      
+      install_provisioning_profile(
+        path: "profile.mobileprovision"
+      )
+    end
+
+    # ビルド
+    workspace_path = File.join(repo_root, "meigicho", "Meigicho.xcodeproj", "project.xcworkspace")
+    build_app(
+      workspace: workspace_path,
+      scheme: "Meigicho",
+      configuration: "Release",
+      export_method: "app-store",
+      export_team_id: ENV["APPLE_TEAM_ID"],
+      export_options: {
+        teamID: ENV["APPLE_TEAM_ID"],
+        provisioningProfiles: {
+          "jp.meigicho.app" => ENV["PROVISIONING_PROFILE_SPECIFIER"] || "match AppStore jp.meigicho.app"
+        }
+      },
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}"
+    )
+
+    # TestFlight へアップロード（App Store レビューには送らない）
+    upload_to_testflight(
+      api_key: api_key,
+      skip_submission: true,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "ビルド番号を取得"
+  lane :get_build_number do
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"],
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    build_number = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "jp.meigicho.app"
+    )
+
+    puts "最新の TestFlight ビルド番号: #{build_number}"
+  end
+end
