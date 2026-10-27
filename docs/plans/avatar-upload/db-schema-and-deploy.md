@@ -61,11 +61,11 @@ npx prisma migrate diff \
   --script
 ```
 
-期待される出力（Prisma 6.19 想定）:
+実出力（Prisma 6.19.0 で生成）:
 
 ```sql
 -- CreateTable
-CREATE TABLE "public"."user_avatars" (
+CREATE TABLE "user_avatars" (
     "user_id" UUID NOT NULL,
     "object_key" TEXT NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -75,7 +75,7 @@ CREATE TABLE "public"."user_avatars" (
 );
 
 -- AddForeignKey
-ALTER TABLE "public"."user_avatars" ADD CONSTRAINT "user_avatars_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_avatars" ADD CONSTRAINT "user_avatars_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ```
 
 **任意の追加（推奨）**: Supabase は `public` スキーマを Data API（PostgREST）に公開し得るため、RLS を有効化しておく（ポリシー無し = anon / authenticated ロールからは不可視。Prisma が使う所有者ロールは RLS の対象外なので API の動作に影響しない。Prisma は RLS を管理しないので `db push` の差分にも出ない）。

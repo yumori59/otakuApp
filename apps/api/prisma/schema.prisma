@@ -20,6 +20,7 @@ model User {
 
   profile            Profile?
   entitlement        Entitlement?
+  avatar             UserAvatar?
   identities         Identity[]
   tours              Tour[]
   events             Event[]
@@ -278,6 +279,19 @@ model ShareRecipient {
   @@unique([shareLinkId, accountId])
   @@index([userId])
   @@map("share_recipients")
+}
+
+/// アカウント本人のアイコン画像（avatar-upload）。行が無い = 未設定。
+/// URL ではなく GCS のオブジェクトキーを持つ（URL は API が AVATAR_PUBLIC_BASE_URL から組み立てる）。
+model UserAvatar {
+  userId    String   @id @map("user_id") @db.Uuid
+  objectKey String   @map("object_key")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_avatars")
 }
 
 model DeviceToken {

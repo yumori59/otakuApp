@@ -3,6 +3,7 @@ import { AppError } from '../common/errors/app-error';
 import { ErrorCode } from '../common/errors/error-codes';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AvatarService } from './avatar/avatar.service';
 import { MeService } from './me.service';
 
 const USER_ID = '018f3c2a-7b1e-7c90-9d2a-1a2b3c4d5e6f';
@@ -115,6 +116,7 @@ describe('MeService', () => {
     identityLimit: jest.Mock;
     shareLimit: jest.Mock;
   };
+  let avatarService: { avatarUrl: jest.Mock };
   let service: MeService;
 
   beforeEach(() => {
@@ -131,9 +133,11 @@ describe('MeService', () => {
       identityLimit: jest.fn().mockResolvedValue(3),
       shareLimit: jest.fn().mockResolvedValue(1),
     };
+    avatarService = { avatarUrl: jest.fn().mockResolvedValue(null) };
     service = new MeService(
       prisma as unknown as PrismaService,
       entitlements as unknown as EntitlementsService,
+      avatarService as unknown as AvatarService,
     );
   });
 
@@ -159,6 +163,7 @@ describe('MeService', () => {
           locale: 'ja_JP',
           timezone: 'Asia/Tokyo',
           onboarded_at: null,
+          avatar_url: null,
           created_at: NOW.toISOString(),
           updated_at: NOW.toISOString(),
         },
@@ -237,6 +242,25 @@ describe('MeService', () => {
       );
       const result = await service.getMe(USER_ID);
       expect(result.user.auth_providers).toEqual([]);
+    });
+
+    it('AC-AV-01 アバター未設定なら profile.avatar_url が null（キーが存在する）', async () => {
+      prisma.user.findUnique.mockResolvedValue(userRow());
+      avatarService.avatarUrl.mockResolvedValue(null);
+      const result = await service.getMe(USER_ID);
+      expect(result.profile).toHaveProperty('avatar_url');
+      expect(result.profile.avatar_url).toBeNull();
+    });
+
+    it('AC-AV-02 アバター設定済みなら profile.avatar_url に URL が入る', async () => {
+      prisma.user.findUnique.mockResolvedValue(userRow());
+      avatarService.avatarUrl.mockResolvedValue(
+        'https://storage.googleapis.com/test-avatars/avatars/abc123.jpg',
+      );
+      const result = await service.getMe(USER_ID);
+      expect(result.profile.avatar_url).toBe(
+        'https://storage.googleapis.com/test-avatars/avatars/abc123.jpg',
+      );
     });
 
     it('plus の entitlement は identity_limit / share_limit が null', async () => {
@@ -439,6 +463,7 @@ describe('MeService', () => {
     const methods = Object.getOwnPropertyNames(
       Object.getPrototypeOf(service),
     ).filter((m) => m !== 'constructor');
+    // avatarService 追加後もメソッドは変わらない
     expect(methods.sort()).toEqual([
       'deleteAccount',
       'findUserForDeletion',

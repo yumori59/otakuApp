@@ -52,11 +52,26 @@ services:
       # メール送信（パスワードリセット）。ローカルはダミー値で未設定扱いにしてログへフォールバックする
       RESEND_API_KEY: ""
       RESEND_FROM_EMAIL: no-reply@example.com
+      # アバター画像ストレージ（fake-gcs-server）
+      AVATAR_BUCKET: meigicho-avatars-local
+      AVATAR_PUBLIC_BASE_URL: http://localhost:4443/meigicho-avatars-local
+      GCS_API_ENDPOINT: http://gcs:4443
     ports:
       - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
+      gcs:
+        condition: service_started
+
+  gcs:
+    image: fsouza/fake-gcs-server:1
+    container_name: meigicho-gcs
+    command: ["-scheme", "http", "-port", "4443", "-public-host", "localhost:4443", "-backend", "memory"]
+    ports:
+      - "4443:4443"
+    volumes:
+      - ./infra/fake-gcs/data:/data:ro
 
 volumes:
   pgdata:

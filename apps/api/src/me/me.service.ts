@@ -7,6 +7,7 @@ import {
 } from '../entitlements/entitlements.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateMeDto } from './dto/update-me.dto';
+import { AvatarService } from './avatar/avatar.service';
 
 export interface MeUserView {
   id: string;
@@ -24,6 +25,7 @@ export interface MeProfileView {
   locale: string;
   timezone: string;
   onboarded_at: string | null;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +89,7 @@ export class MeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementsService,
+    private readonly avatarService: AvatarService,
   ) {}
 
   async getMe(userId: string): Promise<MeView> {
@@ -97,10 +100,11 @@ export class MeService {
     if (!user || !user.profile) {
       throw AppError.notFound('user not found');
     }
-    return presentMe(
-      user as UserWithProfile,
-      await loadEntitlement(this.entitlements, userId),
-    );
+    const [loaded, avatarUrl] = await Promise.all([
+      loadEntitlement(this.entitlements, userId),
+      this.avatarService.avatarUrl(userId),
+    ]);
+    return presentMe(user as UserWithProfile, loaded, avatarUrl);
   }
 
   async updateMe(userId: string, dto: UpdateMeDto): Promise<MeView> {
@@ -201,6 +205,7 @@ function presentMe(
     identityLimit: number | null;
     shareLimit: number | null;
   },
+  avatarUrl: string | null,
 ): MeView {
   const profile = user.profile;
   if (!profile) {
@@ -226,6 +231,7 @@ function presentMe(
       onboarded_at: profile.onboardedAt
         ? profile.onboardedAt.toISOString()
         : null,
+      avatar_url: avatarUrl,
       created_at: profile.createdAt.toISOString(),
       updated_at: profile.updatedAt.toISOString(),
     },

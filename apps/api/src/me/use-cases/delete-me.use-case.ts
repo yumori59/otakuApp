@@ -5,6 +5,8 @@ import { CREDENTIALS_INVALID_MESSAGE } from '../../auth/use-cases/login-with-ema
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { DeleteMeDto } from '../dto/delete-me.dto';
+import { AvatarService } from '../avatar/avatar.service';
+import { AvatarStorage } from '../avatar/avatar.storage';
 import { MeService } from '../me.service';
 
 /**
@@ -22,11 +24,16 @@ export class DeleteMeUseCase {
     private readonly meService: MeService,
     private readonly hasher: PasswordHasher,
     private readonly appleTokenRevoker: AppleTokenRevoker,
+    private readonly avatarService: AvatarService,
+    private readonly storage: AvatarStorage,
   ) {}
 
   async execute(userId: string, dto: DeleteMeDto = {}): Promise<void> {
     const user = await this.meService.findUserForDeletion(userId);
     if (!user) throw AppError.notFound('user not found');
+
+    // アバターのオブジェクトキーを退会前に読む（テーブル不在なら null）
+    const avatarKey = await this.avatarService.findObjectKey(userId);
 
     // password_hash が null（Apple / Google のみ）のときは password を要求しない。
     // 送られてきても無視する（誤って締め出さない — E-11）。
@@ -45,8 +52,19 @@ export class DeleteMeUseCase {
 
     await this.meService.deleteAccount(userId);
 
-    // ここから先は削除済み。Apple のトークン失効はベストエフォート（FR-AD-11 / D3 / E-7）。
-    // 失敗しても 204 を変えない。例外の中身はコードを含み得るのでログに載せない（NFR-AD-3）。
+    // ここから先は削除済み。各後処理はベストエフォート。失敗しても 204 を変えない。
+
+    // アバターのオブジェクト削除（ベストエフォート。FR-AV-10 / api-contract-delta.md §4）
+    if (avatarKey) {
+      await this.storage.delete(avatarKey).catch(() => {
+        this.logger.warn(
+          `退会時のアバター削除に失敗しましたがアカウント削除は完了しています user_id=${userId}`,
+        );
+      });
+    }
+
+    // Apple のトークン失効はベストエフォート（FR-AD-11 / D3 / E-7）。
+    // 例外の中身はコードを含み得るのでログに載せない（NFR-AD-3）。
     if (dto.apple_authorization_code) {
       try {
         await this.appleTokenRevoker.revokeAuthorizationCode(
