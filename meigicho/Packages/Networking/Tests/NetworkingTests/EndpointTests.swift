@@ -60,4 +60,22 @@ final class EndpointTests: XCTestCase {
         let request = try Endpoint.versioned(.get, "/me").urlRequest(baseURL: baseURL, extraHeaders: [:])
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
     }
+
+    // MARK: - AC-AV-31: contentType カスタマイズ
+
+    /// body がある場合にカスタム contentType が Content-Type ヘッダーに反映される
+    func testCustomContentTypeIsUsedWhenBodyExists() throws {
+        let boundary = "Boundary-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+        let multipartType = "multipart/form-data; boundary=\(boundary)"
+        let endpoint = Endpoint.versioned(.put, "/me/avatar", body: Data("dummy".utf8), contentType: multipartType)
+        let request = try endpoint.urlRequest(baseURL: baseURL, extraHeaders: [:])
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), multipartType)
+    }
+
+    /// contentType を省略した場合は既定の `application/json` になる
+    func testDefaultContentTypeIsApplicationJSON() throws {
+        let endpoint = Endpoint.versioned(.post, "/identities", body: Data("{}".utf8))
+        let request = try endpoint.urlRequest(baseURL: baseURL, extraHeaders: [:])
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+    }
 }

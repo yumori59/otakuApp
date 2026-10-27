@@ -11,6 +11,7 @@ public struct Endpoint: Equatable, Sendable {
     public enum Method: String, Sendable {
         case get = "GET"
         case post = "POST"
+        case put = "PUT"
         case patch = "PATCH"
         case delete = "DELETE"
     }
@@ -42,20 +43,42 @@ public struct Endpoint: Equatable, Sendable {
     public let path: Path
     public let query: [URLQueryItem]
     public let body: Data?
+    /// `body` が存在するときに `Content-Type` ヘッダーに設定する値。
+    /// `multipart/form-data` 送信時は `MultipartFormData.singleFile` が返す値を渡す（`api-contract-delta.md` §0.1）。
+    public let contentType: String
 
-    public init(method: Method, path: Path, query: [URLQueryItem] = [], body: Data? = nil) {
+    public init(
+        method: Method,
+        path: Path,
+        query: [URLQueryItem] = [],
+        body: Data? = nil,
+        contentType: String = "application/json"
+    ) {
         self.method = method
         self.path = path
         self.query = query
         self.body = body
+        self.contentType = contentType
     }
 
-    public static func versioned(_ method: Method, _ path: String, query: [URLQueryItem] = [], body: Data? = nil) -> Endpoint {
-        Endpoint(method: method, path: .versioned(path), query: query, body: body)
+    public static func versioned(
+        _ method: Method,
+        _ path: String,
+        query: [URLQueryItem] = [],
+        body: Data? = nil,
+        contentType: String = "application/json"
+    ) -> Endpoint {
+        Endpoint(method: method, path: .versioned(path), query: query, body: body, contentType: contentType)
     }
 
-    public static func publicPath(_ method: Method, _ path: String, query: [URLQueryItem] = [], body: Data? = nil) -> Endpoint {
-        Endpoint(method: method, path: .publicPath(path), query: query, body: body)
+    public static func publicPath(
+        _ method: Method,
+        _ path: String,
+        query: [URLQueryItem] = [],
+        body: Data? = nil,
+        contentType: String = "application/json"
+    ) -> Endpoint {
+        Endpoint(method: method, path: .publicPath(path), query: query, body: body, contentType: contentType)
     }
 
     /// `URLRequest` を組み立てる。
@@ -80,7 +103,7 @@ public struct Endpoint: Equatable, Sendable {
         request.setValue(UUIDv7.generate().uuidString.lowercased(), forHTTPHeaderField: "X-Request-Id")
         if let body {
             request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         for (key, value) in extraHeaders {
             request.setValue(value, forHTTPHeaderField: key)

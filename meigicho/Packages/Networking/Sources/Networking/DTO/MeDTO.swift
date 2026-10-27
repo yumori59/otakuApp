@@ -38,6 +38,8 @@ struct MeProfileResponse: Decodable, Sendable {
     let locale: String
     let timezone: String
     let onboardedAt: String?
+    /// `null` / キー欠落 → `nil`（未設定・ストレージ未設定時）。`api-contract-delta.md` §1。
+    let avatarURL: String?
     let createdAt: String
     let updatedAt: String
 
@@ -50,6 +52,7 @@ struct MeProfileResponse: Decodable, Sendable {
         case locale
         case timezone
         case onboardedAt = "onboarded_at"
+        case avatarURL = "avatar_url"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -124,6 +127,7 @@ extension MeResponse {
                 locale: profile.locale,
                 timezone: profile.timezone,
                 onboardedAt: profile.onboardedAt.flatMap(APIDateFormat.dateTime(from:)),
+                avatarURL: profile.avatarURL.flatMap(URL.init(string:)),
                 email: user.email,
                 authProviders: user.authProviders
             ),

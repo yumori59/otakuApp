@@ -57,6 +57,8 @@ public struct UserProfile: Equatable, Sendable {
     public var locale: String
     public var timezone: String
     public var onboardedAt: Date?
+    /// `GET /v1/me` の `profile.avatar_url`。未設定・ストレージ未設定時は `nil`（`api-contract-delta.md` §1）。
+    public var avatarURL: URL?
     public var email: String?
     /// `"apple"` / `"google"` / `"email"`。**未知の値が増えてもクラッシュしない**ため `[String]` のまま持つ
     public var authProviders: [String]
@@ -71,6 +73,7 @@ public struct UserProfile: Equatable, Sendable {
         locale: String,
         timezone: String,
         onboardedAt: Date? = nil,
+        avatarURL: URL? = nil,
         email: String? = nil,
         authProviders: [String] = []
     ) {
@@ -83,6 +86,7 @@ public struct UserProfile: Equatable, Sendable {
         self.locale = locale
         self.timezone = timezone
         self.onboardedAt = onboardedAt
+        self.avatarURL = avatarURL
         self.email = email
         self.authProviders = authProviders
     }
