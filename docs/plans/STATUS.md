@@ -399,6 +399,12 @@ API 契約変更なし（BE / Prisma / `Packages/Networking` は未変更）。r
 
 `input-history-suggestions`（0-11d）で唯一未対応だった申込フォームの**公演名**欄にサジェストを追加。候補は自分の全公演名（`InputSuggestion.candidates(fromOrdered:)`を新設し公演日の新しい順を維持）、タップ時は空欄のツアー名・アーティスト・会場のみ補完。DB/BE/API契約変更ゼロ、iOSのみ。roadmap 0-11e として追加。
 
+## 17. アカウントアイコン（アバター画像）— `docs/plans/avatar-upload/`（計画済み・未着手）
+
+アカウント本人のプロフィールアイコンを設定・削除する（本人にのみ表示）。BE `PUT/DELETE /v1/me/avatar` + `GET /v1/me` の `profile.avatar_url`、iOS はアカウント設定とホーム左上の入口。
+ストレージは **GCS**（ADC・鍵なし・Terraform 管理）、DB は**別テーブル `user_avatars`**（本番スキーマ未反映でも既存機能が落ちない設計）、`deploy-api.yml` に非破壊 `prisma db push` の `db-schema` ジョブを追加。
+`docs/01` R5-5（画像を使わない）の例外化かつ roadmap 外のため、**Q0 / Q3 / Q5 は要ユーザー確認**（`questions-requirements.md`）。
+
 ## ファイル所有表（同時に触らせないファイル。iOS T1b/T2/T3を並列発行する際に必ず確認）
 
 `docs/plans/ios-network-integration/plan.md` §2.1 が正。T0/T1が確定させた基盤（`ApiClient.swift`・`TokenStore.swift`・`AuthStore.swift`・Repository protocol定義）は以後読み取り専用。
