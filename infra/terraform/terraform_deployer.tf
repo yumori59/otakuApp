@@ -29,6 +29,8 @@ locals {
     # 実効的な防御は「借用できるのが terraform-apply.yml だけ」＋「起動が手動のみ」＋
     # 「GitHub Environment (production) の Required reviewers」の 3 段。
     "roles/resourcemanager.projectIamAdmin",
+    # GCS バケット作成・バケット IAM の変更（storage.tf）
+    "roles/storage.admin",
   ]
 }
 
@@ -68,6 +70,8 @@ locals {
     "roles/iam.serviceAccountViewer",
     "roles/iam.workloadIdentityPoolViewer",
     "roles/serviceusage.serviceUsageViewer",
+    # terraform plan でバケットのメタデータを読む（IAM ポリシーは既存 securityReviewer に含まれる）
+    "roles/storage.bucketViewer",
   ]
 }
 
