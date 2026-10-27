@@ -91,6 +91,14 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "RESEND_FROM_EMAIL"
         value = var.resend_from_email
       }
+      env {
+        name  = "AVATAR_BUCKET"
+        value = google_storage_bucket.avatars.name
+      }
+      env {
+        name  = "AVATAR_PUBLIC_BASE_URL"
+        value = "https://storage.googleapis.com/${google_storage_bucket.avatars.name}"
+      }
 
       # --- 機密値: Secret Manager から解決（secrets.tf で作った「箱」の最新バージョン） ---
       dynamic "env" {
@@ -128,6 +136,7 @@ resource "google_cloud_run_v2_service" "api" {
   depends_on = [
     google_project_service.required,
     google_secret_manager_secret_iam_member.runtime_accessor,
+    google_storage_bucket_iam_member.api_runtime_object_user,
   ]
 }
 

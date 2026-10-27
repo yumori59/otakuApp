@@ -133,10 +133,10 @@ terraform output
 
 | SA | 権限 | 借用できるトークン |
 |---|---|---|
-| `meigicho-api` (runtime) | Secret Manager の該当シークレットの `secretAccessor` のみ | なし（Cloud Run が使う） |
+| `meigicho-api` (runtime) | Secret Manager の該当シークレットの `secretAccessor` + GCS バケット `${project_id}-avatars` の `storage.objectUser`（アップロード・取得・削除） | なし（Cloud Run が使う） |
 | `ci-deploy` | `run.developer` + `artifactregistry.writer` + runtime SA への `serviceAccountUser` | このリポジトリの GitHub Actions（`deploy-api.yml` が使用） |
-| `terraform-planner` | 読み取り専用ロールのみ（`secretmanager.viewer` = メタデータのみ、値は読めない） | このリポジトリの GitHub Actions（`terraform-plan.yml` が使用） |
-| `terraform-deployer` | IAM / Secret Manager / Cloud Run の管理権限（**強い**） | `terraform-apply.yml` @ `refs/heads/main` から発行されたトークンのみ |
+| `terraform-planner` | 読み取り専用ロールのみ（`secretmanager.viewer` = メタデータのみ、値は読めない）+ `storage.bucketViewer`（バケットメタデータ読み取り） | このリポジトリの GitHub Actions（`terraform-plan.yml` が使用） |
+| `terraform-deployer` | IAM / Secret Manager / Cloud Run / GCS（`storage.admin`）の管理権限（**強い**） | `terraform-apply.yml` @ `refs/heads/main` から発行されたトークンのみ |
 
 `terraform plan` は PR ブランチのコード（provider 設定・data source）を CI 上で評価する＝
 **PR の内容がそのまま実行される**。だから plan には読み取り専用の SA しか渡していない。
@@ -150,7 +150,12 @@ terraform output
 
 ## 3. DBマイグレーションについて（Terraform管理外）
 
-このTerraformはCloud Run側のみを扱う。DBスキーマの反映（`prisma migrate deploy` 等）は含めていない
-（`apps/api/prisma/migrations/` が未整備のため。詳細は `docs/12-app-store-release.md` §6.1 と
-`apps/api/docker-entrypoint.sh` のコメント参照）。本番コンテナは `NODE_ENV=production` のとき
-起動時の自動 `db push` をスキップするので、**スキーマ変更はデプロイ前に人が明示的に実行する**。
+このTerraformはCloud Run側のみを扱う。`deploy-api.yml` の `db-schema` ジョブが**加算的変更のみ**を
+`prisma db push --skip-generate`（`--accept-data-loss` なし）で自動適用する（`docs/plans/avatar-upload/db-schema-and-deploy.md` §3）。
+破壊的変更（列削除・型変更など）は `--accept-data-loss` 無しで `db push` が失敗する＝人の判断に戻る。
+
+本番コンテナは `NODE_ENV=production` のとき起動時の自動 `db push` をスキップする
+（`apps/api/docker-entrypoint.sh` 参照）。
+
+`prisma migrate`（履歴管理）への移行は `apps/api/prisma/migrations/` の整備と
+既存本番 DB のベースライン化が必要なため別計画で起票する。
