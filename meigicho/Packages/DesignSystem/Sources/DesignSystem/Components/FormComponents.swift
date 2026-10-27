@@ -307,19 +307,20 @@ public struct ProfileCard: View {
     let name: String
     let tag: String
     var stats: String?
+    var avatarURL: URL?
 
-    public init(initial: String, colorHex: String, name: String, tag: String, stats: String? = nil) {
+    public init(initial: String, colorHex: String, name: String, tag: String, stats: String? = nil, avatarURL: URL? = nil) {
         self.initial = initial
         self.colorHex = colorHex
         self.name = name
         self.tag = tag
         self.stats = stats
+        self.avatarURL = avatarURL
     }
 
     public var body: some View {
         VStack(spacing: 10) {
-            AvatarView(name: initial, colorHex: colorHex)
-                .scaleEffect(1.5)
+            AvatarView(name: initial, colorHex: colorHex, imageURL: avatarURL, size: 66)
                 .padding(.bottom, 4)
             Text(name).font(DSFont.bodyBold)
             Text(tag).font(DSFont.caption).foregroundStyle(DS.Gray.g600)
