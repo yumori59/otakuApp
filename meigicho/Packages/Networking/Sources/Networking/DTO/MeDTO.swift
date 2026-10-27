@@ -38,6 +38,9 @@ struct MeProfileResponse: Decodable, Sendable {
     let locale: String
     let timezone: String
     let onboardedAt: String?
+    /// アバター画像の公開 URL 文字列。未設定・ストレージ未設定・テーブル未作成のときは `null`（`api-contract-delta.md` §1）。
+    /// キー欠落でもデコード成功するよう `Optional` のまま保持する（NFR-AV-8）。
+    let avatarURL: String?
     let createdAt: String
     let updatedAt: String
 
@@ -50,6 +53,7 @@ struct MeProfileResponse: Decodable, Sendable {
         case locale
         case timezone
         case onboardedAt = "onboarded_at"
+        case avatarURL = "avatar_url"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -125,7 +129,8 @@ extension MeResponse {
                 timezone: profile.timezone,
                 onboardedAt: profile.onboardedAt.flatMap(APIDateFormat.dateTime(from:)),
                 email: user.email,
-                authProviders: user.authProviders
+                authProviders: user.authProviders,
+                avatarURL: profile.avatarURL.flatMap(URL.init(string:))
             ),
             entitlement: Entitlement(
                 plan: MePlan.plan(from: entitlement.plan),

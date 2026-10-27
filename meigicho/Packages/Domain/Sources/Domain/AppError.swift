@@ -53,6 +53,12 @@ public enum AppError: Error, Equatable, Sendable {
     /// （汎用マッパーは常に `.conflict` を返す — `contract-mapping.md` §2.3）。
     case shareItemConflict(current: SharedItemSnapshot)
     case rateLimited
+    /// アップロードファイルが 5MiB 上限を超えた（413）。
+    case payloadTooLarge
+    /// JPEG / PNG 以外の形式（415）。
+    case unsupportedMediaType
+    /// ストレージ未設定 / `user_avatars` テーブル未作成（503）。
+    case serviceUnavailable
     case server
     case unknown(code: String, message: String?)
     case decoding(String)
@@ -83,6 +89,9 @@ public enum AppError: Error, Equatable, Sendable {
         case "EMAIL_ALREADY_REGISTERED": return .emailAlreadyRegistered
         case "CONFLICT": return .conflict
         case "RATE_LIMITED": return .rateLimited
+        case "PAYLOAD_TOO_LARGE": return .payloadTooLarge
+        case "UNSUPPORTED_MEDIA_TYPE": return .unsupportedMediaType
+        case "SERVICE_UNAVAILABLE": return .serviceUnavailable
         case "INTERNAL": return .server
         default: return .unknown(code: envelope.code, message: envelope.message)
         }
@@ -157,6 +166,12 @@ public enum AppError: Error, Equatable, Sendable {
             return "他の人が先に更新しました。最新の内容に更新しました"
         case .rateLimited:
             return "試行回数が上限に達しました。しばらく待ってからお試しください"
+        case .payloadTooLarge:
+            return "画像のサイズが大きすぎます（5MB まで）"
+        case .unsupportedMediaType:
+            return "この形式の画像は使えません"
+        case .serviceUnavailable:
+            return "ただいまこの機能を利用できません。時間をおいて再度お試しください"
         case .server:
             return "サーバーエラーが発生しました。時間をおいて再試行してください"
         case .unknown(let code, _):

@@ -85,9 +85,13 @@ struct AccountView: View {
                 initial: (profile.username ?? profile.email ?? "?").prefix(1).uppercased(),
                 colorHex: theme.seedHex,
                 name: profile.username ?? "ユーザーネーム未設定",
-                tag: profile.email ?? ""
+                tag: profile.email ?? "",
+                avatarURL: profile.avatarURL
             )
-            .padding(.bottom, 16)
+            .padding(.bottom, 8)
+
+            AvatarPickerSection()
+                .padding(.bottom, 8)
 
             SectionHeader("ユーザーネーム")
             FormCard {

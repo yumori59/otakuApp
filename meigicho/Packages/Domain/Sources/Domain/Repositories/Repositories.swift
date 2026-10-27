@@ -34,6 +34,10 @@ public protocol AuthRepository: Sendable {
 public protocol ProfileRepository: Sendable {
     func fetchMe() async throws -> MeSnapshot
     func updateMe(_ patch: ProfilePatch) async throws -> MeSnapshot
+    /// `PUT /v1/me/avatar` — 端末で変換済みの JPEG データをアップロードする。
+    func uploadAvatar(jpegData: Data) async throws -> MeSnapshot
+    /// `DELETE /v1/me/avatar` — アバターを削除する（冪等）。
+    func deleteAvatar() async throws -> MeSnapshot
 }
 
 public protocol HomeRepository: Sendable {

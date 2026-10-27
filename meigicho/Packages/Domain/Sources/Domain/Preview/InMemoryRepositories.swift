@@ -263,6 +263,24 @@ public actor InMemoryProfileRepository: ProfileRepository {
         snapshot = MeSnapshot(profile: profile, entitlement: snapshot.entitlement)
         return snapshot
     }
+
+    /// Preview / テスト用のスタブ: 送られた JPEG をファイルに書いてそのパスを avatarURL に設定する。
+    public func uploadAvatar(jpegData: Data) async throws -> MeSnapshot {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("preview-avatar.jpg")
+        try jpegData.write(to: url)
+        var profile = snapshot.profile
+        profile.avatarURL = url
+        snapshot = MeSnapshot(profile: profile, entitlement: snapshot.entitlement)
+        return snapshot
+    }
+
+    /// Preview / テスト用のスタブ: avatarURL を nil にする。
+    public func deleteAvatar() async throws -> MeSnapshot {
+        var profile = snapshot.profile
+        profile.avatarURL = nil
+        snapshot = MeSnapshot(profile: profile, entitlement: snapshot.entitlement)
+        return snapshot
+    }
 }
 
 public actor InMemoryShareRepository: ShareRepository {

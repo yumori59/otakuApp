@@ -307,18 +307,21 @@ public struct ProfileCard: View {
     let name: String
     let tag: String
     var stats: String?
+    /// アバター画像 URL。非 nil のとき `AvatarView` に渡す（FR-AV-20）。
+    var avatarURL: URL?
 
-    public init(initial: String, colorHex: String, name: String, tag: String, stats: String? = nil) {
+    public init(initial: String, colorHex: String, name: String, tag: String, stats: String? = nil, avatarURL: URL? = nil) {
         self.initial = initial
         self.colorHex = colorHex
         self.name = name
         self.tag = tag
         self.stats = stats
+        self.avatarURL = avatarURL
     }
 
     public var body: some View {
         VStack(spacing: 10) {
-            AvatarView(name: initial, colorHex: colorHex)
+            AvatarView(name: initial, colorHex: colorHex, imageURL: avatarURL)
                 .scaleEffect(1.5)
                 .padding(.bottom, 4)
             Text(name).font(DSFont.bodyBold)

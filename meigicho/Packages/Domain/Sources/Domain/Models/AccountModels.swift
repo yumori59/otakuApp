@@ -60,6 +60,8 @@ public struct UserProfile: Equatable, Sendable {
     public var email: String?
     /// `"apple"` / `"google"` / `"email"`。**未知の値が増えてもクラッシュしない**ため `[String]` のまま持つ
     public var authProviders: [String]
+    /// アバター画像の公開 URL。未設定・ストレージ未設定・テーブル未作成のときは `nil`（`api-contract-delta.md` §1）。
+    public var avatarURL: URL?
 
     public init(
         userID: UUID,
@@ -72,7 +74,8 @@ public struct UserProfile: Equatable, Sendable {
         timezone: String,
         onboardedAt: Date? = nil,
         email: String? = nil,
-        authProviders: [String] = []
+        authProviders: [String] = [],
+        avatarURL: URL? = nil
     ) {
         self.userID = userID
         self.accountID = accountID
@@ -85,6 +88,7 @@ public struct UserProfile: Equatable, Sendable {
         self.onboardedAt = onboardedAt
         self.email = email
         self.authProviders = authProviders
+        self.avatarURL = avatarURL
     }
 
     /// パスワード変更 UI を出してよいか（`auth_providers` に `"email"` があるときだけ）。
