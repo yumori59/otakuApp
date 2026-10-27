@@ -34,6 +34,10 @@ public protocol AuthRepository: Sendable {
 public protocol ProfileRepository: Sendable {
     func fetchMe() async throws -> MeSnapshot
     func updateMe(_ patch: ProfilePatch) async throws -> MeSnapshot
+    /// `PUT /v1/me/avatar`。JPEG バイナリを送り、更新後の `MeSnapshot` を返す（`api-contract-delta.md` §2）。
+    func uploadAvatar(jpegData: Data) async throws -> MeSnapshot
+    /// `DELETE /v1/me/avatar`。冪等。削除後の `MeSnapshot`（`avatar_url: null`）を返す（§3）。
+    func deleteAvatar() async throws -> MeSnapshot
 }
 
 public protocol HomeRepository: Sendable {
