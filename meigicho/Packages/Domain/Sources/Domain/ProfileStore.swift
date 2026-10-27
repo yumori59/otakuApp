@@ -14,6 +14,8 @@ public final class ProfileStore {
     public private(set) var entitlement: Entitlement?
     public private(set) var state: LoadState = .idle
     public private(set) var isSaving = false
+    /// アバターのアップロード / 削除中は `true`。
+    public private(set) var isUpdatingAvatar = false
     /// 保存に失敗したときだけ入る。表示後は View 側で消してよい
     public var errorMessage: String?
 
@@ -32,6 +34,8 @@ public final class ProfileStore {
     public var username: String? { profile?.username }
     public var appDisplayName: String? { profile?.appDisplayName }
     public var themeColor: String? { profile?.themeColor }
+    /// アバター URL（`GET /v1/me` の `profile.avatar_url`）。未設定・未読込時は `nil`。
+    public var avatarURL: URL? { profile?.avatarURL }
 
     /// `auth_providers`。**未知の値が増えてもクラッシュしない**（`[String]` のまま保持 — AC-ME-04）
     public var authProviders: [String] { profile?.authProviders ?? [] }
@@ -128,6 +132,40 @@ public final class ProfileStore {
         defer { isSaving = false }
         do {
             apply(try await repository.updateMe(patch))
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = Self.appError(from: error).userMessage
+            return false
+        }
+    }
+
+    // MARK: - アバター
+
+    /// `PUT /v1/me/avatar`。JPEG バイナリを送り、成功時にサーバーの応答で `profile` を差し替える（`api-contract-delta.md` §2）。
+    @discardableResult
+    public func uploadAvatar(jpegData: Data) async -> Bool {
+        guard let repository else { return false }
+        isUpdatingAvatar = true
+        defer { isUpdatingAvatar = false }
+        do {
+            apply(try await repository.uploadAvatar(jpegData: jpegData))
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = Self.appError(from: error).userMessage
+            return false
+        }
+    }
+
+    /// `DELETE /v1/me/avatar`。成功時に `profile.avatarURL` が `nil` になる（§3）。
+    @discardableResult
+    public func deleteAvatar() async -> Bool {
+        guard let repository else { return false }
+        isUpdatingAvatar = true
+        defer { isUpdatingAvatar = false }
+        do {
+            apply(try await repository.deleteAvatar())
             errorMessage = nil
             return true
         } catch {

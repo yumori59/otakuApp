@@ -202,4 +202,8 @@ final class FakeProfileRepository: ProfileRepository, @unchecked Sendable {
         snapshot = MeSnapshot(profile: profile, entitlement: snapshot.entitlement)
         return snapshot
     }
+
+    func uploadAvatar(jpegData: Data) async throws -> MeSnapshot { snapshot }
+
+    func deleteAvatar() async throws -> MeSnapshot { snapshot }
 }

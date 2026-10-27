@@ -32,6 +32,26 @@ describe('error-codes (backend-auth-and-shares-extension)', () => {
   });
 });
 
+describe('error-codes (avatar-upload)', () => {
+  it('AC-AV-20 追加した 3 コードが ERROR_CODE_STATUS に契約どおりのステータスで載っている', () => {
+    expect(ERROR_CODE_STATUS[ErrorCode.PAYLOAD_TOO_LARGE]).toBe(413);
+    expect(ERROR_CODE_STATUS[ErrorCode.UNSUPPORTED_MEDIA_TYPE]).toBe(415);
+    expect(ERROR_CODE_STATUS[ErrorCode.SERVICE_UNAVAILABLE]).toBe(503);
+  });
+
+  it('AC-AV-20 errorCodeFromStatus(413) === PAYLOAD_TOO_LARGE', () => {
+    expect(errorCodeFromStatus(413)).toBe(ErrorCode.PAYLOAD_TOO_LARGE);
+  });
+
+  it('AC-AV-20 errorCodeFromStatus(415) === UNSUPPORTED_MEDIA_TYPE', () => {
+    expect(errorCodeFromStatus(415)).toBe(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+  });
+
+  it('AC-AV-20 errorCodeFromStatus(503) === SERVICE_UNAVAILABLE', () => {
+    expect(errorCodeFromStatus(503)).toBe(ErrorCode.SERVICE_UNAVAILABLE);
+  });
+});
+
 describe('error-codes (share-account-invites)', () => {
   it('AC-SI-T1-01 追加 3 コードが api-contract-delta.md §0.1 のステータスで載っている', () => {
     expect(ERROR_CODE_STATUS[ErrorCode.SHARE_NOT_INVITED]).toBe(

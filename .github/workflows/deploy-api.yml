@@ -1,6 +1,7 @@
 name: Deploy API
 
 # main への apps/api 変更マージで自動デプロイ。
+# DB スキーマの加算的変更（テーブル追加・nullable 列追加など）も適用する（db-schema ジョブ）。
 # インフラの形（Cloud Run の設定・IAM・Secret Manager 等）は変更しない — それは
 # infra/terraform/ + terraform-apply.yml（手動トリガー）の担当。ここはコードの入れ替えのみ。
 #
@@ -43,8 +44,39 @@ jobs:
       - run: npm test -- --passWithNoTests
       - run: npm run build
 
-  deploy:
+  db-schema:
     needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      - name: Require production DB URL
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_DIRECT_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::PROD_DATABASE_DIRECT_URL is not set. Schema must be applied before deploying (see docs/plans/avatar-upload/db-schema-and-deploy.md)."
+            exit 1
+          fi
+      - name: Show pending schema changes
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_DIRECT_URL }}
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script
+      - name: Apply schema (non-destructive)
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_DIRECT_URL }}
+        run: npx prisma db push --skip-generate
+
+  deploy:
+    needs: [test, db-schema]
     runs-on: ubuntu-latest
     permissions:
       contents: read

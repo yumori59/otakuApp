@@ -3,6 +3,8 @@ import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { AppleTokenRevoker } from '../../auth/apple-token.revoker';
 import { PasswordHasher } from '../../auth/password.hasher';
+import { AvatarService } from '../avatar/avatar.service';
+import { AvatarStorage } from '../avatar/avatar.storage';
 import { MeService } from '../me.service';
 import { DeleteMeUseCase } from './delete-me.use-case';
 
@@ -39,6 +41,8 @@ describe('DeleteMeUseCase', () => {
   };
   let hasher: { verify: jest.Mock; hash: jest.Mock; needsRehash: jest.Mock };
   let revoker: { revokeAuthorizationCode: jest.Mock };
+  let avatarService: { findObjectKey: jest.Mock };
+  let avatarStorage: { delete: jest.Mock; isConfigured: jest.Mock };
   let logged: string[];
   let useCase: DeleteMeUseCase;
 
@@ -53,6 +57,11 @@ describe('DeleteMeUseCase', () => {
       needsRehash: jest.fn().mockReturnValue(false),
     };
     revoker = { revokeAuthorizationCode: jest.fn().mockResolvedValue(undefined) };
+    avatarService = { findObjectKey: jest.fn().mockResolvedValue(null) };
+    avatarStorage = {
+      delete: jest.fn().mockResolvedValue(undefined),
+      isConfigured: jest.fn().mockReturnValue(true),
+    };
 
     logged = [];
     const record = (...args: unknown[]) => {
@@ -67,6 +76,8 @@ describe('DeleteMeUseCase', () => {
       meService as unknown as MeService,
       hasher as unknown as PasswordHasher,
       revoker as unknown as AppleTokenRevoker,
+      avatarService as unknown as AvatarService,
+      avatarStorage as unknown as AvatarStorage,
     );
   });
 
@@ -281,5 +292,59 @@ describe('DeleteMeUseCase', () => {
       .catch((e: unknown) => e);
 
     expect(serializeError(error)).not.toContain(PASSWORD);
+  });
+
+  describe('AC-AV-17 退会時のアバター削除（api-contract-delta.md §4）', () => {
+    it('AC-AV-17 アバターキーがあれば deleteAccount 後に storage.delete を呼ぶ', async () => {
+      const KEY = 'avatars/abc123.jpg';
+      avatarService.findObjectKey.mockResolvedValue(KEY);
+
+      const order: string[] = [];
+      meService.deleteAccount.mockImplementation(() => {
+        order.push('deleteAccount');
+        return Promise.resolve();
+      });
+      avatarStorage.delete.mockImplementation(() => {
+        order.push('storage.delete');
+        return Promise.resolve();
+      });
+
+      await useCase.execute(USER_ID, {});
+
+      expect(avatarStorage.delete).toHaveBeenCalledWith(KEY);
+      expect(order).toEqual(['deleteAccount', 'storage.delete']);
+    });
+
+    it('AC-AV-17 アバターキーが null なら storage.delete を呼ばない', async () => {
+      avatarService.findObjectKey.mockResolvedValue(null);
+
+      await useCase.execute(USER_ID, {});
+
+      expect(avatarStorage.delete).not.toHaveBeenCalled();
+    });
+
+    it('AC-AV-17 storage.delete が reject しても 204（例外を飲む）', async () => {
+      avatarService.findObjectKey.mockResolvedValue('avatars/abc123.jpg');
+      avatarStorage.delete.mockRejectedValue(new Error('storage error'));
+
+      await expect(useCase.execute(USER_ID, {})).resolves.toBeUndefined();
+    });
+
+    it('AC-AV-17 deleteAccount の前に findObjectKey を呼ぶ（beforeDelete）', async () => {
+      const order: string[] = [];
+      avatarService.findObjectKey.mockImplementation(() => {
+        order.push('findObjectKey');
+        return Promise.resolve(null);
+      });
+      meService.deleteAccount.mockImplementation(() => {
+        order.push('deleteAccount');
+        return Promise.resolve();
+      });
+
+      await useCase.execute(USER_ID, {});
+
+      expect(order[0]).toBe('findObjectKey');
+      expect(order[1]).toBe('deleteAccount');
+    });
   });
 });

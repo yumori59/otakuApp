@@ -32,3 +32,8 @@ output "secret_manager_secret_ids" {
   description = "値を投入する必要がある Secret Manager のシークレット一覧（infra/terraform/README.md 参照）。"
   value       = [for s in google_secret_manager_secret.this : s.secret_id]
 }
+
+output "avatars_bucket" {
+  description = "アカウントアイコン画像用 GCS バケット名（storage-design.md §2）。"
+  value       = google_storage_bucket.avatars.name
+}

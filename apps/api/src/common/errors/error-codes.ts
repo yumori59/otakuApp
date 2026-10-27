@@ -30,6 +30,13 @@ export const ErrorCode = {
   SHARE_RECIPIENT_UNKNOWN: 'SHARE_RECIPIENT_UNKNOWN',
   /** 自分自身の account_id を招待した。 */
   SHARE_RECIPIENT_SELF: 'SHARE_RECIPIENT_SELF',
+  // avatar-upload で追加 (api-contract-delta.md §0.2)
+  /** リクエスト（ファイル）がサイズ上限を超えた。本機能では 5MiB 超。 */
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  /** 受理しないファイル形式。本機能では JPEG / PNG 以外（HEIC を含む）。 */
+  UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
+  /** 依存先の設定・準備が整っておらず機能が一時的に使えない。ストレージ未設定 / user_avatars 未作成。 */
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -56,6 +63,9 @@ export const ERROR_CODE_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.SHARE_NOT_INVITED]: HttpStatus.FORBIDDEN,
   [ErrorCode.SHARE_RECIPIENT_UNKNOWN]: HttpStatus.BAD_REQUEST,
   [ErrorCode.SHARE_RECIPIENT_SELF]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.PAYLOAD_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
+  [ErrorCode.UNSUPPORTED_MEDIA_TYPE]: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+  [ErrorCode.SERVICE_UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
 };
 
 /**
@@ -76,6 +86,12 @@ export function errorCodeFromStatus(status: number): ErrorCode {
       return ErrorCode.CONFLICT;
     case HttpStatus.TOO_MANY_REQUESTS:
       return ErrorCode.RATE_LIMITED;
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return ErrorCode.PAYLOAD_TOO_LARGE;
+    case HttpStatus.UNSUPPORTED_MEDIA_TYPE:
+      return ErrorCode.UNSUPPORTED_MEDIA_TYPE;
+    case HttpStatus.SERVICE_UNAVAILABLE:
+      return ErrorCode.SERVICE_UNAVAILABLE;
     default:
       return ErrorCode.INTERNAL;
   }

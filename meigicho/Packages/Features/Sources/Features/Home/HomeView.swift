@@ -47,8 +47,18 @@ struct HomeTab: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { path.append(AppRoute.account) } label: {
-                        Image(systemName: "person.circle").font(.system(size: 22))
+                        if let avatarURL = profile.avatarURL {
+                            AvatarView(
+                                name: profile.username ?? "?",
+                                colorHex: theme.seedHex,
+                                imageURL: avatarURL,
+                                size: 28
+                            )
+                        } else {
+                            Image(systemName: "person.circle").font(.system(size: 22))
+                        }
                     }
+                    .accessibilityLabel("アカウント設定")
                     .frame(minWidth: 44, minHeight: 44)
                 }
                 ToolbarItem(placement: .topBarLeading) {

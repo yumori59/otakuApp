@@ -22,4 +22,27 @@ public struct RemoteProfileRepository: ProfileRepository {
         let body = try JSONEncoder().encode(UpdateMeRequest(patch: patch))
         return try await client.send(.versioned(.patch, "/me", body: body), as: MeResponse.self).toDomain()
     }
+
+    /// `PUT /v1/me/avatar`（`api-contract-delta.md` §2）。
+    /// JPEG バイナリを `multipart/form-data` で送り、更新後の `MeSnapshot` を返す。
+    public func uploadAvatar(jpegData: Data) async throws -> MeSnapshot {
+        let multipart = MultipartFormData.singleFile(
+            name: "file",
+            filename: "avatar.jpg",
+            mimeType: "image/jpeg",
+            data: jpegData
+        )
+        let endpoint = Endpoint.versioned(
+            .put,
+            "/me/avatar",
+            body: multipart.body,
+            contentType: multipart.contentType
+        )
+        return try await client.send(endpoint, as: MeResponse.self).toDomain()
+    }
+
+    /// `DELETE /v1/me/avatar`（§3）。冪等。削除後の `MeSnapshot`（`avatar_url: null`）を返す。
+    public func deleteAvatar() async throws -> MeSnapshot {
+        try await client.send(.versioned(.delete, "/me/avatar"), as: MeResponse.self).toDomain()
+    }
 }
